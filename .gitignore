@@ -35,3 +35,15 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Shell / system files (home directory artifacts)
+.bash_history
+.bash_logout
+.bashrc
+.bash_profile
+.profile
+.cloud-locale-test.skip
+.psql_history
+.viminfo
+.lesshst
+.wget-hsts
