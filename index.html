@@ -1400,6 +1400,8 @@ function showView(view, netId) {
   document.getElementById('view-admin').style.display   = view === 'admin'   ? '' : 'none';
   document.getElementById('view-help').style.display    = view === 'help'    ? '' : 'none';
   document.getElementById('view-report').style.display  = view === 'report'  ? '' : 'none';
+  // schedule-panel lives outside view-session in the DOM — hide it explicitly when leaving session view
+  if (view !== 'session') document.getElementById('schedule-panel').style.display = 'none';
 
   document.querySelectorAll('[id^="nav-"]').forEach(el => el.classList.remove('active'));
   if (view === 'nets')    document.getElementById('nav-nets').classList.add('active');
@@ -1787,6 +1789,7 @@ async function openNet(netId) {
   document.getElementById('nav-history').style.display = '';
   document.getElementById('live-session-panel').style.display = 'none';
   showView('session');
+  switchSubTab('sessions');
   await loadSessions();
 }
 
