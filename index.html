@@ -623,6 +623,7 @@
               <span class="text-muted" id="session-meta"></span>
               <div style="margin-left:auto;display:flex;gap:8px">
                 <button class="btn btn-ghost btn-sm" id="end-session-btn" onclick="endSession()">■ End Session</button>
+                <button class="btn btn-ghost btn-sm" onclick="openICS205(currentSessionId)">📄 ICS-205</button>
                 <button class="btn btn-ghost btn-sm" onclick="exportSession()">⬇ CSV</button>
               </div>
             </div>
@@ -1011,6 +1012,16 @@
 
         <div class="card" style="margin-bottom:16px">
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
+
+          <div style="border-left:3px solid var(--lc-blue);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-blue);margin-bottom:4px">2026-08-12 — ICS-205 Fixes &amp; Branding</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>Fixed ICS-205 export returning "Not authenticated" — now fetches with proper auth credentials.</li>
+              <li>ICS-205 / Net Log button now available in the live session toolbar (alongside End Session and CSV export) — no need to wait until the net ends.</li>
+              <li>Configurable organization branding: set your org name, tagline, website URL, and upload a custom logo from the Admin panel.</li>
+              <li>Public live page (<strong>/live</strong>) — unauthenticated real-time view of active nets and check-in rosters, auto-refreshes every 30 seconds.</li>
+            </ul>
+          </div>
 
           <div style="border-left:3px solid var(--lc-blue);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-blue);margin-bottom:4px">2026-08-11 — Net Sharing &amp; Problem Reports</div>
@@ -3041,8 +3052,18 @@ function showSessionSummary(summary) {
   modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
 }
 
-function openICS205(sessionId) {
-  window.open(`/sessions/${sessionId}/ics205?token=${encodeURIComponent(localStorage.getItem('token') || '')}`, '_blank');
+async function openICS205(sessionId) {
+  try {
+    const res = await fetch(`/sessions/${sessionId}/ics205`, {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!res.ok) throw new Error('Failed to load net log (' + res.status + ')');
+    const html = await res.text();
+    const blob = new Blob([html], { type: 'text/html' });
+    window.open(URL.createObjectURL(blob), '_blank');
+  } catch (e) {
+    toast(e.message, 'error');
+  }
 }
 
 async function exportSessionById(sessionId) {

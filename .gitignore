@@ -48,3 +48,4 @@ htmlcov/
 .lesshst
 .wget-hsts
 gitpush.sh
+.gitconfig
