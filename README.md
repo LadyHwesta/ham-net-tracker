@@ -70,6 +70,8 @@ CREATE DATABASE netcontrol OWNER netcontrol;
 \q
 ```
 
+> **Note:** The initial `CREATE USER` and `CREATE DATABASE` must be run as the `postgres` superuser. All subsequent commands — including migrations — should be run as the `netcontrol` user (`sudo -u netcontrol psql netcontrol`) so that created tables are automatically owned by the app user and no GRANTs are needed.
+
 ### 4. Configure environment
 
 ```bash

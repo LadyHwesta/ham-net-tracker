@@ -1157,7 +1157,7 @@
         <div id="help-db-section" class="card">
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">DATABASE MIGRATIONS</h3>
           <p style="margin:0 0 8px">The PostgreSQL database is named <code style="background:var(--surface);padding:1px 5px;border-radius:3px">netcontrol</code>. Connect with:</p>
-          <pre style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:12px;overflow-x:auto;margin:0 0 8px">sudo -u postgres psql netcontrol</pre>
+          <pre style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:12px;overflow-x:auto;margin:0 0 8px">sudo -u netcontrol psql netcontrol</pre>
           <p style="margin:0 0 4px;font-size:12px;color:var(--text-muted)">Required migrations for all features:</p>
           <pre style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:11px;overflow-x:auto;margin:0">ALTER TABLE nets ADD COLUMN IF NOT EXISTS is_ares BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE checkins ADD COLUMN IF NOT EXISTS has_traffic BOOLEAN NOT NULL DEFAULT FALSE;
