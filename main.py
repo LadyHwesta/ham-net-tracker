@@ -42,6 +42,7 @@ import os
 import pathlib
 import smtplib
 from datetime import date, datetime, timedelta, timezone
+from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
@@ -91,8 +92,16 @@ def _smtp_configured() -> bool:
     return bool(SMTP_HOST and SMTP_USER and SMTP_PASSWORD)
 
 
-def send_email(to: list[str], subject: str, body_html: str, body_text: str = "") -> None:
-    """Send an HTML email.  Silently skips (logs warning) if SMTP is not configured."""
+def send_email(
+    to: list[str],
+    subject: str,
+    body_html: str,
+    body_text: str = "",
+    ics_content: str | None = None,
+    ics_filename: str = "netcontrol.ics",
+) -> None:
+    """Send an HTML email, optionally with an ICS calendar attachment.
+    Silently skips (logs warning) if SMTP is not configured."""
     if not _smtp_configured():
         _email_log.debug("SMTP not configured — skipping email: %s", subject)
         return
@@ -100,14 +109,33 @@ def send_email(to: list[str], subject: str, body_html: str, body_text: str = "")
         return
 
     from_addr = SMTP_FROM or SMTP_USER
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"]    = from_addr
-    msg["To"]      = ", ".join(to)
 
-    if body_text:
-        msg.attach(MIMEText(body_text, "plain"))
-    msg.attach(MIMEText(body_html, "html"))
+    if ics_content:
+        # multipart/mixed wraps alternative body + ics attachment
+        outer = MIMEMultipart("mixed")
+        outer["Subject"] = subject
+        outer["From"]    = from_addr
+        outer["To"]      = ", ".join(to)
+
+        alt = MIMEMultipart("alternative")
+        if body_text:
+            alt.attach(MIMEText(body_text, "plain"))
+        alt.attach(MIMEText(body_html, "html"))
+        outer.attach(alt)
+
+        ics_part = MIMEBase("text", "calendar", method="REQUEST", charset="UTF-8")
+        ics_part.set_payload(ics_content.encode("utf-8"))
+        ics_part["Content-Disposition"] = f'attachment; filename="{ics_filename}"'
+        outer.attach(ics_part)
+        msg = outer
+    else:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"]    = from_addr
+        msg["To"]      = ", ".join(to)
+        if body_text:
+            msg.attach(MIMEText(body_text, "plain"))
+        msg.attach(MIMEText(body_html, "html"))
 
     try:
         if SMTP_USE_SSL:
@@ -123,6 +151,74 @@ def send_email(to: list[str], subject: str, body_html: str, body_text: str = "")
         _email_log.info("Email sent to %s — %s", to, subject)
     except Exception as exc:
         _email_log.warning("Failed to send email to %s: %s", to, exc)
+
+
+def _build_ics(net: "Net", schedule: "NetSchedule", signup: "NetControlSignup") -> str:
+    """Build an iCalendar (ICS) event string for a net control signup."""
+    import re
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    tz_str = schedule.timezone or "UTC"
+    try:
+        tz = ZoneInfo(tz_str)
+    except ZoneInfoNotFoundError:
+        tz = ZoneInfo("UTC")
+        tz_str = "UTC"
+
+    h, m = map(int, schedule.start_time.split(":"))
+    naive_start = datetime(
+        signup.slot_date.year, signup.slot_date.month, signup.slot_date.day, h, m
+    )
+    local_start = naive_start.replace(tzinfo=tz)
+    utc_start   = local_start.astimezone(ZoneInfo("UTC"))
+    utc_end     = utc_start + timedelta(hours=1)   # default 1-hour block
+
+    dtstamp = datetime.now(ZoneInfo("UTC")).strftime("%Y%m%dT%H%M%SZ")
+    dtstart = utc_start.strftime("%Y%m%dT%H%M%SZ")
+    dtend   = utc_end.strftime("%Y%m%dT%H%M%SZ")
+
+    uid = f"netcontrol-{signup.id}-{signup.slot_date}@hamnettracker"
+
+    # Build description (escape commas and newlines per RFC 5545)
+    desc_parts = [f"You are scheduled as Net Control for {net.name}."]
+    if net.frequency:
+        desc_parts.append(f"Frequency: {net.frequency}")
+    desc_parts.append(f"Date: {signup.slot_date}")
+    desc_parts.append(f"Time: {schedule.start_time} {tz_str}")
+    if schedule.notes:
+        desc_parts.append(f"Net notes: {schedule.notes}")
+    if signup.notes:
+        desc_parts.append(f"Your notes: {signup.notes}")
+    description = "\\n".join(desc_parts)
+
+    # Organizer — strip display name if present
+    organizer_raw = SMTP_FROM or SMTP_USER or ""
+    m2 = re.search(r"<(.+?)>", organizer_raw)
+    organizer_email = m2.group(1) if m2 else organizer_raw
+
+    attendee_name  = signup.name or signup.callsign
+    attendee_email = signup.email or ""
+
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//Ham Net Tracker//Ham Radio//EN",
+        "METHOD:REQUEST",
+        "BEGIN:VEVENT",
+        f"UID:{uid}",
+        f"DTSTAMP:{dtstamp}",
+        f"DTSTART:{dtstart}",
+        f"DTEND:{dtend}",
+        f"SUMMARY:{net.name} – Net Control",
+        f"DESCRIPTION:{description}",
+    ]
+    if organizer_email:
+        lines.append(f"ORGANIZER:mailto:{organizer_email}")
+    if attendee_email:
+        lines.append(f"ATTENDEE;CN={attendee_name};RSVP=FALSE:mailto:{attendee_email}")
+    lines += ["END:VEVENT", "END:VCALENDAR"]
+
+    return "\r\n".join(lines) + "\r\n"
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
@@ -2123,6 +2219,57 @@ def create_signup(net_id: int, data: SignupCreate, current_user: User = Depends(
     db.add(signup)
     db.commit()
     db.refresh(signup)
+
+    # Send confirmation email with calendar attachment if we have an address
+    _email_log.info(
+        "Signup created: callsign=%s email=%r smtp_configured=%s",
+        signup_callsign, signup_email, _smtp_configured(),
+    )
+    if signup_email:
+        days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        day_name = days[sched.day_of_week]
+        assigned_by_admin = bool(data.assigned_user_id)
+        action = "assigned you as" if assigned_by_admin else "confirmed your sign-up as"
+        subject = f"[{net.name}] Net Control – {signup.slot_date.strftime('%a %b %-d, %Y')}"
+        body_html = f"""
+<html><body style="font-family:sans-serif;color:#222;max-width:600px">
+<h2 style="color:#1a6496">{net.name}</h2>
+<p>Hi {signup_name or signup_callsign},</p>
+<p>This email {action} <strong>Net Control Operator</strong> for the following session:</p>
+<table style="border-collapse:collapse;margin:16px 0">
+  <tr><td style="padding:6px 16px 6px 0;font-weight:bold">Date</td>
+      <td style="padding:6px 0">{signup.slot_date.strftime('%A, %B %-d, %Y')}</td></tr>
+  <tr><td style="padding:6px 16px 6px 0;font-weight:bold">Time</td>
+      <td style="padding:6px 0">{sched.start_time} {sched.timezone}</td></tr>
+  {"<tr><td style='padding:6px 16px 6px 0;font-weight:bold'>Frequency</td><td style='padding:6px 0'>" + net.frequency + "</td></tr>" if net.frequency else ""}
+  {"<tr><td style='padding:6px 16px 6px 0;font-weight:bold'>Notes</td><td style='padding:6px 0'>" + signup.notes + "</td></tr>" if signup.notes else ""}
+</table>
+<p>A calendar event is attached — add it to your calendar to set a reminder.</p>
+<p style="color:#666;font-size:12px">73 de Ham Net Tracker</p>
+</body></html>"""
+        body_text = (
+            f"{net.name} – Net Control Confirmation\n\n"
+            f"Hi {signup_name or signup_callsign},\n\n"
+            f"This email {action} Net Control Operator for:\n"
+            f"  Date:      {signup.slot_date.strftime('%A, %B %-d, %Y')}\n"
+            f"  Time:      {sched.start_time} {sched.timezone}\n"
+            + (f"  Frequency: {net.frequency}\n" if net.frequency else "")
+            + (f"  Notes:     {signup.notes}\n" if signup.notes else "")
+            + "\nA calendar event (.ics) is attached.\n\n73 de Ham Net Tracker"
+        )
+        try:
+            ics = _build_ics(net, sched, signup)
+            send_email(
+                to=[signup_email],
+                subject=subject,
+                body_html=body_html,
+                body_text=body_text,
+                ics_content=ics,
+                ics_filename=f"netcontrol-{signup.slot_date}.ics",
+            )
+        except Exception as exc:
+            _email_log.warning("Failed to send signup confirmation to %s: %s", signup_email, exc)
+
     return SignupOut(
         id=signup.id,
         schedule_id=signup.schedule_id,
