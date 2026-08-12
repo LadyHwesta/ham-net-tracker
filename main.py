@@ -39,6 +39,7 @@ import csv
 import io
 import logging
 import os
+import pathlib
 import smtplib
 from datetime import date, datetime, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
@@ -49,7 +50,7 @@ from typing import Optional
 import httpx
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi import Depends, FastAPI, File, HTTPException, Query, Response, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -60,7 +61,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from database import get_db, init_db
-from models import Checkin, EvacZone, Net, NetControlSignup, NetSchedule, NetSession, NetShare, StationRemark, TrafficMessage, User
+from models import Checkin, EvacZone, Net, NetControlSignup, NetSchedule, NetSession, NetShare, StationRemark, SystemSetting, TrafficMessage, User, utcnow
 
 load_dotenv()
 
@@ -81,6 +82,7 @@ SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMTP_FROM     = os.getenv("SMTP_FROM", "")        # e.g. "Ham Net Tracker <noreply@example.com>"
 SMTP_USE_TLS  = os.getenv("SMTP_USE_TLS", "true").lower() == "true"   # STARTTLS (port 587)
 SMTP_USE_SSL  = os.getenv("SMTP_USE_SSL", "false").lower() == "true"  # SSL/TLS (port 465)
+ADMIN_CONTACT_EMAIL = os.getenv("ADMIN_CONTACT_EMAIL", "")  # shown in approval emails as human contact
 
 _email_log = logging.getLogger("ham_net_tracker.email")
 
@@ -139,9 +141,14 @@ app.add_middleware(
 )
 
 
+UPLOADS_DIR = pathlib.Path(__file__).parent / "uploads"
+LOGO_PATH   = UPLOADS_DIR / "logo"   # extension determined at upload time; we store it beside this stem
+
+
 @app.on_event("startup")
 def on_startup():
     init_db()
+    UPLOADS_DIR.mkdir(exist_ok=True)
 
 
 # ---------------------------------------------------------------------------
@@ -227,6 +234,19 @@ class UserPublicOut(BaseModel):
 class NetShareUpdate(BaseModel):
     share_with_all: bool = False
     user_ids: list[int] = []   # specific user IDs to share with (ignored when share_with_all=True)
+
+
+class BrandingOut(BaseModel):
+    org_name: Optional[str] = None
+    tagline: Optional[str] = None
+    website_url: Optional[str] = None
+    has_logo: bool = False
+
+
+class BrandingUpdate(BaseModel):
+    org_name: Optional[str] = None
+    tagline: Optional[str] = None
+    website_url: Optional[str] = None
 
 
 class SessionCreate(BaseModel):
@@ -562,6 +582,109 @@ def public_session_detail(session_id: int, db: Session = Depends(get_db)):
 
 
 # ---------------------------------------------------------------------------
+# Branding
+# ---------------------------------------------------------------------------
+
+BRANDING_KEYS = ("org_name", "tagline", "website_url")
+
+
+def _get_setting(key: str, db: Session) -> Optional[str]:
+    row = db.query(SystemSetting).filter(SystemSetting.key == key).first()
+    return row.value if row else None
+
+
+def _set_setting(key: str, value: Optional[str], db: Session):
+    row = db.query(SystemSetting).filter(SystemSetting.key == key).first()
+    if row:
+        row.value = value
+        row.updated_at = utcnow()
+    else:
+        db.add(SystemSetting(key=key, value=value))
+
+
+def _logo_file() -> Optional[pathlib.Path]:
+    """Return the logo file path if one exists (any image extension)."""
+    for ext in ("png", "jpg", "jpeg", "gif", "webp", "svg"):
+        p = UPLOADS_DIR / f"logo.{ext}"
+        if p.exists():
+            return p
+    return None
+
+
+@app.get("/branding", response_model=BrandingOut)
+def get_branding(db: Session = Depends(get_db)):
+    """Public endpoint — returns current branding settings."""
+    return BrandingOut(
+        org_name=_get_setting("org_name", db),
+        tagline=_get_setting("tagline", db),
+        website_url=_get_setting("website_url", db),
+        has_logo=_logo_file() is not None,
+    )
+
+
+@app.get("/logo")
+def get_logo():
+    """Public endpoint — serves the uploaded logo file."""
+    p = _logo_file()
+    if not p:
+        raise HTTPException(404, "No logo uploaded")
+    ext = p.suffix.lstrip(".")
+    mime = {
+        "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+        "gif": "image/gif", "webp": "image/webp", "svg": "image/svg+xml",
+    }.get(ext, "application/octet-stream")
+    return Response(content=p.read_bytes(), media_type=mime)
+
+
+@app.put("/admin/branding", response_model=BrandingOut)
+def update_branding(
+    data: BrandingUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Admin only — update branding text settings."""
+    if not current_user.is_admin:
+        raise HTTPException(403, "Admin only")
+    _set_setting("org_name", data.org_name or None, db)
+    _set_setting("tagline", data.tagline or None, db)
+    _set_setting("website_url", data.website_url or None, db)
+    db.commit()
+    return BrandingOut(
+        org_name=_get_setting("org_name", db),
+        tagline=_get_setting("tagline", db),
+        website_url=_get_setting("website_url", db),
+        has_logo=_logo_file() is not None,
+    )
+
+
+@app.post("/admin/branding/logo", status_code=204)
+async def upload_logo(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    """Admin only — upload a logo image (PNG, JPG, GIF, WebP, SVG)."""
+    if not current_user.is_admin:
+        raise HTTPException(403, "Admin only")
+    ext = (file.filename or "").rsplit(".", 1)[-1].lower()
+    if ext not in ("png", "jpg", "jpeg", "gif", "webp", "svg"):
+        raise HTTPException(400, "Unsupported file type — use PNG, JPG, GIF, WebP, or SVG")
+    # Remove any old logo files
+    for old in UPLOADS_DIR.glob("logo.*"):
+        old.unlink(missing_ok=True)
+    dest = UPLOADS_DIR / f"logo.{ext}"
+    dest.write_bytes(await file.read())
+
+
+@app.delete("/admin/branding/logo", status_code=204)
+def delete_logo(current_user: User = Depends(get_current_user)):
+    """Admin only — remove the current logo."""
+    if not current_user.is_admin:
+        raise HTTPException(403, "Admin only")
+    for old in UPLOADS_DIR.glob("logo.*"):
+        old.unlink(missing_ok=True)
+
+
+# ---------------------------------------------------------------------------
 # Support tickets
 # ---------------------------------------------------------------------------
 
@@ -571,7 +694,7 @@ class SupportTicketCreate(BaseModel):
     body: str
 
 
-SUPPORT_EMAIL = "support@meskis.net"
+SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL", "")   # helpdesk address for support tickets
 
 @app.post("/support/ticket", status_code=204)
 def create_support_ticket(
@@ -580,6 +703,8 @@ def create_support_ticket(
 ):
     if not _smtp_configured():
         raise HTTPException(503, "Email is not configured on this server")
+    if not SUPPORT_EMAIL:
+        raise HTTPException(503, "Support email address is not configured on this server")
     if not data.subject.strip() or not data.body.strip():
         raise HTTPException(400, "Subject and body are required")
 
@@ -840,15 +965,14 @@ def admin_approve_user(user_id: int, admin: User = Depends(require_admin), db: S
   <h2 style="color:#FF9900">Account Approved!</h2>
   <p>Hello <strong>{user.name}</strong> ({user.callsign}),</p>
   <p>Your Ham Net Tracker account has been reviewed and approved. You can now log in and start using the system.</p>
-  <p style="color:#888;font-size:12px">This email box is not monitored. If you have any questions please email
-     <a href="mailto:tiesa@meskis.net" style="color:#FF9900">tiesa@meskis.net</a>.</p>
+  {f'<p style="color:#888;font-size:12px">This email box is not monitored. If you have any questions please email <a href="mailto:{ADMIN_CONTACT_EMAIL}" style="color:#FF9900">{ADMIN_CONTACT_EMAIL}</a>.</p>' if ADMIN_CONTACT_EMAIL else ''}
   <p style="color:#888;font-size:12px">If you did not request this account, please disregard this message.</p>
 </div>""",
         body_text=(
             f"Hello {user.name} ({user.callsign}),\n\n"
             f"Your Ham Net Tracker account has been approved. You can now log in.\n\n"
-            f"This email box is not monitored. If you have any questions please email tiesa@meskis.net.\n\n"
-            f"If you did not request this account, please disregard this message."
+            + (f"This email box is not monitored. If you have any questions please email {ADMIN_CONTACT_EMAIL}.\n\n" if ADMIN_CONTACT_EMAIL else "")
+            + "If you did not request this account, please disregard this message."
         ),
     )
 

@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ham Radio Net Tracker</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230a0a1a'/%3E%3C!-- Tower base --%3E%3Crect x='15' y='20' width='2' height='8' fill='%23ff9900'/%3E%3Crect x='11' y='27' width='10' height='2' rx='1' fill='%23ff9900'/%3E%3C!-- Tower mast --%3E%3Crect x='15.5' y='6' width='1' height='14' fill='%23ff9900'/%3E%3C!-- Signal arcs --%3E%3Cpath d='M10 14 A8 8 0 0 1 22 14' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M7 18 A11 11 0 0 1 25 18' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round' opacity='0.6'/%3E%3Cpath d='M4 22 A14 14 0 0 1 28 22' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round' opacity='0.3'/%3E%3C!-- Tip dot --%3E%3Ccircle cx='16' cy='6' r='1.5' fill='%23ff9900'/%3E%3C/svg%3E" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;900&display=swap" rel="stylesheet" />
   <style>
@@ -488,8 +489,13 @@
   <header>
     <div class="header-lcars">
       <button id="menu-btn" onclick="toggleSidebar()" aria-label="Toggle menu" style="background:none;border:none;cursor:pointer;color:#000;font-size:20px;padding:2px 4px;line-height:1">☰</button>
-      <span style="font-size:18px">📻</span>
-      <h1><span>Net</span> Tracker</h1>
+      <img id="header-logo" src="/logo" alt="" style="max-height:36px;max-width:120px;display:none;border-radius:4px;object-fit:contain"
+        onerror="this.style.display='none'" onload="this.style.display=''" />
+      <span id="header-antenna" style="font-size:18px">📻</span>
+      <div>
+        <h1 id="header-title"><span>Net</span> Tracker</h1>
+        <div id="header-tagline" style="display:none;font-size:11px;color:rgba(0,0,0,0.6);font-weight:600;letter-spacing:.04em;margin-top:-2px"></div>
+      </div>
     </div>
     <div id="header-user">
       <span id="header-signed-in-text">Signed in as <strong id="header-callsign"></strong></span>
@@ -931,6 +937,38 @@
       <div id="view-admin" style="display:none">
         <h2 class="section-title">Operator Management</h2>
 
+        <!-- Branding card -->
+        <div class="card" style="margin-bottom:16px">
+          <h3 style="margin:0 0 14px;font-size:14px;color:var(--text-muted)">BRANDING</h3>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Organization Name</label>
+              <input class="form-control" id="branding-org-name" placeholder="e.g. King County ARES" />
+            </div>
+            <div class="form-group">
+              <label>Website URL</label>
+              <input class="form-control" id="branding-website-url" placeholder="https://your-club-website.org" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Tagline / Subtitle</label>
+            <input class="form-control" id="branding-tagline" placeholder="e.g. Served Agency: King County Emergency Management" />
+          </div>
+          <div class="form-group">
+            <label>Logo <span class="text-muted" style="font-size:11px">(PNG, JPG, GIF, WebP, or SVG — displayed in the header)</span></label>
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+              <img id="branding-logo-preview" src="/logo" style="max-height:48px;max-width:180px;display:none;border-radius:4px"
+                onerror="this.style.display='none'" onload="this.style.display=''" />
+              <input type="file" id="branding-logo-file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
+                style="font-size:13px;color:var(--lc-text)" onchange="previewLogo(this)" />
+              <button class="btn btn-danger btn-sm" id="branding-logo-delete-btn" onclick="deleteLogo()" style="display:none">Remove Logo</button>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:4px">
+            <button class="btn btn-primary btn-sm" onclick="saveBranding()">Save Branding</button>
+          </div>
+        </div>
+
         <!-- Email status card -->
         <div class="card" style="margin-bottom:16px">
           <h3 style="margin:0 0 10px;font-size:14px;color:var(--text-muted)">EMAIL CONFIGURATION</h3>
@@ -1326,6 +1364,7 @@ async function enterApp() {
   // Mobile: show just the callsign badge in the header
   const shortEl = document.getElementById('header-callsign-short');
   if (shortEl) shortEl.textContent = currentUser.callsign;
+  await loadBranding();
   await loadNets();
   showView('nets');
 }
@@ -1366,7 +1405,113 @@ function showView(view, netId) {
     const id = netId || currentNetId || (nets.length ? nets[0].id : null);
     if (id) loadHistory(id);
   }
-  if (view === 'admin') loadAdminUsers();
+  if (view === 'admin') { loadAdminUsers(); loadAdminBranding(); }
+}
+
+// ============================================================
+// BRANDING
+// ============================================================
+let currentBranding = {};
+
+async function loadBranding() {
+  try { currentBranding = await apiFetch('/branding'); } catch { return; }
+  applyBranding(currentBranding);
+}
+
+function applyBranding(b) {
+  // Header title
+  const titleEl = document.getElementById('header-title');
+  if (b.org_name) {
+    titleEl.innerHTML = `<span>${esc(b.org_name)}</span>`;
+    document.title = b.org_name + ' — Net Tracker';
+  } else {
+    titleEl.innerHTML = '<span>Net</span> Tracker';
+    document.title = 'Ham Radio Net Tracker';
+  }
+  // Tagline
+  const tagEl = document.getElementById('header-tagline');
+  if (b.tagline) { tagEl.textContent = b.tagline; tagEl.style.display = ''; }
+  else { tagEl.style.display = 'none'; }
+  // Logo
+  const logoEl = document.getElementById('header-logo');
+  const antennaEl = document.getElementById('header-antenna');
+  if (b.has_logo) {
+    logoEl.src = '/logo?' + Date.now(); // cache-bust
+    antennaEl.style.display = 'none';
+  } else {
+    logoEl.style.display = 'none';
+    antennaEl.style.display = '';
+  }
+  // Website link on title
+  if (b.website_url) {
+    titleEl.style.cursor = 'pointer';
+    titleEl.onclick = () => window.open(b.website_url, '_blank');
+    titleEl.title = b.website_url;
+  } else {
+    titleEl.style.cursor = '';
+    titleEl.onclick = null;
+    titleEl.title = '';
+  }
+}
+
+async function loadAdminBranding() {
+  try {
+    const b = await apiFetch('/branding');
+    document.getElementById('branding-org-name').value = b.org_name || '';
+    document.getElementById('branding-tagline').value = b.tagline || '';
+    document.getElementById('branding-website-url').value = b.website_url || '';
+    const deleteBtn = document.getElementById('branding-logo-delete-btn');
+    const preview = document.getElementById('branding-logo-preview');
+    if (b.has_logo) {
+      preview.src = '/logo?' + Date.now();
+      deleteBtn.style.display = '';
+    } else {
+      preview.style.display = 'none';
+      deleteBtn.style.display = 'none';
+    }
+  } catch {}
+}
+
+function previewLogo(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const preview = document.getElementById('branding-logo-preview');
+  preview.src = URL.createObjectURL(file);
+}
+
+async function saveBranding() {
+  const org_name = document.getElementById('branding-org-name').value.trim() || null;
+  const tagline  = document.getElementById('branding-tagline').value.trim() || null;
+  const website_url = document.getElementById('branding-website-url').value.trim() || null;
+  try {
+    // Save text settings
+    await apiFetch('/admin/branding', { method: 'PUT', body: JSON.stringify({ org_name, tagline, website_url }) });
+    // Upload logo if a file was selected
+    const fileInput = document.getElementById('branding-logo-file');
+    if (fileInput.files[0]) {
+      const fd = new FormData();
+      fd.append('file', fileInput.files[0]);
+      await fetch('/admin/branding/logo', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token },
+        body: fd,
+      }).then(r => { if (!r.ok) throw new Error('Logo upload failed'); });
+      fileInput.value = '';
+    }
+    toast('Branding saved');
+    await loadBranding();
+    await loadAdminBranding();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function deleteLogo() {
+  if (!confirm('Remove the current logo?')) return;
+  try {
+    await apiFetch('/admin/branding/logo', { method: 'DELETE' });
+    toast('Logo removed');
+    await loadBranding();
+    await loadAdminBranding();
+  } catch (e) { toast(e.message, 'error'); }
 }
 
 // ============================================================

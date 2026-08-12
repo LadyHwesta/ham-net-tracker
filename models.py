@@ -209,6 +209,18 @@ class NetSchedule(Base):
         return f"<NetSchedule {days[self.day_of_week]} {self.start_time}>"
 
 
+class SystemSetting(Base):
+    """Key-value store for site-wide configuration such as branding."""
+    __tablename__ = "system_settings"
+
+    key = Column(String(100), primary_key=True)
+    value = Column(Text, nullable=True)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<SystemSetting key={self.key}>"
+
+
 class NetControlSignup(Base):
     """A logged-in operator claiming net control for a specific upcoming date"""
     __tablename__ = "net_control_signups"
