@@ -15,11 +15,13 @@ A web-based net control logging application for amateur radio operators. Designe
 - **Session summary & ICS-205** — automatic summary card on session end, printable net log export
 - **Session clock** — live local/UTC time and elapsed session timer
 - **Net sharing** — share nets with individual operators or all registered users
-- **Scheduling** — weekly recurring time slots with net control operator sign-ups
+- **Scheduling** — weekly recurring time slots with net control operator sign-ups; confirmation emails include a `.ics` calendar attachment
 - **Session history** — attendance statistics, filtering, and CSV export
 - **Public live page** — unauthenticated `/live` page showing active nets and check-in rosters in real time
 - **In-app problem reporting** — users can submit bug reports and enhancement requests directly to the administrator
 - **User management** — registration with admin approval, email notifications, admin panel
+- **Configurable branding** — set organization name, tagline, website URL, and logo from the Admin panel
+- **DMR hotspot integration** — connect a net to a WPSD, Pi-Star, or BrandMeister talk group; see a live "last heard" panel during the session, quick-check-in heard stations, and log Talk Group + Region per check-in
 
 ## Tech Stack
 
@@ -98,9 +100,16 @@ uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 
 ## Database Migrations
 
-If upgrading from an earlier version, run any applicable migrations:
+> **Fresh installs:** `init_db()` (step 5 above) creates the full current schema automatically. No migration SQL needed.
+
+**Upgrading an existing install** — connect as the app user and run any statements below that your version is missing:
+
+```bash
+sudo -u netcontrol psql netcontrol
+```
 
 ```sql
+-- Added in early versions
 ALTER TABLE nets ADD COLUMN IF NOT EXISTS is_ares BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE checkins ADD COLUMN IF NOT EXISTS has_traffic BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE checkins ADD COLUMN IF NOT EXISTS evac_zone VARCHAR(100);
@@ -137,6 +146,22 @@ CREATE TABLE IF NOT EXISTS net_shares (
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT uq_net_share_net_user UNIQUE (net_id, user_id));
+
+-- DMR integration (2026-08-13)
+ALTER TABLE nets ADD COLUMN IF NOT EXISTS dmr_talkgroup VARCHAR(20);
+ALTER TABLE checkins ADD COLUMN IF NOT EXISTS dmr_talkgroup VARCHAR(20);
+ALTER TABLE checkins ADD COLUMN IF NOT EXISTS dmr_region VARCHAR(100);
+
+CREATE TABLE IF NOT EXISTS dmr_configs (
+    id SERIAL PRIMARY KEY,
+    net_id INTEGER NOT NULL REFERENCES nets(id) ON DELETE CASCADE,
+    source_type VARCHAR(20) NOT NULL DEFAULT 'wpsd',
+    hotspot_url TEXT,
+    talkgroup_id INTEGER,
+    filter_callsign VARCHAR(12),
+    direct_mode BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_dmr_config_net UNIQUE (net_id));
 ```
 
 ## Deployment
@@ -191,6 +216,74 @@ The first user to register is automatically granted admin privileges. Subsequent
 ## Public Live Page
 
 A public, unauthenticated page showing all currently active nets is available at `/live`. Share this URL with club members or post it on your club website — it auto-refreshes every 30 seconds and shows the real-time check-in roster for each active net.
+
+## DMR Hotspot Integration
+
+Net owners can configure DMR last-heard data in the net's Edit form. Three source types are supported: **WPSD**, **Pi-Star**, and **BrandMeister** (by talk group).
+
+### Fetch modes
+
+| Mode | How it works | Use when |
+|------|-------------|----------|
+| **Proxy** (default) | Server fetches the hotspot URL | Hotspot is internet-accessible |
+| **Direct** | Browser fetches the hotspot directly | Hotspot is on local LAN; browser has CORS/insecure-content permissions set |
+| **Relay script** | Small Python script on the LAN pushes data to the server | Hotspot is local-only and CORS is blocked (most common home setup) |
+
+### DMR relay script
+
+If your hotspot is on a local network and browser CORS restrictions prevent direct fetching, download `dmr_relay.py` from the net's DMR config section in the app. It runs on any machine that can reach the hotspot (the Pi itself works well) and pushes last-heard data to the server every 30 seconds.
+
+**Setup:**
+
+1. Go to **🪙 API Tokens** in the sidebar and create a token (e.g. "DMR Relay - shack Pi"). Copy the token — it is shown only once.
+2. Download `dmr_relay.py` from the net's DMR config section.
+3. Paste the token into the `API_TOKEN` line in the script.
+4. Run it on any machine that can reach the hotspot:
+
+```bash
+sudo apt install python3-requests   # on Raspberry Pi / WPSD
+python3 dmr_relay.py
+```
+
+The script uses a long-lived API token (no password stored, no re-authentication needed). Leave it running for the duration of the net. The app shows "Via relay script (Xs ago)" in the DMR panel when using cached relay data. Revoke the token any time from the API Tokens page.
+
+### API Tokens
+
+Long-lived API tokens are available for service accounts and scripts. They are prefixed with `nt_` and work anywhere a Bearer token is accepted. Tokens are stored as SHA-256 hashes — the raw value is shown only at creation.
+
+- **Create:** `POST /auth/tokens` `{"name": "label"}`
+- **List:** `GET /auth/tokens`
+- **Revoke:** `DELETE /auth/tokens/{id}`
+
+### fail2ban integration
+
+Set `AUTH_LOG_FILE=/var/log/nettracker/auth.log` in `.env` to write structured auth failure lines:
+
+```
+2026-08-13T19:42:01 AUTH_FAIL ip=1.2.3.4 reason=bad_credentials username='W1AW'
+```
+
+Example fail2ban filter (`/etc/fail2ban/filter.d/nettracker.conf`):
+
+```ini
+[Definition]
+failregex = AUTH_FAIL ip=<HOST>
+ignoreregex =
+```
+
+And jail entry:
+
+```ini
+[nettracker]
+enabled  = true
+port     = http,https
+filter   = nettracker
+logpath  = /var/log/nettracker/auth.log
+maxretry = 5
+bantime  = 600
+```
+
+Create the log directory first: `sudo mkdir -p /var/log/nettracker && sudo chown netcontrol: /var/log/nettracker`
 
 ## Contributing
 

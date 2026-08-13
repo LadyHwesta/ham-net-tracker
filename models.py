@@ -45,6 +45,7 @@ class Net(Base):
     frequency = Column(String(20), nullable=True)   # e.g. "146.520 MHz"
     description = Column(Text, nullable=True)
     is_ares = Column(Boolean, default=False, nullable=False)  # ARES/ACES net — enables evac zone tracking
+    dmr_talkgroup = Column(String(20), nullable=True)  # Default DMR talk group for check-ins
     owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
@@ -53,6 +54,7 @@ class Net(Base):
     schedules = relationship("NetSchedule", back_populates="net", cascade="all, delete-orphan")
     evac_zones = relationship("EvacZone", back_populates="net", cascade="all, delete-orphan")
     shares = relationship("NetShare", back_populates="net", cascade="all, delete-orphan")
+    dmr_config = relationship("DmrConfig", back_populates="net", uselist=False, cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Net name={self.name}>"
@@ -95,6 +97,8 @@ class Checkin(Base):
     comments = Column(Text, nullable=True)
     has_traffic = Column(Boolean, default=False, nullable=False)
     evac_zone = Column(String(100), nullable=True)   # ARES/ACES evacuation zone
+    dmr_talkgroup = Column(String(20), nullable=True)  # DMR talk group, e.g. "3100"
+    dmr_region = Column(String(100), nullable=True)    # Region/state/area for DMR nets
     checked_in_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
     session = relationship("NetSession", back_populates="checkins")
@@ -245,3 +249,45 @@ class NetControlSignup(Base):
 
     def __repr__(self):
         return f"<NetControlSignup {self.callsign} on {self.slot_date}>"
+
+
+class ApiToken(Base):
+    """Long-lived tokens for service accounts (e.g. DMR relay scripts)."""
+    __tablename__ = "api_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(100), nullable=False)             # human label, e.g. "DMR Relay - shack Pi"
+    token_hash = Column(String(64), nullable=False, unique=True)  # SHA-256 hex of the raw token
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
+
+    user = relationship("User")
+
+    def __repr__(self):
+        return f"<ApiToken name={self.name} user={self.user_id}>"
+
+
+class DmrConfig(Base):
+    """Per-net DMR integration configuration (hotspot or network API)."""
+    __tablename__ = "dmr_configs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    net_id = Column(Integer, ForeignKey("nets.id", ondelete="CASCADE"), nullable=False, unique=True)
+    # wpsd | pistar | brandmeister
+    source_type = Column(String(20), nullable=False, default="wpsd")
+    # WPSD/Pi-Star: full API URL, e.g. http://wpsd.local/api or http://host/api/local/lastheard
+    hotspot_url = Column(Text, nullable=True)
+    # BrandMeister: talk group number to monitor
+    talkgroup_id = Column(Integer, nullable=True)
+    # Callsign to exclude from heard list (usually NCS operator)
+    filter_callsign = Column(String(12), nullable=True)
+    # True = browser fetches hotspot directly (for local-network hotspots)
+    # False = backend proxies the request (for public/accessible URLs)
+    direct_mode = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+    net = relationship("Net", back_populates="dmr_config")
+
+    def __repr__(self):
+        return f"<DmrConfig net={self.net_id} type={self.source_type}>"

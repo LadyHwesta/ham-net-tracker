@@ -36,10 +36,13 @@ Callsign Lookup
 """
 
 import csv
+import hashlib
 import io
 import logging
+import logging.handlers
 import os
 import pathlib
+import secrets
 import smtplib
 from datetime import date, datetime, timedelta, timezone
 from email.mime.base import MIMEBase
@@ -51,18 +54,21 @@ from typing import Optional
 import httpx
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, File, HTTPException, Query, Response, UploadFile, status
+from fastapi import Depends, FastAPI, File, HTTPException, Query, Request, Response, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 import jwt
-from passlib.context import CryptContext
+import bcrypt as _bcrypt
 from pydantic import BaseModel, EmailStr, field_validator
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from database import get_db, init_db
-from models import Checkin, EvacZone, Net, NetControlSignup, NetSchedule, NetSession, NetShare, StationRemark, SystemSetting, TrafficMessage, User, utcnow
+from models import ApiToken, Checkin, DmrConfig, EvacZone, Net, NetControlSignup, NetSchedule, NetSession, NetShare, StationRemark, SystemSetting, TrafficMessage, User, utcnow
 
 load_dotenv()
 
@@ -220,13 +226,37 @@ def _build_ics(net: "Net", schedule: "NetSchedule", signup: "NetControlSignup") 
 
     return "\r\n".join(lines) + "\r\n"
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+
+# ---------------------------------------------------------------------------
+# Auth failure logger (for fail2ban)
+# ---------------------------------------------------------------------------
+AUTH_LOG_FILE = os.getenv("AUTH_LOG_FILE", "")   # e.g. /var/log/nettracker/auth.log
+
+_auth_log = logging.getLogger("ham_net_tracker.auth")
+if AUTH_LOG_FILE:
+    _auth_handler = logging.handlers.WatchedFileHandler(AUTH_LOG_FILE)
+    _auth_handler.setFormatter(logging.Formatter("%(asctime)s %(message)s", datefmt="%Y-%m-%dT%H:%M:%S"))
+    _auth_log.addHandler(_auth_handler)
+_auth_log.setLevel(logging.WARNING)
+
+
+def _log_auth_fail(request: Request, reason: str) -> None:
+    ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown").split(",")[0].strip()
+    _auth_log.warning("AUTH_FAIL ip=%s reason=%s", ip, reason)
+
+
+# ---------------------------------------------------------------------------
+# Rate limiter
+# ---------------------------------------------------------------------------
+limiter = Limiter(key_func=get_remote_address)
 
 # ---------------------------------------------------------------------------
 # App
 # ---------------------------------------------------------------------------
 app = FastAPI(title="Ham Radio Net Tracker", version="1.0.0")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -300,6 +330,7 @@ class NetCreate(BaseModel):
     frequency: Optional[str] = None
     description: Optional[str] = None
     is_ares: bool = False
+    dmr_talkgroup: Optional[str] = None
 
 
 class NetOut(BaseModel):
@@ -308,6 +339,7 @@ class NetOut(BaseModel):
     frequency: Optional[str]
     description: Optional[str]
     is_ares: bool
+    dmr_talkgroup: Optional[str] = None
     owner_id: int
     created_at: datetime
     # Sharing fields (populated by helper, not from ORM attributes directly)
@@ -374,6 +406,8 @@ class CheckinCreate(BaseModel):
     comments: Optional[str] = None
     has_traffic: bool = False
     evac_zone: Optional[str] = None
+    dmr_talkgroup: Optional[str] = None
+    dmr_region: Optional[str] = None
 
     @field_validator("callsign")
     @classmethod
@@ -390,9 +424,40 @@ class CheckinOut(BaseModel):
     comments: Optional[str]
     has_traffic: bool
     evac_zone: Optional[str]
+    dmr_talkgroup: Optional[str] = None
+    dmr_region: Optional[str] = None
     checked_in_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class DmrConfigCreate(BaseModel):
+    source_type: str = "wpsd"           # wpsd | pistar | brandmeister
+    hotspot_url: Optional[str] = None   # for wpsd/pistar
+    talkgroup_id: Optional[int] = None  # for brandmeister
+    filter_callsign: Optional[str] = None
+    direct_mode: bool = False
+
+
+class DmrConfigOut(BaseModel):
+    source_type: str
+    hotspot_url: Optional[str] = None
+    talkgroup_id: Optional[int] = None
+    filter_callsign: Optional[str] = None
+    direct_mode: bool
+
+    model_config = {"from_attributes": True}
+
+
+class DmrHeardEntry(BaseModel):
+    callsign: str
+    dmr_id: Optional[str] = None
+    name: Optional[str] = None
+    talk_group: Optional[str] = None
+    timeslot: Optional[str] = None
+    region: Optional[str] = None
+    heard_at: Optional[str] = None
+    duration: Optional[str] = None
 
 
 class EvacZoneOut(BaseModel):
@@ -472,6 +537,29 @@ class StationRemarkOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# ── API Tokens ───────────────────────────────────────────────────────────────
+
+class ApiTokenCreate(BaseModel):
+    name: str   # human label, e.g. "DMR Relay - shack Pi"
+
+
+class ApiTokenOut(BaseModel):
+    id: int
+    name: str
+    created_at: datetime
+    last_used_at: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+class ApiTokenCreated(BaseModel):
+    """Returned once at creation — includes the raw token (never stored)."""
+    id: int
+    name: str
+    token: str          # raw token — show to user once, then discard
+    created_at: datetime
+
+
 # ── Session summary ──────────────────────────────────────────────────────────
 
 class SessionSummary(BaseModel):
@@ -492,11 +580,11 @@ class SessionSummary(BaseModel):
 # ---------------------------------------------------------------------------
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    return _bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return _bcrypt.hashpw(password.encode("utf-8"), _bcrypt.gensalt()).decode("utf-8")
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
@@ -512,6 +600,25 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+    # --- Try long-lived API token first (format: "nt_<64 hex chars>") ---
+    if token.startswith("nt_"):
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        api_token = db.query(ApiToken).filter(ApiToken.token_hash == token_hash).first()
+        if api_token is None:
+            raise credentials_exception
+        user = db.query(User).filter(User.id == api_token.user_id).first()
+        if user is None or not user.is_active:
+            raise credentials_exception
+        # Update last_used_at (fire-and-forget; don't fail the request if this errors)
+        try:
+            api_token.last_used_at = datetime.now(timezone.utc)
+            db.commit()
+        except Exception:
+            db.rollback()
+        return user
+
+    # --- Fall back to JWT ---
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: int = payload.get("sub")
@@ -531,7 +638,8 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
 # ---------------------------------------------------------------------------
 
 @app.post("/auth/register", response_model=UserOut, status_code=201)
-def register(data: UserCreate, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def register(request: Request, data: UserCreate, db: Session = Depends(get_db)):
     if db.query(User).filter(User.callsign == data.callsign).first():
         raise HTTPException(400, "Callsign already registered")
     if db.query(User).filter(User.email == data.email).first():
@@ -586,15 +694,18 @@ def register(data: UserCreate, db: Session = Depends(get_db)):
 
 
 @app.post("/auth/login", response_model=Token)
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     # Accept callsign or email as username
     user = (
         db.query(User).filter(User.callsign == form_data.username.upper()).first()
         or db.query(User).filter(User.email == form_data.username.lower()).first()
     )
     if not user or not verify_password(form_data.password, user.hashed_password):
+        _log_auth_fail(request, f"bad_credentials username={form_data.username!r}")
         raise HTTPException(status_code=401, detail="Incorrect callsign/email or password")
     if not user.is_active:
+        _log_auth_fail(request, f"inactive_account username={form_data.username!r}")
         raise HTTPException(status_code=403, detail="Account pending approval. Please contact the net administrator.")
 
     token = create_access_token(
@@ -607,6 +718,51 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 @app.get("/auth/me", response_model=UserOut)
 def me(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+# ---------------------------------------------------------------------------
+# API Token management
+# ---------------------------------------------------------------------------
+
+@app.post("/auth/tokens", response_model=ApiTokenCreated, status_code=201)
+def create_api_token(
+    data: ApiTokenCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Create a long-lived API token. The raw token is returned once — store it securely."""
+    raw_token = "nt_" + secrets.token_hex(32)   # 64 hex chars → 256 bits
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+    api_token = ApiToken(
+        user_id=current_user.id,
+        name=data.name,
+        token_hash=token_hash,
+    )
+    db.add(api_token)
+    db.commit()
+    db.refresh(api_token)
+    return ApiTokenCreated(id=api_token.id, name=api_token.name, token=raw_token, created_at=api_token.created_at)
+
+
+@app.get("/auth/tokens", response_model=list[ApiTokenOut])
+def list_api_tokens(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return db.query(ApiToken).filter(ApiToken.user_id == current_user.id).all()
+
+
+@app.delete("/auth/tokens/{token_id}", status_code=204)
+def delete_api_token(
+    token_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    api_token = db.query(ApiToken).filter(ApiToken.id == token_id, ApiToken.user_id == current_user.id).first()
+    if not api_token:
+        raise HTTPException(404, "Token not found")
+    db.delete(api_token)
+    db.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -893,7 +1049,8 @@ def list_nets(current_user: User = Depends(get_current_user), db: Session = Depe
 @app.post("/nets", response_model=NetOut, status_code=201)
 def create_net(data: NetCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     net = Net(name=data.name, frequency=data.frequency, description=data.description,
-              is_ares=data.is_ares, owner_id=current_user.id)
+              is_ares=data.is_ares, dmr_talkgroup=data.dmr_talkgroup or None,
+              owner_id=current_user.id)
     db.add(net)
     db.commit()
     db.refresh(net)
@@ -913,6 +1070,7 @@ def update_net(net_id: int, data: NetCreate, current_user: User = Depends(get_cu
     net.frequency = data.frequency
     net.description = data.description
     net.is_ares = data.is_ares
+    net.dmr_talkgroup = data.dmr_talkgroup or None
     db.commit()
     db.refresh(net)
     return _net_to_out(net, current_user, db)
@@ -1170,6 +1328,8 @@ def add_checkin(session_id: int, data: CheckinCreate, current_user: User = Depen
         comments=data.comments,
         has_traffic=data.has_traffic,
         evac_zone=data.evac_zone or None,
+        dmr_talkgroup=data.dmr_talkgroup or None,
+        dmr_region=data.dmr_region or None,
     )
     db.add(checkin)
     db.commit()
@@ -2159,6 +2319,204 @@ def upcoming_slots(
 
 
 # ---------------------------------------------------------------------------
+# DMR Integration
+# ---------------------------------------------------------------------------
+
+import httpx as _httpx
+import time as _time
+
+# In-memory cache for relay-pushed DMR data { net_id: {"entries": [...], "pushed_at": float} }
+_dmr_push_cache: dict = {}
+
+
+def _dmr_normalize_wpsd(entry: dict) -> dict:
+    """Normalize a WPSD/Pi-Star last-heard entry to a common dict."""
+    slot = str(entry.get("slot", "")).strip()
+    return {
+        "callsign": str(entry.get("callsign", "")).upper().strip(),
+        "dmr_id":   str(entry.get("src", entry.get("id", ""))).strip() or None,
+        "name":     entry.get("name") or None,
+        "talk_group": str(entry.get("dst", "")).strip() or None,
+        "timeslot": f"TS{slot}" if slot else None,
+        "region":   entry.get("country") or None,
+        "heard_at": entry.get("start") or None,
+        "duration": str(entry.get("duration", "")).strip() or None,
+    }
+
+
+def _dmr_normalize_brandmeister(entry: dict) -> dict:
+    """Normalize a BrandMeister talkgroup/rx entry to a common dict."""
+    slot = entry.get("slot")
+    start_ts = entry.get("start")
+    stop_ts  = entry.get("stop")
+    duration = None
+    if start_ts and stop_ts and stop_ts > start_ts:
+        duration = f"{stop_ts - start_ts}s"
+    heard_at = None
+    if start_ts:
+        try:
+            heard_at = datetime.fromtimestamp(start_ts, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            pass
+    region = entry.get("sourceState") or entry.get("sourceCountry") or None
+    return {
+        "callsign":   str(entry.get("callsign", "")).upper().strip(),
+        "dmr_id":     str(entry.get("SourceID", "")).strip() or None,
+        "name":       entry.get("sourceName") or None,
+        "talk_group": str(entry.get("DestinationID", "")).strip() or None,
+        "timeslot":   f"TS{slot}" if slot else None,
+        "region":     region,
+        "heard_at":   heard_at,
+        "duration":   duration,
+    }
+
+
+def _dmr_fetch_proxy(cfg: DmrConfig) -> list[dict]:
+    """Fetch last-heard from hotspot via backend proxy (non-direct mode)."""
+    try:
+        if cfg.source_type == "brandmeister":
+            if not cfg.talkgroup_id:
+                return []
+            r = _httpx.get(
+                "https://api.brandmeister.network/v2/talkgroup/rx/",
+                params={"talkgroup": cfg.talkgroup_id, "limit": 30},
+                timeout=10,
+            )
+            r.raise_for_status()
+            raw = r.json() if isinstance(r.json(), list) else []
+            return [_dmr_normalize_brandmeister(e) for e in raw]
+
+        elif cfg.source_type == "pistar":
+            if not cfg.hotspot_url:
+                return []
+            base = cfg.hotspot_url.rstrip("/")
+            # Pi-Star endpoint
+            url = base if base.endswith("lastheard") else base + "/api/local/lastheard"
+            r = _httpx.get(url, timeout=10)
+            r.raise_for_status()
+            raw = r.json() if isinstance(r.json(), list) else []
+            return [_dmr_normalize_wpsd(e) for e in raw[:30]]
+
+        else:  # wpsd (default)
+            if not cfg.hotspot_url:
+                return []
+            r = _httpx.get(cfg.hotspot_url, params={"limit": 30, "names": "true", "country": "true"}, timeout=10)
+            r.raise_for_status()
+            raw = r.json() if isinstance(r.json(), list) else []
+            return [_dmr_normalize_wpsd(e) for e in raw]
+
+    except _httpx.ConnectError as exc:
+        raise HTTPException(502, f"Cannot reach hotspot: {exc}. If your hotspot is on a local network, enable direct mode so the browser fetches it instead.")
+    except _httpx.TimeoutException:
+        raise HTTPException(504, "Hotspot request timed out. Check that the URL is correct and the hotspot is online.")
+    except Exception as exc:
+        _email_log.warning("DMR fetch error: %s", exc)
+        raise HTTPException(502, f"DMR fetch failed: {exc}")
+
+
+@app.get("/nets/{net_id}/dmr/config", response_model=Optional[DmrConfigOut])
+def get_dmr_config(net_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    _get_net_for_user(net_id, current_user, db)
+    cfg = db.query(DmrConfig).filter(DmrConfig.net_id == net_id).first()
+    return cfg  # None → null in JSON → frontend shows "not configured"
+
+
+@app.put("/nets/{net_id}/dmr/config", response_model=DmrConfigOut)
+def save_dmr_config(net_id: int, data: DmrConfigCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    _get_owned_net(net_id, current_user, db)
+    cfg = db.query(DmrConfig).filter(DmrConfig.net_id == net_id).first()
+    if cfg:
+        cfg.source_type     = data.source_type
+        cfg.hotspot_url     = data.hotspot_url or None
+        cfg.talkgroup_id    = data.talkgroup_id
+        cfg.filter_callsign = (data.filter_callsign or "").upper().strip() or None
+        cfg.direct_mode     = data.direct_mode
+    else:
+        cfg = DmrConfig(
+            net_id          = net_id,
+            source_type     = data.source_type,
+            hotspot_url     = data.hotspot_url or None,
+            talkgroup_id    = data.talkgroup_id,
+            filter_callsign = (data.filter_callsign or "").upper().strip() or None,
+            direct_mode     = data.direct_mode,
+        )
+        db.add(cfg)
+    db.commit()
+    db.refresh(cfg)
+    return cfg
+
+
+@app.delete("/nets/{net_id}/dmr/config", status_code=204)
+def delete_dmr_config(net_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    _get_owned_net(net_id, current_user, db)
+    cfg = db.query(DmrConfig).filter(DmrConfig.net_id == net_id).first()
+    if cfg:
+        db.delete(cfg)
+        db.commit()
+
+
+@app.get("/nets/{net_id}/dmr/lastheard", response_model=list[DmrHeardEntry])
+def dmr_lastheard(net_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Backend-proxy last-heard fetch. Only used when direct_mode=False."""
+    _get_net_for_user(net_id, current_user, db)
+    cfg = db.query(DmrConfig).filter(DmrConfig.net_id == net_id).first()
+    if not cfg:
+        raise HTTPException(404, "DMR not configured for this net")
+    entries = _dmr_fetch_proxy(cfg)
+
+    # Filter out the NCS callsign
+    skip = (cfg.filter_callsign or "").upper()
+    if skip:
+        entries = [e for e in entries if e["callsign"] != skip]
+
+    return entries
+
+
+class DmrPushPayload(BaseModel):
+    entries: list[DmrHeardEntry]
+
+
+@app.post("/nets/{net_id}/dmr/push", status_code=204)
+def dmr_push(
+    net_id: int,
+    data: DmrPushPayload,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Accept last-heard data pushed from a local relay script (bypasses CORS entirely)."""
+    _get_net_for_user(net_id, current_user, db)
+    cfg = db.query(DmrConfig).filter(DmrConfig.net_id == net_id).first()
+    if not cfg:
+        raise HTTPException(404, "DMR not configured for this net")
+    # Filter out NCS callsign server-side too
+    skip = (cfg.filter_callsign or "").upper()
+    entries = [e.model_dump() for e in data.entries]
+    if skip:
+        entries = [e for e in entries if (e.get("callsign") or "").upper() != skip]
+    _dmr_push_cache[net_id] = {"entries": entries, "pushed_at": _time.time()}
+
+
+@app.get("/nets/{net_id}/dmr/cache")
+def dmr_cache(
+    net_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return relay-pushed DMR data with freshness info."""
+    _get_net_for_user(net_id, current_user, db)
+    cached = _dmr_push_cache.get(net_id)
+    if not cached:
+        raise HTTPException(404, "No relay data for this net — is the relay script running?")
+    age = int(_time.time() - cached["pushed_at"])
+    if age > 300:
+        raise HTTPException(
+            404,
+            f"Relay data is stale ({age}s old). Is the relay script still running?",
+        )
+    return {"entries": cached["entries"], "age_seconds": age}
+
+
+# ---------------------------------------------------------------------------
 # Net Control Signups
 # ---------------------------------------------------------------------------
 
@@ -2354,19 +2712,12 @@ def _net_to_out(net: Net, user: User, db: Session) -> NetOut:
     """Build a NetOut with sharing metadata attached."""
     shares = db.query(NetShare).filter(NetShare.net_id == net.id).all()
     owner = db.query(User).filter(User.id == net.owner_id).first()
-    return NetOut(
-        id=net.id,
-        name=net.name,
-        frequency=net.frequency,
-        description=net.description,
-        is_ares=net.is_ares,
-        owner_id=net.owner_id,
-        created_at=net.created_at,
-        is_owner=(net.owner_id == user.id or user.is_admin),
-        shared_with_all=any(s.user_id is None for s in shares),
-        shared_user_ids=[s.user_id for s in shares if s.user_id is not None],
-        owner_callsign=owner.callsign if owner else None,
-    )
+    out = NetOut.model_validate(net)
+    out.is_owner = (net.owner_id == user.id or user.is_admin)
+    out.shared_with_all = any(s.user_id is None for s in shares)
+    out.shared_user_ids = [s.user_id for s in shares if s.user_id is not None]
+    out.owner_callsign = owner.callsign if owner else None
+    return out
 
 
 def _get_owned_net(net_id: int, user: User, db: Session) -> Net:

@@ -511,6 +511,7 @@
       <button class="sidebar-btn active" onclick="showView('nets')" id="nav-nets">My Nets</button>
       <button class="sidebar-btn" onclick="showView('history')" id="nav-history" style="display:none">📊 History</button>
       <button class="sidebar-btn" onclick="showView('admin')" id="nav-admin" style="display:none">🔑 Admin</button>
+      <button class="sidebar-btn" onclick="showView('tokens')" id="nav-tokens">🪙 API Tokens</button>
       <button class="sidebar-btn" onclick="showView('help')" id="nav-help">❓ Help</button>
       <button class="sidebar-btn" onclick="showView('report')" id="nav-report">🐛 Report / Request</button>
       <a class="sidebar-btn" href="/live" target="_blank" style="display:block;text-decoration:none">📡 Live Public Page ↗</a>
@@ -544,6 +545,10 @@
               <label>Frequency</label>
               <input class="form-control" id="net-freq" placeholder="146.520 MHz" />
             </div>
+            <div class="form-group" style="max-width:140px">
+              <label>DMR Talk Group</label>
+              <input class="form-control" id="net-dmr-tg" placeholder="3117" />
+            </div>
           </div>
           <div class="form-group">
             <label>Description</label>
@@ -555,6 +560,57 @@
               ARES / ACES Net — enables evacuation zone tracking per station
             </label>
           </div>
+          <!-- DMR Integration — only shown when editing an existing net you own -->
+          <div id="net-dmr-section" style="display:none;border-top:1px solid var(--lc-border);padding-top:14px;margin-bottom:14px">
+            <div style="font-size:13px;font-weight:700;color:var(--lc-orange);margin-bottom:10px">📻 DMR Integration</div>
+            <div class="form-group">
+              <label style="font-size:12px">Source</label>
+              <select class="form-control" id="dmr-source" onchange="onDmrSourceChange()" style="font-size:13px">
+                <option value="none">— Disabled —</option>
+                <option value="wpsd">WPSD Hotspot</option>
+                <option value="pistar">Pi-Star Hotspot</option>
+                <option value="brandmeister">BrandMeister Network</option>
+              </select>
+            </div>
+            <div id="dmr-hotspot-fields" style="display:none">
+              <div class="form-group">
+                <label style="font-size:12px">Hotspot API URL</label>
+                <input class="form-control" id="dmr-url" placeholder="http://wpsd.local/api" style="font-size:13px" />
+                <div style="font-size:11px;color:var(--text-muted);margin-top:4px">WPSD: <code>http://&lt;host&gt;/api</code> &nbsp;|&nbsp; Pi-Star: <code>http://&lt;host&gt;</code></div>
+              </div>
+              <div class="form-group">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;font-weight:600">
+                  <input type="checkbox" id="dmr-direct" style="accent-color:var(--lc-orange);width:14px;height:14px" />
+                  Direct mode (browser fetches hotspot — use for local network access)
+                </label>
+                <div style="font-size:11px;color:var(--text-muted);margin-top:3px">When unchecked the server proxies the request (requires hotspot to be publicly reachable from the server).</div>
+              </div>
+            </div>
+            <div id="dmr-bm-fields" style="display:none">
+              <div class="form-group">
+                <label style="font-size:12px">Talk Group ID to Monitor</label>
+                <input class="form-control" id="dmr-tg" type="number" placeholder="e.g. 3117" style="font-size:13px" />
+                <div style="font-size:11px;color:var(--text-muted);margin-top:4px">BrandMeister TG number — e.g. 3117 (Illinois), 3100 (USA Bridge)</div>
+              </div>
+            </div>
+            <div class="form-group">
+              <label style="font-size:12px">Filter Callsign (excluded from heard list)</label>
+              <input class="form-control mono" id="dmr-filter" placeholder="Your NCS callsign" style="font-size:13px;text-transform:uppercase" />
+              <div style="font-size:11px;color:var(--text-muted);margin-top:3px">Defaults to the net owner's callsign if left blank.</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              <button class="btn btn-primary btn-sm" onclick="saveDmrConfig()">Save DMR Config</button>
+              <button class="btn btn-danger btn-sm" id="dmr-delete-btn" style="display:none" onclick="deleteDmrConfig()">Remove DMR</button>
+              <button class="btn btn-ghost btn-sm" id="dmr-relay-btn" style="display:none" onclick="downloadRelayScript()" title="Download a Python relay script that pushes hotspot data from your local network">📥 Relay Script</button>
+            </div>
+            <div id="dmr-relay-note" style="display:none;margin-top:8px;font-size:11px;color:var(--text-muted);background:var(--surface);border:1px solid var(--lc-border);border-radius:5px;padding:8px">
+              <strong style="color:var(--lc-orange)">CORS/local network?</strong>
+              Run <strong>dmr_relay.py</strong> on any machine that can reach your hotspot (the Pi itself works great).
+              It fetches locally and pushes to this server — no CORS, no port forwarding needed.
+              Create an API token under <strong>🪙 API Tokens</strong> in the sidebar and paste it into the script.
+            </div>
+          </div>
+
           <!-- Sharing section — only shown when editing an existing net you own -->
           <div id="net-sharing-section" style="display:none;border-top:1px solid var(--lc-border);padding-top:14px;margin-bottom:14px">
             <div style="font-size:13px;font-weight:700;color:var(--lc-blue);margin-bottom:10px">🔗 Sharing</div>
@@ -666,6 +722,14 @@
                   <input class="form-control" id="ci-zone" placeholder="Zone A" list="known-zones-list" style="font-size:13px" />
                   <datalist id="known-zones-list"></datalist>
                 </div>
+                <div id="ci-dmr-tg-group" class="form-group" style="width:110px;display:none">
+                  <label style="font-size:11px">Talk Group</label>
+                  <input class="form-control" id="ci-dmr-tg" placeholder="3117" style="font-size:13px" />
+                </div>
+                <div id="ci-dmr-region-group" class="form-group" style="width:130px;display:none">
+                  <label style="font-size:11px">Region/State</label>
+                  <input class="form-control" id="ci-dmr-region" placeholder="Illinois" style="font-size:13px" />
+                </div>
                 <div class="form-group" style="width:auto;display:flex;align-items:flex-end;gap:6px;padding-bottom:2px">
                   <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;white-space:nowrap;margin-bottom:0">
                     <input type="checkbox" id="ci-traffic" style="accent-color:var(--lc-red);width:16px;height:16px" />
@@ -697,6 +761,24 @@
                 <div id="expected-list">
                   <p class="text-muted" style="font-size:12px;margin:0">Set filter and click Load List to see previously active stations.</p>
                 </div>
+              </div>
+            </div>
+
+            <!-- DMR Heard Panel (shown when net has DMR config) -->
+            <div id="dmr-heard-panel" style="display:none;margin-bottom:12px;border:1px solid var(--lc-orange);border-radius:8px;overflow:hidden">
+              <button onclick="toggleDmrPanel()" style="width:100%;background:rgba(255,153,0,0.12);border:none;color:var(--lc-orange);padding:10px 14px;text-align:left;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700;letter-spacing:.05em;display:flex;align-items:center;justify-content:space-between">
+                <span>📻 DMR LAST HEARD</span>
+                <span style="display:flex;align-items:center;gap:10px">
+                  <span id="dmr-heard-count" style="font-size:11px;background:var(--lc-orange);color:#000;border-radius:10px;padding:1px 8px;display:none"></span>
+                  <span id="dmr-panel-toggle-icon">▶</span>
+                </span>
+              </button>
+              <div id="dmr-panel-body" style="display:none;border-top:1px solid var(--lc-orange)">
+                <div style="padding:8px 12px;display:flex;align-items:center;gap:10px;font-size:11px;color:var(--text-muted)">
+                  <span id="dmr-last-refresh">Not yet refreshed</span>
+                  <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:1px 8px" onclick="refreshDmrHeard()">↻ Refresh</button>
+                </div>
+                <div id="dmr-heard-list" style="padding:0 12px 12px"></div>
               </div>
             </div>
 
@@ -765,7 +847,7 @@
               <table class="tbl">
                 <thead>
                   <tr>
-                    <th>#</th><th>Callsign</th><th>Name</th><th>Signal</th><th>Comments</th><th id="th-zone" style="display:none">Zone</th><th>Traffic</th><th>Time</th><th></th>
+                    <th>#</th><th>Callsign</th><th>Name</th><th>Signal</th><th>Comments</th><th id="th-zone" style="display:none">Zone</th><th id="th-dmr-tg" style="display:none">TG</th><th id="th-dmr-region" style="display:none">Region</th><th>Traffic</th><th>Time</th><th></th>
                   </tr>
                 </thead>
                 <tbody id="checkins-tbody"></tbody>
@@ -1013,6 +1095,18 @@
         <div class="card" style="margin-bottom:16px">
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
 
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-13 — DMR Hotspot Integration</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li><strong>DMR Last Heard panel</strong> — connect your net to a WPSD, Pi-Star, or BrandMeister talk group; see recently heard stations live during the net.</li>
+              <li>Heard stations are filterable (NCS callsign auto-excluded) and update every 30 seconds while a session is active.</li>
+              <li><strong>Quick Check-In</strong> — click any heard callsign to pre-fill the check-in form with their name and region.</li>
+              <li>Supports both <em>direct mode</em> (browser fetches your local-network hotspot) and <em>proxy mode</em> (server fetches a publicly accessible URL or BrandMeister).</li>
+              <li>Two new check-in fields: <strong>Talk Group</strong> and <strong>Region/State</strong> — shown automatically when a net has DMR configured.</li>
+              <li>Configure DMR integration in the net Edit form (net owners only); migration SQL in Help → Database Migrations.</li>
+            </ul>
+          </div>
+
           <div style="border-left:3px solid var(--lc-blue);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-blue);margin-bottom:4px">2026-08-12 — ICS-205 Fixes, Branding &amp; Calendar Confirmations</div>
             <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
@@ -1194,7 +1288,20 @@ CREATE TABLE IF NOT EXISTS net_shares (
     id SERIAL PRIMARY KEY, net_id INTEGER NOT NULL REFERENCES nets(id) ON DELETE CASCADE,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT uq_net_share_net_user UNIQUE (net_id, user_id));</pre>
+    CONSTRAINT uq_net_share_net_user UNIQUE (net_id, user_id));
+ALTER TABLE nets ADD COLUMN IF NOT EXISTS dmr_talkgroup VARCHAR(20);
+ALTER TABLE checkins ADD COLUMN IF NOT EXISTS dmr_talkgroup VARCHAR(20);
+ALTER TABLE checkins ADD COLUMN IF NOT EXISTS dmr_region VARCHAR(100);
+CREATE TABLE IF NOT EXISTS dmr_configs (
+    id SERIAL PRIMARY KEY, net_id INTEGER NOT NULL REFERENCES nets(id) ON DELETE CASCADE,
+    source_type VARCHAR(20) NOT NULL DEFAULT 'wpsd', hotspot_url TEXT,
+    talkgroup_id INTEGER, filter_callsign VARCHAR(12), direct_mode BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_dmr_config_net UNIQUE (net_id));
+CREATE TABLE IF NOT EXISTS api_tokens (
+    id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL, token_hash VARCHAR(64) NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), last_used_at TIMESTAMPTZ);</pre>
         </div>
       </div>
 
@@ -1227,6 +1334,37 @@ CREATE TABLE IF NOT EXISTS net_shares (
             <button class="btn btn-primary" onclick="submitReport()">Send</button>
             <button class="btn btn-ghost" onclick="clearReport()">Clear</button>
           </div>
+        </div>
+      </div>
+
+      <!-- API TOKENS VIEW -->
+      <div id="view-tokens" style="display:none">
+        <h2 class="section-title">API Tokens</h2>
+        <div class="card" style="max-width:600px;margin-bottom:16px">
+          <p style="margin:0 0 12px;font-size:13px;color:var(--text-muted)">
+            API tokens let scripts (like the DMR relay) authenticate without storing your password.
+            Each token starts with <code style="background:var(--surface);padding:1px 5px;border-radius:3px">nt_</code> and works anywhere a Bearer token is accepted.
+            Tokens are shown <strong>only at creation</strong> — copy it before leaving this page.
+          </p>
+          <div style="display:flex;gap:8px;align-items:flex-end">
+            <div class="form-group" style="flex:1;margin:0">
+              <label>Token Label</label>
+              <input class="form-control" id="new-token-name" placeholder="e.g. DMR Relay – shack Pi" maxlength="100" />
+            </div>
+            <button class="btn btn-primary" onclick="createApiToken()" style="white-space:nowrap">+ Create Token</button>
+          </div>
+          <div id="new-token-reveal" style="display:none;margin-top:14px;background:var(--surface);border:1px solid var(--lc-orange);border-radius:6px;padding:12px">
+            <div style="font-size:12px;color:var(--lc-orange);font-weight:700;margin-bottom:6px">⚠ Copy this token now — it will not be shown again</div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <code id="new-token-value" style="flex:1;word-break:break-all;font-size:12px;color:var(--text)"></code>
+              <button class="btn btn-ghost btn-sm" onclick="copyNewToken()">📋 Copy</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="max-width:600px">
+          <h3 style="margin:0 0 12px;font-size:13px;color:var(--lc-orange);letter-spacing:.08em">EXISTING TOKENS</h3>
+          <div id="tokens-list"><span style="color:var(--text-muted);font-size:13px">Loading…</span></div>
         </div>
       </div>
 
@@ -1400,6 +1538,7 @@ function showView(view, netId) {
   document.getElementById('view-admin').style.display   = view === 'admin'   ? '' : 'none';
   document.getElementById('view-help').style.display    = view === 'help'    ? '' : 'none';
   document.getElementById('view-report').style.display  = view === 'report'  ? '' : 'none';
+  document.getElementById('view-tokens').style.display  = view === 'tokens'  ? '' : 'none';
   // schedule-panel lives outside view-session in the DOM — hide it explicitly when leaving session view
   if (view !== 'session') document.getElementById('schedule-panel').style.display = 'none';
 
@@ -1408,6 +1547,7 @@ function showView(view, netId) {
   if (view === 'admin')   document.getElementById('nav-admin').classList.add('active');
   if (view === 'history') document.getElementById('nav-history').classList.add('active');
   if (view === 'report')  document.getElementById('nav-report').classList.add('active');
+  if (view === 'tokens')  document.getElementById('nav-tokens').classList.add('active');
   if (view === 'help') {
     document.getElementById('nav-help').classList.add('active');
     const isAdmin = currentUser && currentUser.is_admin;
@@ -1419,7 +1559,8 @@ function showView(view, netId) {
     const id = netId || currentNetId || (nets.length ? nets[0].id : null);
     if (id) loadHistory(id);
   }
-  if (view === 'admin') { loadAdminUsers(); loadAdminBranding(); }
+  if (view === 'admin')  { loadAdminUsers(); loadAdminBranding(); }
+  if (view === 'tokens') { loadApiTokens(); }
 }
 
 // ============================================================
@@ -1630,15 +1771,18 @@ function showNetForm() {
   document.getElementById('net-form-title').textContent = 'New Net';
   document.getElementById('net-name').value = '';
   document.getElementById('net-freq').value = '';
+  document.getElementById('net-dmr-tg').value = '';
   document.getElementById('net-desc').value = '';
   document.getElementById('net-ares').checked = false;
   document.getElementById('net-sharing-section').style.display = 'none';
+  document.getElementById('net-dmr-section').style.display = 'none';
   document.getElementById('net-form-card').style.display = '';
 }
 
 function cancelNetForm() {
   document.getElementById('net-form-card').style.display = 'none';
   document.getElementById('net-sharing-section').style.display = 'none';
+  document.getElementById('net-dmr-section').style.display = 'none';
   editNetId = null;
   shareState = { share_with_all: false, user_ids: [] };
 }
@@ -1650,30 +1794,34 @@ async function editNet(id) {
   document.getElementById('net-form-title').textContent = 'Edit Net';
   document.getElementById('net-name').value = n.name;
   document.getElementById('net-freq').value = n.frequency || '';
+  document.getElementById('net-dmr-tg').value = n.dmr_talkgroup || '';
   document.getElementById('net-desc').value = n.description || '';
   document.getElementById('net-ares').checked = !!n.is_ares;
   document.getElementById('net-form-card').style.display = '';
-  // Load sharing if owner
+  // Load sharing and DMR config if owner
   if (n.is_owner) {
     document.getElementById('net-sharing-section').style.display = '';
     await loadSharesForNet(id);
+    await loadDmrConfig(id);
   } else {
     document.getElementById('net-sharing-section').style.display = 'none';
+    document.getElementById('net-dmr-section').style.display = 'none';
   }
 }
 
 async function saveNet() {
   const name = document.getElementById('net-name').value.trim();
   const frequency = document.getElementById('net-freq').value.trim() || null;
+  const dmr_talkgroup = document.getElementById('net-dmr-tg').value.trim() || null;
   const description = document.getElementById('net-desc').value.trim() || null;
   const is_ares = document.getElementById('net-ares').checked;
   if (!name) return toast('Net name is required', 'error');
   try {
     if (editNetId) {
-      await apiFetch(`/nets/${editNetId}`, { method: 'PUT', body: JSON.stringify({ name, frequency, description, is_ares }) });
+      await apiFetch(`/nets/${editNetId}`, { method: 'PUT', body: JSON.stringify({ name, frequency, dmr_talkgroup, description, is_ares }) });
       toast('Net updated');
     } else {
-      await apiFetch('/nets', { method: 'POST', body: JSON.stringify({ name, frequency, description, is_ares }) });
+      await apiFetch('/nets', { method: 'POST', body: JSON.stringify({ name, frequency, dmr_talkgroup, description, is_ares }) });
       toast('Net created');
     }
     cancelNetForm();
@@ -1769,6 +1917,9 @@ async function openNet(netId) {
   const net = nets.find(n => n.id === netId);
   currentNetOwnerId = net ? net.owner_id : null;
   currentNetIsAres = net ? !!net.is_ares : false;
+  // Pre-fill default TG from net settings
+  const netDefaultTg = net ? (net.dmr_talkgroup || '') : '';
+  document.getElementById('ci-dmr-tg').value = netDefaultTg;
   document.getElementById('session-net-name').textContent = net ? net.name : 'Net';
 
   // Show/hide ARES-specific UI elements
@@ -1879,6 +2030,15 @@ async function loadSessionLive(sessionId) {
     renderTrafficMessages();
     await loadCheckins();
     await loadTrafficMessages();
+    // DMR: init or stop polling based on session state
+    if (!ended) {
+      await initDmrForSession(currentNetId);
+    } else {
+      stopDmrPolling();
+      document.getElementById('dmr-heard-panel').style.display = 'none';
+      document.getElementById('ci-dmr-tg-group').style.display = 'none';
+      document.getElementById('ci-dmr-region-group').style.display = 'none';
+    }
   } catch (e) { toast(e.message, 'error'); }
 }
 
@@ -1889,6 +2049,7 @@ async function endSession() {
     await apiFetch(`/sessions/${sid}/end`, { method: 'PATCH', body: '{}' });
     toast('Session ended');
     stopClock();
+    stopDmrPolling();
     await loadSessions();
     await loadSessionLive(sid);
     // Show session summary
@@ -2001,11 +2162,16 @@ async function addCheckin() {
   const comments = document.getElementById('ci-comments').value.trim() || null;
   const has_traffic = document.getElementById('ci-traffic').checked;
   const evac_zone = currentNetIsAres ? (document.getElementById('ci-zone').value.trim() || null) : null;
+  const currentNet = nets.find(n => n.id === currentNetId);
+  const dmr_talkgroup = document.getElementById('ci-dmr-tg').value.trim()
+    || (currentNet && currentNet.dmr_talkgroup)
+    || null;
+  const dmr_region = document.getElementById('ci-dmr-region').value.trim() || null;
   if (!callsign) { toast('Callsign required', 'error'); document.getElementById('ci-call').focus(); return; }
   try {
     await apiFetch(`/sessions/${currentSessionId}/checkins`, {
       method: 'POST',
-      body: JSON.stringify({ callsign, name, signal_report, comments, has_traffic, evac_zone })
+      body: JSON.stringify({ callsign, name, signal_report, comments, has_traffic, evac_zone, dmr_talkgroup, dmr_region })
     });
     document.getElementById('ci-call').value = '';
     document.getElementById('ci-name').value = '';
@@ -2013,6 +2179,8 @@ async function addCheckin() {
     document.getElementById('ci-comments').value = '';
     document.getElementById('ci-traffic').checked = false;
     if (currentNetIsAres) document.getElementById('ci-zone').value = '';
+    // Keep TG populated (usually same for whole session), clear region
+    document.getElementById('ci-dmr-region').value = '';
     clearLookupInfo();
     document.getElementById('ci-call').focus();
     toast(`${callsign} checked in`, 'success');
@@ -2183,6 +2351,12 @@ function renderCheckins(checkins) {
   empty.style.display = 'none';
   // Show/hide zone column header based on ARES mode
   document.getElementById('th-zone').style.display = currentNetIsAres ? '' : 'none';
+  // Show/hide DMR columns based on whether DMR config exists
+  const hasDmr = !!currentDmrConfig;
+  const thDmrTg = document.getElementById('th-dmr-tg');
+  const thDmrRegion = document.getElementById('th-dmr-region');
+  if (thDmrTg) thDmrTg.style.display = hasDmr ? '' : 'none';
+  if (thDmrRegion) thDmrRegion.style.display = hasDmr ? '' : 'none';
   tbody.innerHTML = checkins.map((c, i) => `<tr ${c.has_traffic ? 'style="background:rgba(255,68,34,0.08)"' : ''}>
     <td class="text-muted">${i + 1}</td>
     <td><span class="callsign">${esc(c.callsign)}</span></td>
@@ -2190,6 +2364,8 @@ function renderCheckins(checkins) {
     <td>${esc(c.signal_report || '—')}</td>
     <td>${esc(c.comments || '—')}</td>
     ${currentNetIsAres ? `<td style="font-size:12px;color:var(--lc-blue)">${esc(c.evac_zone || '—')}</td>` : ''}
+    ${hasDmr ? `<td style="font-size:12px;color:var(--lc-orange)">${esc(c.dmr_talkgroup || '—')}</td>` : ''}
+    ${hasDmr ? `<td style="font-size:12px">${esc(c.dmr_region || '—')}</td>` : ''}
     <td style="text-align:center">
       <button class="btn btn-sm ${c.has_traffic ? 'btn-danger' : 'btn-ghost'}"
         style="font-size:14px;padding:2px 8px" title="${c.has_traffic ? 'Traffic — click to clear' : 'Click to flag traffic'}"
@@ -2773,6 +2949,437 @@ async function deleteSchedule(id) {
     toast('Schedule deleted');
     await loadScheduleView();
   } catch (e) { toast(e.message, 'error'); }
+}
+
+// ============================================================
+// DMR INTEGRATION
+// ============================================================
+let currentDmrConfig = null;
+let dmrHeardInterval = null;
+let dmrPanelOpen = false;
+let dmrHeardEntries = [];   // keyed by render index for onclick handlers
+
+function onDmrSourceChange() {
+  const src = document.getElementById('dmr-source').value;
+  document.getElementById('dmr-hotspot-fields').style.display = (src === 'wpsd' || src === 'pistar') ? '' : 'none';
+  document.getElementById('dmr-bm-fields').style.display      = src === 'brandmeister' ? '' : 'none';
+}
+
+async function loadDmrConfig(netId) {
+  try {
+    currentDmrConfig = await apiFetch(`/nets/${netId}/dmr/config`);
+  } catch { currentDmrConfig = null; }
+  // Show/hide DMR fields in net edit form
+  const sec = document.getElementById('net-dmr-section');
+  if (sec) sec.style.display = '';  // always show when editing own net
+  if (currentDmrConfig) {
+    document.getElementById('dmr-source').value = currentDmrConfig.source_type;
+    onDmrSourceChange();
+    document.getElementById('dmr-url').value       = currentDmrConfig.hotspot_url || '';
+    document.getElementById('dmr-direct').checked  = !!currentDmrConfig.direct_mode;
+    document.getElementById('dmr-tg').value        = currentDmrConfig.talkgroup_id || '';
+    document.getElementById('dmr-filter').value    = currentDmrConfig.filter_callsign || '';
+    document.getElementById('dmr-delete-btn').style.display = '';
+    document.getElementById('dmr-relay-btn').style.display  = '';
+    document.getElementById('dmr-relay-note').style.display = '';
+  } else {
+    document.getElementById('dmr-source').value = 'none';
+    onDmrSourceChange();
+    document.getElementById('dmr-url').value    = '';
+    document.getElementById('dmr-direct').checked = false;
+    document.getElementById('dmr-tg').value     = '';
+    document.getElementById('dmr-filter').value = currentUser ? currentUser.callsign : '';
+    document.getElementById('dmr-delete-btn').style.display = 'none';
+    document.getElementById('dmr-relay-btn').style.display  = 'none';
+    document.getElementById('dmr-relay-note').style.display = 'none';
+  }
+}
+
+async function saveDmrConfig() {
+  const src = document.getElementById('dmr-source').value;
+  if (src === 'none') { await deleteDmrConfig(); return; }
+  const payload = {
+    source_type:     src,
+    hotspot_url:     document.getElementById('dmr-url').value.trim() || null,
+    talkgroup_id:    parseInt(document.getElementById('dmr-tg').value) || null,
+    filter_callsign: document.getElementById('dmr-filter').value.trim().toUpperCase() || null,
+    direct_mode:     document.getElementById('dmr-direct').checked,
+  };
+  try {
+    currentDmrConfig = await apiFetch(`/nets/${editNetId}/dmr/config`, { method: 'PUT', body: JSON.stringify(payload) });
+    document.getElementById('dmr-delete-btn').style.display = '';
+    document.getElementById('dmr-relay-btn').style.display = '';
+    document.getElementById('dmr-relay-note').style.display = '';
+    toast('DMR config saved');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+// ============================================================
+// API TOKENS
+// ============================================================
+let _lastCreatedToken = null;
+
+async function loadApiTokens() {
+  const el = document.getElementById('tokens-list');
+  if (!el) return;
+  try {
+    const tokens = await apiFetch('/auth/tokens');
+    if (!tokens || tokens.length === 0) {
+      el.innerHTML = '<p style="color:var(--text-muted);font-size:13px;margin:0">No API tokens yet. Create one above.</p>';
+      return;
+    }
+    el.innerHTML = tokens.map(t => `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--lc-border)">
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:600">${esc(t.name)}</div>
+          <div style="font-size:11px;color:var(--text-muted)">
+            Created ${fmt(t.created_at)}
+            ${t.last_used_at ? ' · Last used ' + fmt(t.last_used_at) : ' · Never used'}
+          </div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="copyRelayScriptForToken(${t.id}, '${esc(t.name)}')" title="Download relay script pre-configured for this token">📥 Relay Script</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteApiToken(${t.id})">Revoke</button>
+      </div>
+    `).join('');
+  } catch(e) {
+    el.innerHTML = `<p style="color:var(--lc-red);font-size:13px;margin:0">Error: ${esc(e.message)}</p>`;
+  }
+}
+
+async function createApiToken() {
+  const name = document.getElementById('new-token-name').value.trim();
+  if (!name) { toast('Enter a label for the token', 'error'); return; }
+  try {
+    const result = await apiFetch('/auth/tokens', { method: 'POST', body: JSON.stringify({ name }) });
+    _lastCreatedToken = result.token;
+    document.getElementById('new-token-value').textContent = result.token;
+    document.getElementById('new-token-reveal').style.display = '';
+    document.getElementById('new-token-name').value = '';
+    toast('Token created — copy it now!');
+    loadApiTokens();
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+function copyNewToken() {
+  if (!_lastCreatedToken) return;
+  navigator.clipboard.writeText(_lastCreatedToken).then(() => toast('Token copied to clipboard'));
+}
+
+async function deleteApiToken(id) {
+  if (!confirm('Revoke this token? Any scripts using it will stop working immediately.')) return;
+  try {
+    await apiFetch(`/auth/tokens/${id}`, { method: 'DELETE' });
+    toast('Token revoked');
+    loadApiTokens();
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+function copyRelayScriptForToken(tokenId, tokenName) {
+  // Prompt user to generate a token — we can't retrieve the raw value, so we
+  // direct them to create a fresh one and use downloadRelayScript() which will
+  // prompt for the token value.
+  toast('Generate a new token above, copy it, then use the 📥 Relay Script button in the net\'s DMR config with that token.', 'info');
+}
+
+function downloadRelayScript() {
+  const src  = currentDmrConfig ? currentDmrConfig.source_type : 'wpsd';
+  const url  = currentDmrConfig ? (currentDmrConfig.hotspot_url || 'http://localhost') : 'http://localhost';
+  const netId = editNetId || currentNetId || 0;
+  const backend = window.location.origin;
+
+  const script = `#!/usr/bin/env python3
+"""
+DMR Relay Script for Ham Net Tracker
+Fetches last-heard data from your local hotspot and pushes it to the net tracker,
+bypassing browser CORS restrictions entirely.
+
+Requirements: pip install requests   (or: sudo apt install python3-requests)
+
+Setup:
+  1. Go to the Net Tracker → 🪙 API Tokens page and create a token labelled
+     something like "DMR Relay - shack Pi".  Copy the token (shown only once).
+  2. Paste the token into API_TOKEN below.
+  3. Run: python3 dmr_relay.py
+  4. Keep it running during the net (Ctrl+C to stop).
+  5. Optionally start at boot on the Pi: @reboot python3 /path/to/dmr_relay.py &
+"""
+import time, sys, json
+try:
+    import requests
+except ImportError:
+    sys.exit("Install requests first:  pip install requests  (or: sudo apt install python3-requests)")
+
+# ── Configuration ──────────────────────────────────────────────
+BACKEND   = "${backend}"
+NET_ID    = ${netId}
+API_TOKEN = "nt_PASTE_YOUR_TOKEN_HERE"   # from 🪙 API Tokens page
+SOURCE    = "${src}"                      # wpsd | pistar | brandmeister
+HOTSPOT   = "${url}"                     # hotspot base URL (http://localhost if running on the Pi)
+INTERVAL  = 30                            # seconds between refreshes
+# ───────────────────────────────────────────────────────────────
+
+def fetch_hotspot():
+    if SOURCE == "pistar":
+        base = HOTSPOT.rstrip("/")
+        url = base if base.endswith("lastheard") else base + "/api/local/lastheard"
+        r = requests.get(url, timeout=5)
+    elif SOURCE == "brandmeister":
+        tg = int(HOTSPOT) if HOTSPOT.isdigit() else 0
+        r = requests.get("https://api.brandmeister.network/v2/talkgroup/rx/",
+                         params={"talkgroup": tg, "limit": 30}, timeout=10)
+    else:  # wpsd
+        base = HOTSPOT.rstrip("/")
+        url = base if "/api" in base else base + "/api/"
+        r = requests.get(url, params={"limit": 30, "names": "true", "country": "true"}, timeout=5)
+    r.raise_for_status()
+    raw = r.json()
+    return raw if isinstance(raw, list) else []
+
+def normalize(e):
+    return {
+        "callsign":   (e.get("callsign") or "").upper() or None,
+        "dmr_id":     str(e.get("src") or e.get("id") or "") or None,
+        "name":       e.get("name") or None,
+        "talk_group": str(e.get("dst") or "") or None,
+        "timeslot":   f"TS{e['slot']}" if e.get("slot") else None,
+        "region":     e.get("country") or None,
+        "heard_at":   e.get("start") or None,
+        "duration":   str(e["duration"]) if e.get("duration") else None,
+    }
+
+print(f"DMR Relay started — pushing to {BACKEND}/nets/{NET_ID}/dmr/push every {INTERVAL}s")
+print("Press Ctrl+C to stop.\\n")
+
+while True:
+    try:
+        raw     = fetch_hotspot()
+        entries = [normalize(e) for e in raw if e.get("callsign")]
+        r = requests.post(
+            f"{BACKEND}/nets/{NET_ID}/dmr/push",
+            json={"entries": entries},
+            headers={"Authorization": f"Bearer {API_TOKEN}"},
+            timeout=10,
+        )
+        if r.status_code == 401:
+            print(f"[{time.strftime('%H:%M:%S')}] Auth failed — check API_TOKEN in script")
+            sys.exit(1)
+        r.raise_for_status()
+        print(f"[{time.strftime('%H:%M:%S')}] Pushed {len(entries)} entries")
+    except KeyboardInterrupt:
+        print("\\nStopped.")
+        sys.exit(0)
+    except Exception as exc:
+        print(f"[{time.strftime('%H:%M:%S')}] Error: {exc}")
+    time.sleep(INTERVAL)
+`;
+
+  const blob = new Blob([script], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'dmr_relay.py';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('dmr_relay.py downloaded — create an API token under 🪙 API Tokens and paste it into the script.');
+}
+
+async function deleteDmrConfig() {
+  try {
+    await apiFetch(`/nets/${editNetId}/dmr/config`, { method: 'DELETE' });
+    currentDmrConfig = null;
+    document.getElementById('dmr-source').value = 'none';
+    onDmrSourceChange();
+    document.getElementById('dmr-url').value = '';
+    document.getElementById('dmr-tg').value  = '';
+    document.getElementById('dmr-delete-btn').style.display = 'none';
+    toast('DMR integration removed');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function initDmrForSession(netId) {
+  // Load config; show/hide DMR panel and check-in fields accordingly
+  try { currentDmrConfig = await apiFetch(`/nets/${netId}/dmr/config`); }
+  catch { currentDmrConfig = null; }
+
+  const panel = document.getElementById('dmr-heard-panel');
+  const tgGrp = document.getElementById('ci-dmr-tg-group');
+  const rgGrp = document.getElementById('ci-dmr-region-group');
+
+  if (currentDmrConfig) {
+    panel.style.display = '';
+    tgGrp.style.display = '';
+    rgGrp.style.display = '';
+    startDmrPolling(netId);
+  } else {
+    panel.style.display = 'none';
+    tgGrp.style.display = 'none';
+    rgGrp.style.display = 'none';
+    stopDmrPolling();
+  }
+}
+
+function stopDmrPolling() {
+  if (dmrHeardInterval) { clearInterval(dmrHeardInterval); dmrHeardInterval = null; }
+}
+
+function startDmrPolling(netId) {
+  stopDmrPolling();
+  refreshDmrHeard(netId);
+  dmrHeardInterval = setInterval(() => refreshDmrHeard(netId), 30000);
+}
+
+async function refreshDmrHeard(netIdArg) {
+  const netId = netIdArg || currentNetId;
+  if (!currentDmrConfig) return;
+
+  let entries = [];
+  try {
+    if (currentDmrConfig.direct_mode && currentDmrConfig.hotspot_url) {
+      // Fetch directly from browser (local network access)
+      let url = currentDmrConfig.hotspot_url.trim();
+      if (currentDmrConfig.source_type === 'pistar' && !url.includes('lastheard')) {
+        url = url.replace(/\/$/, '') + '/api/local/lastheard';
+      } else if (currentDmrConfig.source_type === 'wpsd') {
+        // Ensure URL ends at the /api/ path
+        if (!url.includes('/api')) url = url.replace(/\/$/, '') + '/api/';
+        url += (url.includes('?') ? '&' : '?') + 'limit=30&names=true&country=true';
+      }
+      let directOk = false;
+      try {
+        const r = await fetch(url, { mode: 'cors' });
+        if (!r.ok) throw new Error(`HTTP ${r.status} from hotspot`);
+        const raw = await r.json();
+        entries = (Array.isArray(raw) ? raw : []).map(e => ({
+          callsign:   (e.callsign || '').toUpperCase(),
+          dmr_id:     String(e.src || e.id || ''),
+          name:       e.name || null,
+          talk_group: String(e.dst || ''),
+          timeslot:   e.slot ? `TS${e.slot}` : null,
+          region:     e.country || null,
+          heard_at:   e.start || null,
+          duration:   e.duration ? String(e.duration) : null,
+        }));
+        directOk = true;
+      } catch (_directErr) {
+        // Direct fetch failed (CORS, mixed content, unreachable) — fall back to backend proxy
+      }
+
+      if (!directOk) {
+        let proxyOk = false;
+        try {
+          entries = await apiFetch(`/nets/${netId}/dmr/lastheard`);
+          proxyOk = true;
+        } catch (_proxyErr) { /* fall through to relay cache */ }
+
+        if (!proxyOk) {
+          // Final fallback: relay cache (populated by dmr_relay.py running on the LAN)
+          try {
+            const cached = await apiFetch(`/nets/${netId}/dmr/cache`);
+            entries = cached.entries || [];
+            const age = cached.age_seconds;
+            // Render immediately with age note, then return
+            if (entries.length === 0 || !entries.some(e => e.callsign)) {
+              document.getElementById('dmr-last-refresh').textContent = 'Relay is running but no stations heard yet.';
+            } else {
+              const filter = (currentDmrConfig.filter_callsign || (currentUser && currentUser.callsign) || '').toUpperCase();
+              if (filter) entries = entries.filter(e => e.callsign !== filter);
+              renderDmrHeard(entries);
+              const cnt = document.getElementById('dmr-heard-count');
+              if (entries.length > 0) { cnt.textContent = entries.length; cnt.style.display = ''; }
+              else cnt.style.display = 'none';
+            }
+            document.getElementById('dmr-last-refresh').textContent = `Via relay script (${age}s ago)`;
+            return;
+          } catch (_cacheErr) {
+            // All three paths failed
+            document.getElementById('dmr-last-refresh').innerHTML =
+              '<span style="color:var(--lc-orange)">⚠ Could not reach hotspot</span> — ' +
+              'direct fetch (CORS) and server proxy both failed, and no relay data is available. ' +
+              'Run <strong>dmr_relay.py</strong> on a machine that can reach the hotspot ' +
+              '(download it from the net\'s DMR config section).';
+            return;
+          }
+        }
+      }
+    } else {
+      // Proxy mode: server fetches the hotspot
+      try {
+        entries = await apiFetch(`/nets/${netId}/dmr/lastheard`);
+      } catch (proxyErr) {
+        const msg = proxyErr.message || 'Unknown error';
+        document.getElementById('dmr-last-refresh').innerHTML =
+          `<span style="color:var(--lc-orange)">⚠ Proxy fetch failed</span> — ${esc(msg)}. ` +
+          'In proxy mode the <em>server</em> fetches your hotspot — it must be reachable from the server ' +
+          '(local LAN addresses like 192.168.x.x won\'t work from a remote server). ' +
+          'Enable <strong>Direct mode</strong> if your browser can reach the hotspot instead.';
+        return;
+      }
+    }
+  } catch (e) {
+    document.getElementById('dmr-last-refresh').textContent = `Error: ${e.message}`;
+    return;
+  }
+
+  // Filter out NCS callsign
+  const skip = (currentDmrConfig.filter_callsign || (currentUser && currentUser.callsign) || '').toUpperCase();
+  if (skip) entries = entries.filter(e => e.callsign !== skip);
+
+  renderDmrHeard(entries);
+  const now = new Date().toLocaleTimeString();
+  document.getElementById('dmr-last-refresh').textContent = `Last refresh: ${now}`;
+  const cnt = document.getElementById('dmr-heard-count');
+  if (entries.length > 0) { cnt.textContent = entries.length; cnt.style.display = ''; }
+  else cnt.style.display = 'none';
+}
+
+function renderDmrHeard(entries) {
+  dmrHeardEntries = entries;
+  const el = document.getElementById('dmr-heard-list');
+  if (entries.length === 0) {
+    el.innerHTML = '<p class="text-muted" style="font-size:12px;margin:0">No stations heard recently.</p>';
+    return;
+  }
+  el.innerHTML = `<table class="tbl" style="font-size:12px"><thead><tr>
+    <th>Callsign</th><th>Name</th><th>Talk Group</th><th>Region</th><th>Heard</th><th></th>
+  </tr></thead><tbody>` +
+  entries.map((e, i) => {
+    const already = lastKnownCheckins && lastKnownCheckins.some(c => c.callsign === e.callsign);
+    const btnClass = already ? 'btn-ghost' : 'btn-success';
+    const btnText  = already ? '✓ Checked In' : '+ Check In';
+    const dur = e.duration ? ` <span class="text-muted">${esc(e.duration)}s</span>` : '';
+    return `<tr style="${already ? 'opacity:.55' : ''}">
+      <td><span class="callsign">${esc(e.callsign)}</span>${e.dmr_id ? ` <span class="text-muted" style="font-size:10px">${esc(e.dmr_id)}</span>` : ''}</td>
+      <td>${e.name ? esc(e.name) : '<span class="text-muted">—</span>'}</td>
+      <td>${e.talk_group ? esc(e.talk_group) : '—'}${e.timeslot ? ` <span class="text-muted">${esc(e.timeslot)}</span>` : ''}</td>
+      <td>${e.region ? esc(e.region) : '—'}</td>
+      <td style="white-space:nowrap">${e.heard_at ? esc(String(e.heard_at).slice(11,19) || e.heard_at) : '—'}${dur}</td>
+      <td><button class="btn ${btnClass} btn-sm" style="font-size:11px;padding:1px 8px" ${already ? 'disabled' : `onclick="dmrQuickCheckin(${i})"`}>${btnText}</button></td>
+    </tr>`;
+  }).join('') + '</tbody></table>';
+}
+
+function dmrQuickCheckin(index) {
+  const entry = dmrHeardEntries[index];
+  if (!entry) return;
+  const net = nets.find(n => n.id === currentNetId);
+  document.getElementById('ci-call').value        = entry.callsign || '';
+  document.getElementById('ci-name').value        = entry.name || '';
+  // Net-level TG is the canonical default; fall back to what the station was heard on
+  document.getElementById('ci-dmr-tg').value      = (net && net.dmr_talkgroup) || entry.talk_group || '';
+  document.getElementById('ci-dmr-region').value  = entry.region || '';
+  document.getElementById('ci-sig').value         = '';
+  document.getElementById('ci-call').focus();
+  document.getElementById('checkin-form-area').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function toggleDmrPanel() {
+  dmrPanelOpen = !dmrPanelOpen;
+  document.getElementById('dmr-panel-body').style.display = dmrPanelOpen ? '' : 'none';
+  document.getElementById('dmr-panel-toggle-icon').textContent = dmrPanelOpen ? '▼' : '▶';
+  if (dmrPanelOpen) refreshDmrHeard();
 }
 
 // ============================================================
