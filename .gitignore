@@ -1,6 +1,9 @@
 # Environment / secrets
 .env
 
+# Uploaded files (logos etc.) — instance-specific, not part of the repo
+uploads/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -28,8 +31,20 @@ env/
 .DS_Store
 Thumbs.db
 
+# Backup / scratch files — don't commit these
+*.bak
+*_old.*
+*_backup.*
+
+# Archives
+*.zip
+*.tar.gz
+
 # Logs
 *.log
+
+# Auth failure log (instance-specific, written at runtime)
+auth.log
 
 # Test / coverage
 .pytest_cache/
@@ -47,5 +62,3 @@ htmlcov/
 .viminfo
 .lesshst
 .wget-hsts
-gitpush.sh
-.gitconfig

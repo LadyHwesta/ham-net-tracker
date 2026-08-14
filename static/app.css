@@ -102,6 +102,7 @@
       text-transform: uppercase; letter-spacing: 1px;
       border-radius: 20px 3px 3px 20px;
       transition: background .12s; font-family: inherit;
+      text-decoration: none;
     }
     .sidebar-btn:hover { background: var(--lc-tan); }
     .sidebar-btn.active { background: var(--lc-orange); color: #000; }

@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Help — Net Tracker</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230a0a1a'/%3E%3C!-- Tower base --%3E%3Crect x='15' y='20' width='2' height='8' fill='%23ff9900'/%3E%3Crect x='11' y='27' width='10' height='2' rx='1' fill='%23ff9900'/%3E%3C!-- Tower mast --%3E%3Crect x='15.5' y='6' width='1' height='14' fill='%23ff9900'/%3E%3C!-- Signal arcs --%3E%3Cpath d='M10 14 A8 8 0 0 1 22 14' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M7 18 A11 11 0 0 1 25 18' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round' opacity='0.6'/%3E%3Cpath d='M4 22 A14 14 0 0 1 28 22' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round' opacity='0.3'/%3E%3C!-- Tip dot --%3E%3Ccircle cx='16' cy='6' r='1.5' fill='%23ff9900'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/app.css">
+
+</head>
+<body>
+<div id="toast"></div>
+<div id="app">
+  <header>
+    <div class="header-lcars">
+      <img id="header-logo" src="/logo" alt="" style="max-height:36px;max-width:120px;display:none;border-radius:4px;object-fit:contain"
+        onerror="this.style.display='none'" onload="this.style.display=''" />
+      <span id="header-antenna" style="font-size:18px">📻</span>
+      <div>
+        <h1 id="header-title"><span>Net</span> Tracker</h1>
+        <div id="header-tagline" style="display:none;font-size:11px;color:rgba(0,0,0,0.6);font-weight:600;letter-spacing:.04em;margin-top:-2px"></div>
+      </div>
+    </div>
+    <div id="header-user">
+      <strong id="header-callsign-short"></strong>
+      <button class="btn btn-ghost btn-sm" onclick="logout()">Logout</button>
+    </div>
+  </header>
+  <main>
+    <nav id="sidebar">
+      <div class="sidebar-section">Navigation</div>
+      <a class="sidebar-btn" href="/">📻 Net Control</a>
+      <a class="sidebar-btn" id="nav-admin" href="/admin" style="display:none">🔑 Admin</a>
+      <a class="sidebar-btn" href="/tokens">🪙 API Tokens</a>
+      <a class="sidebar-btn" href="/help">❓ Help</a>
+      <a class="sidebar-btn" href="/report">🐛 Report / Request</a>
+      <a class="sidebar-btn" href="/live" target="_blank">📡 Live Public Page ↗</a>
+    </nav>
+    <div id="content">
+        <h2 class="section-title">Help &amp; Operating Guide</h2>
+
+        <div class="card" style="margin-bottom:16px">
+          <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-13 — DMR Hotspot Integration</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li><strong>DMR Last Heard panel</strong> — connect your net to a WPSD, Pi-Star, or BrandMeister talk group; see recently heard stations live during the net.</li>
+              <li>Heard stations are filterable (NCS callsign auto-excluded) and update every 30 seconds while a session is active.</li>
+              <li><strong>Quick Check-In</strong> — click any heard callsign to pre-fill the check-in form with their name and region.</li>
+              <li>Supports both <em>direct mode</em> (browser fetches your local-network hotspot) and <em>proxy mode</em> (server fetches a publicly accessible URL or BrandMeister).</li>
+              <li>Two new check-in fields: <strong>Talk Group</strong> and <strong>Region/State</strong> — shown automatically when a net has DMR configured.</li>
+              <li>Configure DMR integration in the net Edit form (net owners only); migration SQL in Help → Database Migrations.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-blue);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-blue);margin-bottom:4px">2026-08-12 — ICS-205 Fixes, Branding &amp; Calendar Confirmations</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>Fixed ICS-205 export returning "Not authenticated" — now fetches with proper auth credentials.</li>
+              <li>ICS-205 / Net Log button now available in the live session toolbar (alongside End Session and CSV export) — no need to wait until the net ends.</li>
+              <li>Configurable organization branding: set your org name, tagline, website URL, and upload a custom logo from the Admin panel.</li>
+              <li>Public live page (<strong>/live</strong>) — unauthenticated real-time view of active nets and check-in rosters, auto-refreshes every 30 seconds.</li>
+              <li>Net Control confirmations now include a <strong>.ics calendar attachment</strong> — sign up or get assigned and a calendar event lands in your inbox automatically.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-blue);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-blue);margin-bottom:4px">2026-08-11 — Net Sharing &amp; Problem Reports</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>Net owners can now share nets with all users or individual operators via the Edit form.</li>
+              <li>Admins can see and open all nets on the system.</li>
+              <li>Shared nets appear with a <span style="font-size:10px;background:var(--lc-blue);color:#000;border-radius:8px;padding:1px 6px;font-weight:700">Shared</span> badge and show the owner's callsign.</li>
+              <li>New <strong>🐛 Report / Request</strong> sidebar item — submit bug reports, enhancement requests, and questions directly to the administrator.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-blue);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-blue);margin-bottom:4px">2026-08-10 — Traffic Log, Station Remarks, ICS-205 &amp; More</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>Traffic Message Log panel (ARES nets) — track message numbers, origin, destination, type, and delivery status.</li>
+              <li>Station Remarks — persistent per-net notes on any callsign, accessible during lookup.</li>
+              <li>Session Summary card shown automatically when a session ends.</li>
+              <li>ICS-205 / Net Log printable export added to ended sessions.</li>
+              <li>Session clock showing local time, UTC, and elapsed time.</li>
+              <li><kbd style="background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-size:10px">/</kbd> keyboard shortcut to jump to callsign input.</li>
+              <li>Traffic banner chips now have "called" checkboxes to track handled traffic.</li>
+              <li>Admin and database help sections now hidden from non-admin users.</li>
+              <li>SMTP configuration hint hidden once email is configured.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-border);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:4px">2026-08-09 — ARES/ACES Mode &amp; Expected Stations</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>ARES/ACES net mode with per-station evacuation zone tracking and Zone Roster panel.</li>
+              <li>Expected Stations list with Check-In and Traffic pre-flag checkboxes.</li>
+              <li>Callsign suffix search against local check-in history (replaces decommissioned FCC search).</li>
+              <li>Net Control signup scheduling with weekly recurring time slots.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-border);padding-left:12px">
+            <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:4px">2026-08-08 — Initial Release</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>Net and session management, check-in logging, signal reports, traffic flagging.</li>
+              <li>FCC callsign lookup, session history, CSV export.</li>
+              <li>User registration with admin approval, email notifications.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">QUICK START</h3>
+          <p style="margin:0 0 8px">1. Create a <strong>Net</strong> under My Nets — give it a name and frequency.</p>
+          <p style="margin:0 0 8px">2. Open the net and click <strong>▶ Start New Session</strong> to begin.</p>
+          <p style="margin:0 0 8px">3. Use the <strong>Check-In</strong> form or <strong>Expected Stations</strong> list to log stations as they call in.</p>
+          <p style="margin:0 0 8px">4. Click <strong>■ End Session</strong> when the net closes — a session summary card will appear automatically.</p>
+          <p style="margin:0"><strong>Keyboard shortcut:</strong> Press <kbd style="background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-size:11px">/</kbd> anywhere on the session page to instantly focus the callsign input.</p>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">SESSION CLOCK &amp; TIMER</h3>
+          <p style="margin:0 0 8px">While a session is live, a clock bar appears showing <strong>local time</strong>, <strong>UTC time</strong>, and the <strong>elapsed session time</strong>. The timer starts from when the session was opened and updates every second.</p>
+          <p style="margin:0">The clock disappears automatically when the session ends.</p>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CALLSIGN LOOKUP &amp; SEARCH</h3>
+          <p style="margin:0 0 8px"><strong>Full callsign</strong> (e.g. <code style="background:var(--surface);padding:1px 5px;border-radius:3px">W7KOL</code>) — type it in and the system looks up the licensee name, class, state, and grid from the FCC database, auto-filling the Name field.</p>
+          <p style="margin:0 0 8px"><strong>Suffix search</strong> (e.g. <code style="background:var(--surface);padding:1px 5px;border-radius:3px">KOL</code>) — type letters without a district number and the system searches your net's check-in history for matching callsigns. A dropdown appears sorted by suffix. Click any result to select it and trigger a full FCC lookup.</p>
+          <p style="margin:0">Suffix search only finds callsigns already in your net's history. For a brand-new station, type their full callsign.</p>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">STATION REMARKS</h3>
+          <p style="margin:0 0 8px">After looking up a callsign, a small <strong>📝 Remark</strong> pill appears in the lookup info bar. Click it to add or edit a persistent note about that station (e.g. "portable op", "relay to W7NET", "hearing impaired — use Winlink").</p>
+          <p style="margin:0">Remarks are saved per net and appear every time that station is looked up during any future session on that net.</p>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">MANUAL CHECK-IN FORM</h3>
+          <p style="margin:0 0 8px">Fill in callsign, name (auto-filled from FCC), signal report, and optional comments. Check <strong>Has Traffic</strong> before clicking <strong>Check In</strong> or pressing Enter.</p>
+          <p style="margin:0">Duplicate callsigns in the same session are automatically rejected.</p>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">EXPECTED STATIONS</h3>
+          <p style="margin:0 0 8px">Click <strong>Expected Stations</strong> to expand the panel. Set the minimum check-in count and lookback window (weeks), then click <strong>Load List</strong>.</p>
+          <p style="margin:0 0 8px">Each row shows two checkboxes: <strong style="color:var(--lc-orange)">Check In</strong> to log them immediately, and <strong style="color:var(--lc-red)">Traffic</strong> to pre-flag traffic before they're formally logged. On ARES nets, a 📍 zone badge shows their last known evacuation zone.</p>
+          <p style="margin:0">Already-checked-in stations are greyed out and the list refreshes automatically.</p>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">TRAFFIC MANAGEMENT</h3>
+          <p style="margin:0 0 8px">When any station has traffic, a red <strong>📢 TRAFFIC</strong> banner appears listing them as interactive chips. Once you've called a station to pass their traffic, <strong>tick the checkbox</strong> on their chip — it strikes through and dims to show it's been handled. Unchecked chips remain prominent so nothing gets missed.</p>
+          <p style="margin:0 0 8px">Pre-flagged stations from Expected Stations appear with a ⏳ badge until formally checked in. Their checkbox is disabled until they call in.</p>
+          <p style="margin:0">In the check-ins table, click the 📢 / ○ button in the Traffic column to toggle the flag on any station.</p>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">TRAFFIC MESSAGE LOG</h3>
+          <p style="margin:0 0 8px">Click <strong>📋 TRAFFIC MESSAGE LOG</strong> to expand the panel. Use it to record individual traffic messages handled during the session — message number, origin, destination, type (Formal / Informal / Health &amp; Welfare), and notes.</p>
+          <p style="margin:0 0 8px">The <strong>Status</strong> dropdown on each row lets you track progress: Received → Relayed → Delivered (or Undeliverable). Changes save immediately.</p>
+          <p style="margin:0">The message log is included in the ICS-205 export.</p>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">SESSION SUMMARY &amp; ICS-205</h3>
+          <p style="margin:0 0 8px">When you end a session, a <strong>Session Summary</strong> card pops up showing total check-ins, session duration, traffic count, and new stations (first-time visitors to this net).</p>
+          <p style="margin:0 0 8px">Click <strong>📄 ICS-205 / Net Log</strong> to open a printable net log in a new tab. It includes the ICS-205 header (net name, frequency, NCS callsign, operational period) plus the full check-in roster and traffic message log. Use your browser's Print function to save as PDF.</p>
+          <p style="margin:0">You can also export the raw check-in data as a <strong>CSV</strong> for logging or upload to other systems.</p>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">ARES/ACES MODE</h3>
+          <p style="margin:0 0 8px">Enable <strong>ARES/ACS Net</strong> in the net settings to activate evacuation zone tracking. An <strong>Evac Zone</strong> field appears in the check-in form — enter the station's zone (e.g. "Zone A") when they check in.</p>
+          <p style="margin:0 0 8px">The zone is saved automatically to a per-net zone table. In future sessions, the station's last known zone appears as a 📍 badge in the Expected Stations list and is pre-filled when checking them in.</p>
+          <p style="margin:0">The <strong>Zone Roster</strong> panel shows all known zones grouped by zone name with their callsigns, sorted by callsign suffix. The Zone column also appears in the check-in table and the ICS-205 export.</p>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">SESSION HISTORY</h3>
+          <p style="margin:0 0 8px">The <strong>History</strong> view shows every callsign that has checked into the selected net, with check-in counts for the past 2 weeks, 4 weeks, and all time.</p>
+          <p style="margin:0 0 8px">Use the filter dropdown to find: <strong>Last Net</strong>, <strong>Missed Last Net</strong>, <strong>Active (2 wks)</strong>, <strong>Regular (4 wks, ≥2)</strong>, <strong>Frequent (4 wks, ≥3)</strong>, or <strong>Inactive (4 wks)</strong>.</p>
+          <p style="margin:0">Combine the dropdown with the text search box for further filtering. Use <strong>⬇ Download CSV</strong> to export the current view.</p>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">NET SHARING</h3>
+          <p style="margin:0 0 8px">Net owners can share a net with other registered operators. Open the net's <strong>Edit</strong> form and expand the <strong>🔗 Sharing</strong> section at the bottom.</p>
+          <p style="margin:0 0 8px">Choose <strong>Share with all registered users</strong> to give every active account access, or select individual users from the list. Click <strong>Save Sharing</strong> to apply — this is separate from the main Save button.</p>
+          <p style="margin:0 0 8px">Shared nets appear in other operators' net lists with a <span style="font-size:11px;background:var(--lc-blue);color:#000;border-radius:10px;padding:1px 7px;font-weight:700">Shared</span> badge and show the owner's callsign. Shared users can start sessions and add check-ins, but cannot edit the net configuration or manage sharing.</p>
+          <p style="margin:0">Admins can see and open all nets on the system regardless of sharing settings.</p>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">SCHEDULING</h3>
+          <p style="margin:0 0 8px">In the <strong>Schedule</strong> tab of a net, add weekly repeating time slots (day, time, timezone). These appear as a calendar of upcoming dates.</p>
+          <p style="margin:0">Operators can click <strong>Sign Up</strong> next to any future date to claim the Net Control Operator slot.</p>
+        </div>
+
+        <div id="help-admin-section" class="card" style="margin-bottom:16px">
+          <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">ADMIN PANEL</h3>
+          <p style="margin:0 0 8px">The first user to register automatically becomes admin. Additional registrations require approval before login is permitted.</p>
+          <p style="margin:0 0 8px">Admins can approve/deactivate accounts, grant admin privileges, delete accounts, and opt in to <strong>email notifications</strong> for new registrations using the ✉/📧 toggle in the Notify column.</p>
+          <p style="margin:0">Newly approved operators receive an automatic confirmation email if SMTP is configured in <code style="background:var(--surface);padding:1px 5px;border-radius:3px">.env</code>.</p>
+        </div>
+
+        <div id="help-db-section" class="card">
+          <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">DATABASE MIGRATIONS</h3>
+          <p style="margin:0 0 8px">
+            Schema migrations are managed by <code style="background:var(--surface);padding:1px 5px;border-radius:3px">migrate.py</code> in the app directory.
+            It is safe to re-run at any time — every step uses <code style="background:var(--surface);padding:1px 5px;border-radius:3px">IF NOT EXISTS</code>.
+          </p>
+          <pre style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:12px;overflow-x:auto;margin:0 0 8px">sudo -u netcontrol python3 /opt/netcontrol/migrate.py</pre>
+          <p style="margin:0;font-size:12px;color:var(--text-muted)">
+            Fresh installs: new tables are created automatically on first startup — no migration needed.
+            Run <code style="background:var(--surface);padding:1px 5px;border-radius:3px">migrate.py</code> only when upgrading an existing instance after a code update.
+          </p>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+  <script src="/static/js/state.js"></script>
+  <script src="/static/js/utils.js"></script>
+  <script src="/static/js/auth.js"></script>
+  <script src="/static/js/branding.js"></script>
+
+  <script>
+    async function initPage() {
+      if (!token) { window.location.href = '/'; return; }
+      try { currentUser = await apiFetch('/auth/me'); }
+      catch { window.location.href = '/'; return; }
+
+      const cs = document.getElementById('header-callsign-short');
+      if (cs) cs.textContent = currentUser.callsign;
+      if (currentUser.is_admin) {
+        const navAdmin = document.getElementById('nav-admin');
+        if (navAdmin) navAdmin.style.display = '';
+      }
+      await loadBranding();
+      // Show admin-only sections if applicable
+      if (currentUser.is_admin) {
+        const adminSec = document.getElementById('help-admin-section');
+        const dbSec = document.getElementById('help-db-section');
+        if (adminSec) adminSec.style.display = '';
+        if (dbSec) dbSec.style.display = '';
+      }
+    }
+    initPage();
+  </script>
+</body>
+</html>

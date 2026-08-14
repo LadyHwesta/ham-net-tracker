@@ -286,12 +286,38 @@ def on_startup():
 # ---------------------------------------------------------------------------
 
 _HTML_FILE = Path(__file__).parent / "index.html"
+_STATIC_DIR = Path(__file__).parent
+
+
+def _serve_html(name: str) -> HTMLResponse:
+    """Read and serve a standalone HTML page from the app directory."""
+    return HTMLResponse(content=(_STATIC_DIR / name).read_text(encoding="utf-8"))
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
 def serve_frontend():
-    """Serve the single-page frontend."""
+    """Serve the SPA (My Nets + Session views)."""
     return HTMLResponse(content=_HTML_FILE.read_text(encoding="utf-8"))
+
+
+@app.get("/admin", response_class=HTMLResponse, include_in_schema=False)
+def serve_admin():
+    return _serve_html("admin.html")
+
+
+@app.get("/tokens", response_class=HTMLResponse, include_in_schema=False)
+def serve_tokens():
+    return _serve_html("tokens.html")
+
+
+@app.get("/help", response_class=HTMLResponse, include_in_schema=False)
+def serve_help():
+    return _serve_html("help.html")
+
+
+@app.get("/report", response_class=HTMLResponse, include_in_schema=False)
+def serve_report():
+    return _serve_html("report.html")
 
 
 # ---------------------------------------------------------------------------
