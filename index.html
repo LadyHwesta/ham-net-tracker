@@ -262,10 +262,10 @@
               <span class="status-dot" id="session-status-dot"></span>
               <strong id="session-status-label"></strong>
               <span class="text-muted" id="session-meta"></span>
-              <div style="margin-left:auto;display:flex;gap:8px">
-                <button class="btn btn-ghost btn-sm" id="end-session-btn" onclick="endSession()">■ End Session</button>
-                <button class="btn btn-ghost btn-sm" onclick="openICS205(currentSessionId)">📄 ICS-205</button>
-                <button class="btn btn-ghost btn-sm" onclick="exportSession()">⬇ CSV</button>
+              <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn btn-danger" id="end-session-btn" onclick="endSession()">■ End Session</button>
+                <button class="btn btn-ghost" onclick="openICS205(currentSessionId)">📄 ICS-205</button>
+                <button class="btn btn-ghost" onclick="exportSession()">⬇ CSV</button>
               </div>
             </div>
 
