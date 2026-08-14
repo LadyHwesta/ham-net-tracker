@@ -8,7 +8,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/app.css">
-
 </head>
 <body>
 <div id="toast"></div>
@@ -39,10 +38,43 @@
       <a class="sidebar-btn" href="/live" target="_blank">📡 Live Public Page ↗</a>
     </nav>
     <div id="content">
-        <h2 class="section-title">Operator Management</h2>
+      <h2 class="section-title">Admin</h2>
 
-        <!-- Branding card -->
+      <!-- Tab bar -->
+      <div class="tab-bar">
+        <button class="tab-btn active" id="admin-tab-operators" onclick="switchAdminTab('operators')">👥 Operators</button>
+        <button class="tab-btn" id="admin-tab-branding"   onclick="switchAdminTab('branding')">🎨 Branding</button>
+        <button class="tab-btn" id="admin-tab-email"      onclick="switchAdminTab('email')">📧 Email</button>
+      </div>
+
+      <!-- ── Operators panel ───────────────────────────────────── -->
+      <div id="admin-panel-operators">
+
+        <!-- Pending approvals -->
         <div class="card" style="margin-bottom:16px">
+          <h3 style="margin:0 0 12px;font-size:14px;color:var(--text-muted)">PENDING APPROVAL</h3>
+          <div id="admin-pending-list"><p class="text-muted">Loading…</p></div>
+        </div>
+
+        <!-- All operators -->
+        <div class="card">
+          <h3 style="margin:0 0 12px;font-size:14px;color:var(--text-muted)">ALL OPERATORS</h3>
+          <div style="overflow-x:auto">
+            <table class="tbl" id="admin-users-table">
+              <thead>
+                <tr><th>Callsign</th><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Notify</th><th>Registered</th><th>Actions</th></tr>
+              </thead>
+              <tbody id="admin-users-tbody"></tbody>
+            </table>
+          </div>
+          <div class="empty" id="admin-users-empty" style="display:none"><p>No users found.</p></div>
+        </div>
+
+      </div><!-- /admin-panel-operators -->
+
+      <!-- ── Branding panel ────────────────────────────────────── -->
+      <div id="admin-panel-branding" style="display:none">
+        <div class="card">
           <h3 style="margin:0 0 14px;font-size:14px;color:var(--text-muted)">BRANDING</h3>
           <div class="form-row">
             <div class="form-group">
@@ -72,66 +104,58 @@
             <button class="btn btn-primary btn-sm" onclick="saveBranding()">Save Branding</button>
           </div>
         </div>
+      </div><!-- /admin-panel-branding -->
 
-        <!-- Email status card -->
-        <div class="card" style="margin-bottom:16px">
+      <!-- ── Email panel ───────────────────────────────────────── -->
+      <div id="admin-panel-email" style="display:none">
+        <div class="card">
           <h3 style="margin:0 0 10px;font-size:14px;color:var(--text-muted)">EMAIL CONFIGURATION</h3>
           <div id="admin-email-status" style="font-size:13px">
             <span class="text-muted">Checking…</span>
           </div>
           <p id="admin-email-config-hint" class="text-muted" style="font-size:11px;margin:10px 0 0">
-            Configure via <code style="background:var(--surface-2,#111);padding:1px 5px;border-radius:3px">SMTP_HOST</code>,
+            Configure via
+            <code style="background:var(--surface-2,#111);padding:1px 5px;border-radius:3px">SMTP_HOST</code>,
             <code style="background:var(--surface-2,#111);padding:1px 5px;border-radius:3px">SMTP_PORT</code>,
             <code style="background:var(--surface-2,#111);padding:1px 5px;border-radius:3px">SMTP_USER</code>,
             <code style="background:var(--surface-2,#111);padding:1px 5px;border-radius:3px">SMTP_PASSWORD</code>,
-            <code style="background:var(--surface-2,#111);padding:1px 5px;border-radius:3px">SMTP_FROM</code> in your <code style="background:var(--surface-2,#111);padding:1px 5px;border-radius:3px">.env</code> file, then restart the service.
+            <code style="background:var(--surface-2,#111);padding:1px 5px;border-radius:3px">SMTP_FROM</code>
+            in your <code style="background:var(--surface-2,#111);padding:1px 5px;border-radius:3px">.env</code> file, then restart the service.
           </p>
         </div>
+      </div><!-- /admin-panel-email -->
 
-        <!-- Pending approvals -->
-        <div class="card" style="margin-bottom:16px">
-          <h3 style="margin:0 0 12px;font-size:14px;color:var(--text-muted)">PENDING APPROVAL</h3>
-          <div id="admin-pending-list"><p class="text-muted">Loading…</p></div>
-        </div>
-
-        <!-- All users -->
-        <div class="card">
-          <h3 style="margin:0 0 12px;font-size:14px;color:var(--text-muted)">ALL OPERATORS</h3>
-          <div style="overflow-x:auto">
-            <table class="tbl" id="admin-users-table">
-              <thead>
-                <tr><th>Callsign</th><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Notify</th><th>Registered</th><th>Actions</th></tr>
-              </thead>
-              <tbody id="admin-users-tbody"></tbody>
-            </table>
-          </div>
-          <div class="empty" id="admin-users-empty" style="display:none"><p>No users found.</p></div>
-        </div>
-      </div>
-    </div>
+    </div><!-- /content -->
   </main>
 </div>
-  <script src="/static/js/state.js"></script>
-  <script src="/static/js/utils.js"></script>
-  <script src="/static/js/auth.js"></script>
-  <script src="/static/js/branding.js"></script>
-  <script src="/static/js/admin.js"></script>
-  <script>
-    async function initPage() {
-      if (!token) { window.location.href = '/'; return; }
-      try { currentUser = await apiFetch('/auth/me'); }
-      catch { window.location.href = '/'; return; }
-      if (!currentUser.is_admin) { window.location.href = '/'; return; }
-      const cs = document.getElementById('header-callsign-short');
-      if (cs) cs.textContent = currentUser.callsign;
-      if (currentUser.is_admin) {
-        const navAdmin = document.getElementById('nav-admin');
-        if (navAdmin) navAdmin.style.display = '';
-      }
-      await loadBranding();
-      loadAdminUsers(); loadAdminBranding();
-    }
-    initPage();
-  </script>
+<script src="/static/js/state.js"></script>
+<script src="/static/js/utils.js"></script>
+<script src="/static/js/auth.js"></script>
+<script src="/static/js/branding.js"></script>
+<script src="/static/js/admin.js"></script>
+<script>
+  function switchAdminTab(tab) {
+    ['operators', 'branding', 'email'].forEach(t => {
+      document.getElementById('admin-panel-' + t).style.display = t === tab ? '' : 'none';
+      document.getElementById('admin-tab-' + t).classList.toggle('active', t === tab);
+    });
+    if (tab === 'email') loadAdminUsers(); // refreshes email status card
+  }
+
+  async function initPage() {
+    if (!token) { window.location.href = '/'; return; }
+    try { currentUser = await apiFetch('/auth/me'); }
+    catch { window.location.href = '/'; return; }
+    if (!currentUser.is_admin) { window.location.href = '/'; return; }
+    const cs = document.getElementById('header-callsign-short');
+    if (cs) cs.textContent = currentUser.callsign;
+    const navAdmin = document.getElementById('nav-admin');
+    if (navAdmin) navAdmin.style.display = '';
+    await loadBranding();
+    loadAdminUsers();
+    loadAdminBranding();
+  }
+  initPage();
+</script>
 </body>
 </html>
