@@ -21,9 +21,6 @@ There are no automated tests. Changes are validated manually by deploying and cl
 ~~Migration SQL must be kept in sync manually~~ — resolved; see Resolved section.
 ~~Single-file frontend (`index.html`)~~ — resolved; see Resolved section.
 
-### Single-file frontend (`index.html`)
-`index.html` is a 3000+ line file containing HTML, CSS, and JavaScript all in one. This made bootstrapping fast but is increasingly hard to navigate and will make onboarding contributors difficult. A build step (Vite or even just vanilla ES modules) would let the JS be split into logical modules without changing the single-file deployment story.
-
 ### `httpx` imported twice under different names
 `httpx` is imported at the top of `main.py` as `httpx` (used in one async context) and again later as `import httpx as _httpx` (used in the DMR proxy functions). Should be consolidated to a single import.
 
@@ -53,4 +50,4 @@ The Python relay script (`dmr_relay.py`) and the backend's `_dmr_normalize_wpsd(
 - ~~DMR relay script uses expiring JWT tokens~~ — `api_tokens` table + `GET/POST/DELETE /auth/tokens` endpoints added; `get_current_user` accepts `nt_` prefixed tokens; relay script updated to use API token (2026-08-13)
 - ~~No fail2ban-compatible auth failure log~~ — `AUTH_LOG_FILE` env var; failed logins write `AUTH_FAIL ip=… reason=…` to a `WatchedFileHandler` log (2026-08-13)
 - ~~Migration SQL must be kept in sync manually~~ — `migrate.py` is now the single source of truth; `index.html` and `README.md` updated to point to it (2026-08-14)
-- ~~Single-file frontend (`index.html`)~~ — CSS extracted to `static/app.css`; JS split into 15 feature modules under `static/js/`; `index.html` reduced from 3800 to 945 lines; FastAPI serves `/static` via `StaticFiles` (2026-08-14)
+- ~~Single-file frontend (`index.html`)~~ — CSS extracted to `static/app.css`; JS split into 15 feature modules under `static/js/`; Admin/Tokens/Help/Report split into standalone HTML pages; `index.html` reduced from 3800 to 624 lines (SPA core only); FastAPI serves `/static` via `StaticFiles` (2026-08-14)
