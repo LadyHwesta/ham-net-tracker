@@ -1237,6 +1237,63 @@ def admin_approve_user(user_id: int, admin: User = Depends(require_admin), db: S
     return user
 
 
+class RejectUserBody(BaseModel):
+    message: Optional[str] = None   # optional custom note to include in the rejection email
+
+
+GITHUB_URL = os.getenv("GITHUB_URL", "https://github.com/kf7mxe/ham-net-tracker")
+
+
+@app.post("/admin/users/{user_id}/reject", status_code=204)
+def admin_reject_user(user_id: int, body: RejectUserBody = RejectUserBody(), admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Send a rejection email then permanently delete the pending account."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(404, "User not found")
+    if user.id == admin.id:
+        raise HTTPException(400, "Cannot reject your own account")
+
+    custom_block_html = ""
+    custom_block_text = ""
+    if body.message and body.message.strip():
+        msg = body.message.strip()
+        custom_block_html = f'<p style="margin:12px 0"><strong>Message from the administrator:</strong><br>{msg}</p>'
+        custom_block_text = f"\nMessage from the administrator:\n{msg}\n"
+
+    github_block_html = (
+        f'<p style="margin:12px 0;font-size:12px;color:#888">'
+        f'Ham Net Tracker is open source. If you\'d like to run your own instance, '
+        f'the code is available at <a href="{GITHUB_URL}" style="color:#FF9900">{GITHUB_URL}</a>.</p>'
+    )
+    github_block_text = (
+        f"\nHam Net Tracker is open source. If you'd like to run your own instance, "
+        f"the code is available at {GITHUB_URL}.\n"
+    )
+
+    send_email(
+        to=[user.email],
+        subject="[Ham Net Tracker] Registration Not Approved",
+        body_html=f"""<div style="font-family:sans-serif;max-width:520px">
+  <h2 style="color:#FF9900">Registration Not Approved</h2>
+  <p>Hello <strong>{user.name}</strong> ({user.callsign}),</p>
+  <p>Thank you for registering. Unfortunately your account request has not been approved at this time.</p>
+  {custom_block_html}
+  {f'<p style="color:#888;font-size:12px">If you have questions, please contact <a href="mailto:{ADMIN_CONTACT_EMAIL}" style="color:#FF9900">{ADMIN_CONTACT_EMAIL}</a>.</p>' if ADMIN_CONTACT_EMAIL else ''}
+  {github_block_html}
+</div>""",
+        body_text=(
+            f"Hello {user.name} ({user.callsign}),\n\n"
+            f"Thank you for registering. Unfortunately your account request has not been approved at this time.\n"
+            f"{custom_block_text}"
+            + (f"\nIf you have questions, please contact {ADMIN_CONTACT_EMAIL}.\n" if ADMIN_CONTACT_EMAIL else "")
+            + github_block_text
+        ),
+    )
+
+    db.delete(user)
+    db.commit()
+
+
 @app.patch("/admin/users/{user_id}/deactivate", response_model=UserOut)
 def admin_deactivate_user(user_id: int, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
     """Deactivate a user account (they can no longer log in)."""

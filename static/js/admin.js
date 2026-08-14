@@ -35,7 +35,7 @@ async function loadAdminUsers() {
         <span class="text-muted" style="font-size:11px">Registered ${fmt(u.created_at)}</span>
         <div style="margin-left:auto;display:flex;gap:6px">
           <button class="btn btn-primary btn-sm" onclick="adminApprove(${u.id})">✓ Approve</button>
-          <button class="btn btn-danger btn-sm" onclick="adminDelete(${u.id})">✕ Reject</button>
+          <button class="btn btn-danger btn-sm" onclick="adminReject(${u.id}, '${esc(u.callsign)}')">✕ Reject</button>
         </div>
       </div>
     `).join('');
@@ -117,6 +117,48 @@ async function adminMakeAdmin(userId) {
   try {
     await apiFetch(`/admin/users/${userId}/make-admin`, { method: 'PATCH' });
     toast('Admin access granted', 'success');
+    loadAdminUsers();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function adminReject(userId, callsign) {
+  // Show a small inline modal for optional rejection message
+  const existing = document.getElementById('reject-modal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'reject-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.innerHTML = `
+    <div style="background:var(--surface);border:2px solid var(--lc-red);border-radius:10px;padding:24px;max-width:440px;width:100%">
+      <h3 style="margin:0 0 8px;color:var(--lc-red)">Reject Registration</h3>
+      <p style="margin:0 0 14px;font-size:13px;color:var(--text-muted)">
+        Rejecting <strong>${esc(callsign)}</strong> will send them a notification email and permanently remove their account.
+      </p>
+      <div class="form-group" style="margin-bottom:14px">
+        <label style="font-size:12px">Custom message <span style="color:var(--text-muted)">(optional — included in the rejection email)</span></label>
+        <textarea id="reject-message" class="form-control" rows="3"
+          placeholder="e.g. This net is limited to licensed operators in the W7XYZ club area."></textarea>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="document.getElementById('reject-modal').remove()">Cancel</button>
+        <button class="btn btn-danger" onclick="submitReject(${userId})">Send Rejection & Delete</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  document.getElementById('reject-message').focus();
+}
+
+async function submitReject(userId) {
+  const message = document.getElementById('reject-message')?.value.trim() || null;
+  try {
+    await apiFetch(`/admin/users/${userId}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    });
+    document.getElementById('reject-modal')?.remove();
+    toast('Rejection sent and account removed');
     loadAdminUsers();
   } catch (e) { toast(e.message, 'error'); }
 }
