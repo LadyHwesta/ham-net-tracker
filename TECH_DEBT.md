@@ -18,8 +18,8 @@ Known issues, shortcuts, and areas for future improvement. Not bugs — the app 
 ### No test suite
 There are no automated tests. Changes are validated manually by deploying and clicking around. At minimum, unit tests for the auth flow, checkin logic, and DMR normalization would catch regressions. FastAPI's `TestClient` makes this straightforward.
 
-### Migration SQL must be kept in sync manually
-Database migrations live in two places: the `Help` page in `index.html` and `README.md`. Neither is authoritative. It's easy for them to drift from `models.py`. Options: adopt Alembic for proper migration tracking, or at least add a CI check that compares the model definitions against the documented migrations.
+~~Migration SQL must be kept in sync manually~~ — resolved; see Resolved section.
+~~Single-file frontend (`index.html`)~~ — resolved; see Resolved section.
 
 ### Single-file frontend (`index.html`)
 `index.html` is a 3000+ line file containing HTML, CSS, and JavaScript all in one. This made bootstrapping fast but is increasingly hard to navigate and will make onboarding contributors difficult. A build step (Vite or even just vanilla ES modules) would let the JS be split into logical modules without changing the single-file deployment story.
@@ -52,3 +52,5 @@ The Python relay script (`dmr_relay.py`) and the backend's `_dmr_normalize_wpsd(
 - ~~No rate limiting on authentication endpoints~~ — `slowapi` added; `POST /auth/login` limited to 10/minute, `POST /auth/register` to 5/minute (2026-08-13)
 - ~~DMR relay script uses expiring JWT tokens~~ — `api_tokens` table + `GET/POST/DELETE /auth/tokens` endpoints added; `get_current_user` accepts `nt_` prefixed tokens; relay script updated to use API token (2026-08-13)
 - ~~No fail2ban-compatible auth failure log~~ — `AUTH_LOG_FILE` env var; failed logins write `AUTH_FAIL ip=… reason=…` to a `WatchedFileHandler` log (2026-08-13)
+- ~~Migration SQL must be kept in sync manually~~ — `migrate.py` is now the single source of truth; `index.html` and `README.md` updated to point to it (2026-08-14)
+- ~~Single-file frontend (`index.html`)~~ — CSS extracted to `static/app.css`; JS split into 15 feature modules under `static/js/`; `index.html` reduced from 3800 to 945 lines; FastAPI serves `/static` via `StaticFiles` (2026-08-14)

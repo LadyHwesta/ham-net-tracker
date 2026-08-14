@@ -26,7 +26,7 @@ A web-based net control logging application for amateur radio operators. Designe
 ## Tech Stack
 
 - **Backend**: Python 3.11+, FastAPI, SQLAlchemy (sync), PostgreSQL
-- **Frontend**: Single-file vanilla JS SPA (no framework), LCARS-inspired dark theme
+- **Frontend**: Vanilla JS SPA (no framework), LCARS-inspired dark theme — CSS in `static/app.css`, JS split into feature modules under `static/js/`
 - **Auth**: JWT (PyJWT), bcrypt passwords
 - **Email**: SMTP (configurable — Gmail, SendGrid, local Postfix, etc.)
 - **Deployment**: systemd + Apache reverse proxy + Let's Encrypt
@@ -100,69 +100,15 @@ uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 
 ## Database Migrations
 
-> **Fresh installs:** `init_db()` (step 5 above) creates the full current schema automatically. No migration SQL needed.
+> **Fresh installs:** the app creates the full current schema automatically on first startup. No migration step needed.
 
-**Upgrading an existing install** — connect as the app user and run any statements below that your version is missing:
+**Upgrading an existing install** — run `migrate.py` after pulling new code:
 
 ```bash
-sudo -u netcontrol psql netcontrol
+sudo -u netcontrol python3 /opt/netcontrol/migrate.py
 ```
 
-```sql
--- Added in early versions
-ALTER TABLE nets ADD COLUMN IF NOT EXISTS is_ares BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE checkins ADD COLUMN IF NOT EXISTS has_traffic BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE checkins ADD COLUMN IF NOT EXISTS evac_zone VARCHAR(100);
-ALTER TABLE users ADD COLUMN IF NOT EXISTS notify_new_registrations BOOLEAN NOT NULL DEFAULT FALSE;
-
-CREATE TABLE IF NOT EXISTS evac_zones (
-    id SERIAL PRIMARY KEY,
-    net_id INTEGER NOT NULL REFERENCES nets(id) ON DELETE CASCADE,
-    callsign VARCHAR(12) NOT NULL,
-    zone VARCHAR(100) NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT uq_evac_zone_net_callsign UNIQUE (net_id, callsign));
-
-CREATE TABLE IF NOT EXISTS traffic_messages (
-    id SERIAL PRIMARY KEY,
-    session_id INTEGER NOT NULL REFERENCES net_sessions(id) ON DELETE CASCADE,
-    msg_number VARCHAR(50), origin_callsign VARCHAR(12) NOT NULL, dest_info VARCHAR(200),
-    msg_type VARCHAR(20) NOT NULL DEFAULT 'formal',
-    status VARCHAR(20) NOT NULL DEFAULT 'received',
-    notes TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
-
-CREATE TABLE IF NOT EXISTS station_remarks (
-    id SERIAL PRIMARY KEY,
-    callsign VARCHAR(12) NOT NULL,
-    net_id INTEGER REFERENCES nets(id) ON DELETE CASCADE,
-    remark TEXT NOT NULL,
-    updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT uq_station_remark_callsign_net UNIQUE (callsign, net_id));
-
-CREATE TABLE IF NOT EXISTS net_shares (
-    id SERIAL PRIMARY KEY,
-    net_id INTEGER NOT NULL REFERENCES nets(id) ON DELETE CASCADE,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT uq_net_share_net_user UNIQUE (net_id, user_id));
-
--- DMR integration (2026-08-13)
-ALTER TABLE nets ADD COLUMN IF NOT EXISTS dmr_talkgroup VARCHAR(20);
-ALTER TABLE checkins ADD COLUMN IF NOT EXISTS dmr_talkgroup VARCHAR(20);
-ALTER TABLE checkins ADD COLUMN IF NOT EXISTS dmr_region VARCHAR(100);
-
-CREATE TABLE IF NOT EXISTS dmr_configs (
-    id SERIAL PRIMARY KEY,
-    net_id INTEGER NOT NULL REFERENCES nets(id) ON DELETE CASCADE,
-    source_type VARCHAR(20) NOT NULL DEFAULT 'wpsd',
-    hotspot_url TEXT,
-    talkgroup_id INTEGER,
-    filter_callsign VARCHAR(12),
-    direct_mode BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT uq_dmr_config_net UNIQUE (net_id));
-```
+`migrate.py` is the single source of truth for all schema changes. It is safe to re-run at any time — every step uses `IF NOT EXISTS` or is otherwise idempotent. When adding a new column or table to `models.py`, add the corresponding statement to `MIGRATIONS` in `migrate.py` — that's the only file that needs updating.
 
 ## Deployment
 

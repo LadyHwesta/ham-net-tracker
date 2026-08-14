@@ -1,0 +1,172 @@
+// ============================================================
+// API TOKENS
+// ============================================================
+let _lastCreatedToken = null;
+
+async function loadApiTokens() {
+  const el = document.getElementById('tokens-list');
+  if (!el) return;
+  try {
+    const tokens = await apiFetch('/auth/tokens');
+    if (!tokens || tokens.length === 0) {
+      el.innerHTML = '<p style="color:var(--text-muted);font-size:13px;margin:0">No API tokens yet. Create one above.</p>';
+      return;
+    }
+    el.innerHTML = tokens.map(t => `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--lc-border)">
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:600">${esc(t.name)}</div>
+          <div style="font-size:11px;color:var(--text-muted)">
+            Created ${fmt(t.created_at)}
+            ${t.last_used_at ? ' · Last used ' + fmt(t.last_used_at) : ' · Never used'}
+          </div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="copyRelayScriptForToken(${t.id}, '${esc(t.name)}')" title="Download relay script pre-configured for this token">📥 Relay Script</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteApiToken(${t.id})">Revoke</button>
+      </div>
+    `).join('');
+  } catch(e) {
+    el.innerHTML = `<p style="color:var(--lc-red);font-size:13px;margin:0">Error: ${esc(e.message)}</p>`;
+  }
+}
+
+async function createApiToken() {
+  const name = document.getElementById('new-token-name').value.trim();
+  if (!name) { toast('Enter a label for the token', 'error'); return; }
+  try {
+    const result = await apiFetch('/auth/tokens', { method: 'POST', body: JSON.stringify({ name }) });
+    _lastCreatedToken = result.token;
+    document.getElementById('new-token-value').textContent = result.token;
+    document.getElementById('new-token-reveal').style.display = '';
+    document.getElementById('new-token-name').value = '';
+    toast('Token created — copy it now!');
+    loadApiTokens();
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+function copyNewToken() {
+  if (!_lastCreatedToken) return;
+  navigator.clipboard.writeText(_lastCreatedToken).then(() => toast('Token copied to clipboard'));
+}
+
+async function deleteApiToken(id) {
+  if (!confirm('Revoke this token? Any scripts using it will stop working immediately.')) return;
+  try {
+    await apiFetch(`/auth/tokens/${id}`, { method: 'DELETE' });
+    toast('Token revoked');
+    loadApiTokens();
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+function copyRelayScriptForToken(tokenId, tokenName) {
+  // Prompt user to generate a token — we can't retrieve the raw value, so we
+  // direct them to create a fresh one and use downloadRelayScript() which will
+  // prompt for the token value.
+  toast('Generate a new token above, copy it, then use the 📥 Relay Script button in the net\'s DMR config with that token.', 'info');
+}
+
+function downloadRelayScript() {
+  const src  = currentDmrConfig ? currentDmrConfig.source_type : 'wpsd';
+  const url  = currentDmrConfig ? (currentDmrConfig.hotspot_url || 'http://localhost') : 'http://localhost';
+  const netId = editNetId || currentNetId || 0;
+  const backend = window.location.origin;
+
+  const script = `#!/usr/bin/env python3
+"""
+DMR Relay Script for Ham Net Tracker
+Fetches last-heard data from your local hotspot and pushes it to the net tracker,
+bypassing browser CORS restrictions entirely.
+
+Requirements: pip install requests   (or: sudo apt install python3-requests)
+
+Setup:
+  1. Go to the Net Tracker → 🪙 API Tokens page and create a token labelled
+     something like "DMR Relay - shack Pi".  Copy the token (shown only once).
+  2. Paste the token into API_TOKEN below.
+  3. Run: python3 dmr_relay.py
+  4. Keep it running during the net (Ctrl+C to stop).
+  5. Optionally start at boot on the Pi: @reboot python3 /path/to/dmr_relay.py &
+"""
+import time, sys, json
+try:
+    import requests
+except ImportError:
+    sys.exit("Install requests first:  pip install requests  (or: sudo apt install python3-requests)")
+
+# ── Configuration ──────────────────────────────────────────────
+BACKEND   = "${backend}"
+NET_ID    = ${netId}
+API_TOKEN = "nt_PASTE_YOUR_TOKEN_HERE"   # from 🪙 API Tokens page
+SOURCE    = "${src}"                      # wpsd | pistar | brandmeister
+HOTSPOT   = "${url}"                     # hotspot base URL (http://localhost if running on the Pi)
+INTERVAL  = 30                            # seconds between refreshes
+# ───────────────────────────────────────────────────────────────
+
+def fetch_hotspot():
+    if SOURCE == "pistar":
+        base = HOTSPOT.rstrip("/")
+        url = base if base.endswith("lastheard") else base + "/api/local/lastheard"
+        r = requests.get(url, timeout=5)
+    elif SOURCE == "brandmeister":
+        tg = int(HOTSPOT) if HOTSPOT.isdigit() else 0
+        r = requests.get("https://api.brandmeister.network/v2/talkgroup/rx/",
+                         params={"talkgroup": tg, "limit": 30}, timeout=10)
+    else:  # wpsd
+        base = HOTSPOT.rstrip("/")
+        url = base if "/api" in base else base + "/api/"
+        r = requests.get(url, params={"limit": 30, "names": "true", "country": "true"}, timeout=5)
+    r.raise_for_status()
+    raw = r.json()
+    return raw if isinstance(raw, list) else []
+
+def normalize(e):
+    return {
+        "callsign":   (e.get("callsign") or "").upper() or None,
+        "dmr_id":     str(e.get("src") or e.get("id") or "") or None,
+        "name":       e.get("name") or None,
+        "talk_group": str(e.get("dst") or "") or None,
+        "timeslot":   f"TS{e['slot']}" if e.get("slot") else None,
+        "region":     e.get("country") or None,
+        "heard_at":   e.get("start") or None,
+        "duration":   str(e["duration"]) if e.get("duration") else None,
+    }
+
+print(f"DMR Relay started — pushing to {BACKEND}/nets/{NET_ID}/dmr/push every {INTERVAL}s")
+print("Press Ctrl+C to stop.\\n")
+
+while True:
+    try:
+        raw     = fetch_hotspot()
+        entries = [normalize(e) for e in raw if e.get("callsign")]
+        r = requests.post(
+            f"{BACKEND}/nets/{NET_ID}/dmr/push",
+            json={"entries": entries},
+            headers={"Authorization": f"Bearer {API_TOKEN}"},
+            timeout=10,
+        )
+        if r.status_code == 401:
+            print(f"[{time.strftime('%H:%M:%S')}] Auth failed — check API_TOKEN in script")
+            sys.exit(1)
+        r.raise_for_status()
+        print(f"[{time.strftime('%H:%M:%S')}] Pushed {len(entries)} entries")
+    except KeyboardInterrupt:
+        print("\\nStopped.")
+        sys.exit(0)
+    except Exception as exc:
+        print(f"[{time.strftime('%H:%M:%S')}] Error: {exc}")
+    time.sleep(INTERVAL)
+`;
+
+  const blob = new Blob([script], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'dmr_relay.py';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('dmr_relay.py downloaded — create an API token under 🪙 API Tokens and paste it into the script.');
+}
+

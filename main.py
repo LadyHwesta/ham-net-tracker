@@ -57,6 +57,7 @@ from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, HTTPException, Query, Request, Response, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 import jwt
 import bcrypt as _bcrypt
@@ -267,8 +268,11 @@ app.add_middleware(
 )
 
 
-UPLOADS_DIR = pathlib.Path(__file__).parent / "uploads"
-LOGO_PATH   = UPLOADS_DIR / "logo"   # extension determined at upload time; we store it beside this stem
+UPLOADS_DIR  = pathlib.Path(__file__).parent / "uploads"
+LOGO_PATH    = UPLOADS_DIR / "logo"
+STATIC_DIR   = pathlib.Path(__file__).parent / "static"
+
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 @app.on_event("startup")
