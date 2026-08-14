@@ -30,6 +30,7 @@ async function openNet(netId) {
   }
   document.getElementById('nav-history').style.display = '';
   document.getElementById('live-session-panel').style.display = 'none';
+  document.getElementById('sessions-list-container').style.display = '';
   showView('session');
   switchSubTab('sessions');
   await loadSessions();
@@ -110,6 +111,8 @@ async function loadSessionLive(sessionId) {
     const s = await apiFetch(`/sessions/${sessionId}`);
     const ended = !!s.ended_at;
     document.getElementById('live-session-panel').style.display = '';
+    // Hide the sessions list while a live session is active; restore it when ended
+    document.getElementById('sessions-list-container').style.display = ended ? '' : 'none';
     document.getElementById('session-status-dot').className = 'status-dot' + (ended ? ' ended' : '');
     const sessionLabel = s.name ? s.name : `Session ${sessionId}`;
     document.getElementById('session-status-label').textContent = `${sessionLabel} — ${ended ? 'Ended' : 'Live'}`;
@@ -141,8 +144,10 @@ async function endSession() {
     toast('Session ended');
     stopClock();
     stopDmrPolling();
+    currentSessionId = null;
+    document.getElementById('live-session-panel').style.display = 'none';
+    document.getElementById('sessions-list-container').style.display = '';
     await loadSessions();
-    await loadSessionLive(sid);
     // Show session summary
     try {
       const summary = await apiFetch(`/sessions/${sid}/summary`);
@@ -158,6 +163,7 @@ async function deleteSession(id) {
     toast('Session deleted');
     if (currentSessionId === id) {
       document.getElementById('live-session-panel').style.display = 'none';
+      document.getElementById('sessions-list-container').style.display = '';
       currentSessionId = null;
     }
     await loadSessions();
