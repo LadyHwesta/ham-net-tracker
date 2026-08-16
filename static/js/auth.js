@@ -40,12 +40,24 @@ async function doRegister() {
   try {
     const newUser = await apiFetch('/auth/register', { method: 'POST', body: JSON.stringify({ callsign, name, email, password }) });
     if (newUser.is_active) {
+      // First user auto-approved — go straight to login
       toast('Account created — please log in', 'success');
+      switchAuthTab('login');
+      document.getElementById('login-user').value = callsign;
     } else {
-      toast('Account created — awaiting admin approval', 'success');
+      // Show a confirmation in place of the form
+      document.getElementById('tab-register').innerHTML = `
+        <div style="text-align:center;padding:12px 0">
+          <div style="font-size:36px;margin-bottom:12px">✅</div>
+          <h3 style="margin:0 0 10px;color:var(--lc-green)">Registration Submitted!</h3>
+          <p style="font-size:13px;color:var(--text-muted);line-height:1.6;margin:0 0 16px">
+            Your account request for <strong>${callsign}</strong> has been received.<br>
+            An admin will review it and you will receive an email at<br>
+            <strong>${email}</strong> once your account has been approved.
+          </p>
+          <button class="btn btn-ghost btn-sm" onclick="switchAuthTab('login')">← Back to Login</button>
+        </div>`;
     }
-    switchAuthTab('login');
-    document.getElementById('login-user').value = callsign;
   } catch (e) { showAuthError(e.message); }
 }
 
