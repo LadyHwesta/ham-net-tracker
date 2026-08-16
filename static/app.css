@@ -402,6 +402,26 @@
       header { padding: 10px 12px; gap: 10px; }
       header h1 { font-size: 15px; }
 
+      /* Header branding: allow it to shrink and truncate long org names */
+      .header-lcars {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+      }
+      .header-lcars > div {
+        overflow: hidden;
+      }
+      #header-title {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 160px;
+      }
+      #header-tagline { display: none; }
+
+      /* Header user section: don't shrink below its content */
+      #header-user { flex-shrink: 0; padding: 0 8px; gap: 6px; }
+
       /* On very small screens hide "Signed in as" text, keep callsign + logout */
       #header-signed-in-text { display: none; }
 
@@ -412,4 +432,53 @@
       /* Status bar wraps */
       .status-bar { flex-wrap: wrap; gap: 8px; }
       .status-bar > div { margin-left: 0 !important; }
+
+      /* ── Check-in form: hide Signal and Comments, keep Callsign + Name + Traffic ── */
+      .sig-field { display: none !important; }
+      .ci-comments-group { display: none !important; }
+
+      /* Make Check In button full width for easy tapping */
+      .checkin-new-row > .btn { width: 100%; margin-top: 8px; padding: 12px; font-size: 15px; }
+
+      /* Has Traffic label more prominent */
+      .checkin-new-row label:has(#ci-traffic) {
+        font-size: 14px;
+        padding: 8px 0;
+      }
+
+      /* ── Check-in table: hide #, Signal, Comments, Time columns ── */
+      .col-seq, .col-signal, .col-comments, .col-time { display: none; }
+
+      /* ── Sessions list: hide Ended and Check-ins columns ── */
+      .col-sess-ended, .col-sess-checkins { display: none; }
+
+      /* Clock bar: stack compactly */
+      #session-clock-bar { gap: 12px; padding: 6px 10px; font-size: 13px; }
+
+      /* Session action buttons full width */
+      .status-bar > div:last-child { width: 100%; display: flex; gap: 8px; }
+      .status-bar > div:last-child .btn { flex: 1; }
+
+      /* ── Session complete modal: fit within phone screen ── */
+      .session-summary-card {
+        padding: 16px;
+        max-height: calc(100vh - 48px);
+        overflow-y: auto;
+        width: 100%;
+      }
+      #session-summary-modal {
+        align-items: flex-start;
+        padding: 20px 12px;
+      }
+    }
+
+    /* Session summary card: base styles (not media-query scoped) */
+    .session-summary-card {
+      background: var(--surface);
+      border: 2px solid var(--lc-orange);
+      border-radius: 12px;
+      padding: 28px;
+      max-width: 480px;
+      width: 100%;
+      box-shadow: 0 8px 32px rgba(0,0,0,.6);
     }
