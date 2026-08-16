@@ -283,11 +283,11 @@ function renderCheckins(checkins) {
   if (thDmrTg) thDmrTg.style.display = hasDmr ? '' : 'none';
   if (thDmrRegion) thDmrRegion.style.display = hasDmr ? '' : 'none';
   tbody.innerHTML = checkins.map((c, i) => `<tr ${c.has_traffic ? 'style="background:rgba(255,68,34,0.08)"' : ''}>
-    <td class="text-muted">${i + 1}</td>
+    <td class="col-seq text-muted">${i + 1}</td>
     <td><span class="callsign">${esc(c.callsign)}</span></td>
     <td>${esc(c.name || '—')}</td>
-    <td>${esc(c.signal_report || '—')}</td>
-    <td>${esc(c.comments || '—')}</td>
+    <td class="col-signal">${esc(c.signal_report || '—')}</td>
+    <td class="col-comments">${esc(c.comments || '—')}</td>
     ${currentNetIsAres ? `<td style="font-size:12px;color:var(--lc-blue)">${esc(c.evac_zone || '—')}</td>` : ''}
     ${hasDmr ? `<td style="font-size:12px;color:var(--lc-orange)">${esc(c.dmr_talkgroup || '—')}</td>` : ''}
     ${hasDmr ? `<td style="font-size:12px">${esc(c.dmr_region || '—')}</td>` : ''}
@@ -296,7 +296,7 @@ function renderCheckins(checkins) {
         style="font-size:14px;padding:2px 8px" title="${c.has_traffic ? 'Traffic — click to clear' : 'Click to flag traffic'}"
         onclick="toggleTraffic(${c.id})">${c.has_traffic ? '📢' : '○'}</button>
     </td>
-    <td class="text-muted">${fmt(c.checked_in_at)}</td>
+    <td class="col-time text-muted">${fmt(c.checked_in_at)}</td>
     <td><button class="btn btn-danger btn-sm" onclick="removeCheckin(${c.id})">✕</button></td>
   </tr>`).join('');
 }
