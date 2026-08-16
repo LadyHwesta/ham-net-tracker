@@ -49,7 +49,7 @@ function renderSessions(sessions) {
     return;
   }
   el.innerHTML = `<table class="tbl"><thead><tr>
-    <th>Session</th><th>Started</th><th>Ended</th><th>Check-ins</th><th>Status</th><th></th>
+    <th>Session</th><th>Started</th><th class="col-sess-ended">Ended</th><th class="col-sess-checkins">Check-ins</th><th>Status</th><th></th>
   </tr></thead><tbody>` +
   sessions.map(s => {
     const label = s.name ? esc(s.name) : `Session ${s.id}`;
@@ -59,8 +59,8 @@ function renderSessions(sessions) {
         <button class="btn btn-ghost btn-sm" style="margin-left:6px;font-size:11px;padding:1px 7px" onclick="promptRenameSession(${s.id}, ${JSON.stringify(s.name || '')})">✏️</button>
       </td>
       <td>${fmt(s.started_at)}</td>
-      <td>${fmt(s.ended_at)}</td>
-      <td><span class="badge badge-blue">${s.checkin_count}</span></td>
+      <td class="col-sess-ended">${fmt(s.ended_at)}</td>
+      <td class="col-sess-checkins"><span class="badge badge-blue">${s.checkin_count}</span></td>
       <td>${s.ended_at ? '<span class="badge badge-gray">Ended</span>' : '<span class="badge badge-green">Live</span>'}</td>
       <td><button class="btn btn-danger btn-sm" onclick="deleteSession(${s.id})">Delete</button></td>
     </tr>`;
@@ -244,7 +244,7 @@ function showSessionSummary(summary) {
   modal.id = 'session-summary-modal';
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px';
   modal.innerHTML = `
-    <div style="background:var(--surface);border:2px solid var(--lc-orange);border-radius:12px;padding:28px;max-width:480px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.6)">
+    <div class="session-summary-card">
       <h2 style="margin:0 0 4px;color:var(--lc-orange);font-size:18px">Session Complete</h2>
       <p style="margin:0 0 20px;color:var(--text-muted);font-size:13px">${esc(summary.net_name)}</p>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
