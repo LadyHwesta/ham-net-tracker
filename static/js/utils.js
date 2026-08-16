@@ -40,3 +40,18 @@ function closeSidebar() {
   document.getElementById('sidebar-overlay').classList.remove('show');
 }
 
+// Button loading state — call with true to start, false to restore.
+// Stores original HTML on the element so restore is always accurate.
+function btnLoading(btn, loading) {
+  if (!btn) return;
+  if (loading) {
+    btn._origHTML = btn.innerHTML;
+    btn._origDisabled = btn.disabled;
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Sending…';
+  } else {
+    btn.disabled = btn._origDisabled || false;
+    btn.innerHTML = btn._origHTML || btn.innerHTML;
+  }
+}
+

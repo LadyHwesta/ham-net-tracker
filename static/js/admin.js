@@ -34,7 +34,7 @@ async function loadAdminUsers() {
         <span class="text-muted" style="font-size:12px">${esc(u.email)}</span>
         <span class="text-muted" style="font-size:11px">Registered ${fmt(u.created_at)}</span>
         <div style="margin-left:auto;display:flex;gap:6px">
-          <button class="btn btn-primary btn-sm" onclick="adminApprove(${u.id})">✓ Approve</button>
+          <button class="btn btn-primary btn-sm" onclick="adminApprove(${u.id}, this)">✓ Approve</button>
           <button class="btn btn-danger btn-sm" onclick="adminReject(${u.id}, '${esc(u.callsign)}')">✕ Reject</button>
         </div>
       </div>
@@ -70,7 +70,7 @@ async function loadAdminUsers() {
     const actions = isMe
       ? '<span class="text-muted" style="font-size:11px">you</span>'
       : `<div style="display:flex;gap:4px;flex-wrap:wrap">
-          ${!u.is_active ? `<button class="btn btn-primary btn-sm" onclick="adminApprove(${u.id})">Approve</button>` : ''}
+          ${!u.is_active ? `<button class="btn btn-primary btn-sm" onclick="adminApprove(${u.id}, this)">Approve</button>` : ''}
           ${u.is_active  ? `<button class="btn btn-ghost btn-sm" onclick="adminDeactivate(${u.id})">Deactivate</button>` : ''}
           ${!u.is_admin  ? `<button class="btn btn-ghost btn-sm" onclick="adminMakeAdmin(${u.id})">Make Admin</button>` : ''}
           <button class="btn btn-danger btn-sm" onclick="adminDelete(${u.id})">Delete</button>
@@ -95,12 +95,16 @@ async function adminToggleNotify(userId) {
   } catch (e) { toast(e.message, 'error'); }
 }
 
-async function adminApprove(userId) {
+async function adminApprove(userId, btn) {
+  btnLoading(btn, true);
   try {
     await apiFetch(`/admin/users/${userId}/approve`, { method: 'PATCH' });
     toast('Operator approved', 'success');
     loadAdminUsers();
-  } catch (e) { toast(e.message, 'error'); }
+  } catch (e) {
+    toast(e.message, 'error');
+    btnLoading(btn, false);
+  }
 }
 
 async function adminDeactivate(userId) {
@@ -152,6 +156,8 @@ async function adminReject(userId, callsign) {
 
 async function submitReject(userId) {
   const message = document.getElementById('reject-message')?.value.trim() || null;
+  const btn = document.querySelector('#reject-modal .btn-danger');
+  btnLoading(btn, true);
   try {
     await apiFetch(`/admin/users/${userId}/reject`, {
       method: 'POST',
@@ -160,7 +166,10 @@ async function submitReject(userId) {
     document.getElementById('reject-modal')?.remove();
     toast('Rejection sent and account removed');
     loadAdminUsers();
-  } catch (e) { toast(e.message, 'error'); }
+  } catch (e) {
+    toast(e.message, 'error');
+    btnLoading(btn, false);
+  }
 }
 
 async function adminDelete(userId) {
