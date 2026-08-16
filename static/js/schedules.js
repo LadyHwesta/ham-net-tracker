@@ -141,6 +141,8 @@ async function submitSignup() {
   const email       = document.getElementById('signup-email').value.trim() || null;
   const notes       = document.getElementById('signup-notes').value.trim() || null;
   if (!callsign) return toast('Callsign required', 'error');
+  const btn = document.querySelector('#signup-modal .btn-primary');
+  btnLoading(btn, true);
   try {
     await apiFetch(`/nets/${currentNetId}/signups`, {
       method: 'POST',
@@ -149,7 +151,10 @@ async function submitSignup() {
     toast(`${callsign} signed up for net control`, 'success');
     closeSignupModal();
     await loadUpcoming();
-  } catch (e) { toast(e.message, 'error'); }
+  } catch (e) {
+    toast(e.message, 'error');
+    btnLoading(btn, false);
+  }
 }
 
 async function removeSignup(id) {

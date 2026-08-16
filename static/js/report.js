@@ -5,11 +5,12 @@ async function submitReport() {
   const type    = document.getElementById('report-type').value;
   const subject = document.getElementById('report-subject').value.trim();
   const body    = document.getElementById('report-body').value.trim();
-  const statusEl = document.getElementById('report-status');
 
   if (!subject) { showReportStatus('Please enter a subject.', 'error'); return; }
   if (!body)    { showReportStatus('Please enter some details.', 'error'); return; }
 
+  const btn = document.querySelector('#content .btn-primary');
+  btnLoading(btn, true);
   try {
     await apiFetch('/support/ticket', {
       method: 'POST',
@@ -21,6 +22,8 @@ async function submitReport() {
     document.getElementById('report-type').value = 'Bug Report';
   } catch (e) {
     showReportStatus('Failed to send: ' + e.message, 'error');
+  } finally {
+    btnLoading(btn, false);
   }
 }
 
