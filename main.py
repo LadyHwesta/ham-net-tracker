@@ -44,6 +44,7 @@ import os
 import pathlib
 import secrets
 import smtplib
+from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
@@ -255,7 +256,19 @@ limiter = Limiter(key_func=get_remote_address)
 # ---------------------------------------------------------------------------
 # App
 # ---------------------------------------------------------------------------
-app = FastAPI(title="Ham Radio Net Tracker", version="1.0.0")
+UPLOADS_DIR = pathlib.Path(__file__).parent / "uploads"
+LOGO_PATH   = UPLOADS_DIR / "logo"
+STATIC_DIR  = pathlib.Path(__file__).parent / "static"
+
+
+@asynccontextmanager
+async def lifespan(_app):
+    init_db()
+    UPLOADS_DIR.mkdir(exist_ok=True)
+    yield
+
+
+app = FastAPI(title="Ham Radio Net Tracker", version="1.0.0", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -267,18 +280,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-UPLOADS_DIR  = pathlib.Path(__file__).parent / "uploads"
-LOGO_PATH    = UPLOADS_DIR / "logo"
-STATIC_DIR   = pathlib.Path(__file__).parent / "static"
-
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-
-
-@app.on_event("startup")
-def on_startup():
-    init_db()
-    UPLOADS_DIR.mkdir(exist_ok=True)
 
 
 # ---------------------------------------------------------------------------
