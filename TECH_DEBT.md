@@ -15,8 +15,7 @@ Known issues, shortcuts, and areas for future improvement. Not bugs — the app 
 ### DMR push cache is in-memory only
 `_dmr_push_cache` in `main.py` is a plain Python dict. It is lost on every server restart. For a net that runs while the server is restarted (e.g., during an update), the relay data disappears and the heard panel goes dark. Options: persist to a `dmr_push_cache` DB table with a TTL, or use Redis if the deployment ever warrants it.
 
-### No test suite
-There are no automated tests. Changes are validated manually by deploying and clicking around. At minimum, unit tests for the auth flow, checkin logic, and DMR normalization would catch regressions. FastAPI's `TestClient` makes this straightforward.
+~~No test suite~~ — resolved; see Resolved section.
 
 ~~Migration SQL must be kept in sync manually~~ — resolved; see Resolved section.
 ~~Single-file frontend (`index.html`)~~ — resolved; see Resolved section.
@@ -51,3 +50,4 @@ The Python relay script (`dmr_relay.py`) and the backend's `_dmr_normalize_wpsd(
 - ~~No fail2ban-compatible auth failure log~~ — `AUTH_LOG_FILE` env var; failed logins write `AUTH_FAIL ip=… reason=…` to a `WatchedFileHandler` log (2026-08-13)
 - ~~Migration SQL must be kept in sync manually~~ — `migrate.py` is now the single source of truth; `index.html` and `README.md` updated to point to it (2026-08-14)
 - ~~Single-file frontend (`index.html`)~~ — CSS extracted to `static/app.css`; JS split into 15 feature modules under `static/js/`; Admin/Tokens/Help/Report split into standalone HTML pages; `index.html` reduced from 3800 to 624 lines (SPA core only); FastAPI serves `/static` via `StaticFiles` (2026-08-14)
+- ~~No test suite~~ — 59-test pytest suite covering auth, nets, sessions, and check-ins; runs against SQLite in-memory via `python -m pytest tests/`; `requirements-dev.txt` has the test deps (2026-08-16)
