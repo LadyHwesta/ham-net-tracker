@@ -45,6 +45,39 @@
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
 
           <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-16 — Mobile Responsiveness</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>Phone-optimised layout at ≤480 px (tested on iPhone 12 Pro): check-in form hides Signal and Comments fields, showing only Callsign, Name, Has Traffic, and a full-width Check In button.</li>
+              <li>Check-in table on mobile shows only Callsign, Name, Traffic flag, and the remove button — #, Signal, Comments, and Time columns are hidden.</li>
+              <li>Sessions list on mobile hides the Ended and Check-ins columns so the Delete button stays reachable without horizontal scrolling.</li>
+              <li>Session Complete summary card scrolls within the viewport rather than being clipped on small screens.</li>
+              <li>Header branding truncates gracefully with ellipsis when the org name is long.</li>
+              <li>Session action buttons (End Session, ICS-205, CSV) go full-width on mobile for easier tapping.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-15 — Registration Flow &amp; Email Action Feedback</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>Registration tab now shows an info banner explaining that new accounts require admin approval before login.</li>
+              <li>After submitting a registration, the form is replaced with a confirmation screen showing the submitted callsign and email address — no more silent redirect to the login tab.</li>
+              <li>Any action that triggers an email (operator approval, rejection, Net Control assignment) now shows a ⏳ Sending… state on the button so it is clear the system is working.</li>
+              <li>Email send errors are now surfaced inline rather than failing silently.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-14 — Navigation &amp; Admin Improvements</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>Admin, API Tokens, Help, and Report / Request are now standalone pages rather than in-app panels — faster to load and bookmarkable.</li>
+              <li>Admin panel reorganised into three tabs: <strong>Operators</strong> (default), <strong>Branding</strong>, and <strong>Email</strong>.</li>
+              <li>Sessions list is hidden automatically while a live session is active, reducing visual clutter; it reappears when the session ends.</li>
+              <li>End Session button promoted to full size (no longer a small button) to reduce accidental misses.</li>
+              <li><code style="background:var(--surface);padding:1px 5px;border-radius:3px">deploy.sh</code> script added — run <code style="background:var(--surface);padding:1px 5px;border-radius:3px">./deploy.sh</code> on the server for a one-command git-pull deployment.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-13 — DMR Hotspot Integration</div>
             <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
               <li><strong>DMR Last Heard panel</strong> — connect your net to a WPSD, Pi-Star, or BrandMeister talk group; see recently heard stations live during the net.</li>
