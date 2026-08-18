@@ -2149,7 +2149,7 @@ def _callsign_cache_write(result: CallsignLookupResult, db: Session) -> None:
 
 
 import re as _re
-_GMRS_CS_RE = _re.compile(r'^[A-Z]{3,4}\d{4}$')
+_GMRS_CS_RE = _re.compile(r'^[A-Z]{3,4}\d{3,4}$')
 
 def _is_gmrs_callsign(cs: str) -> bool:
     """Return True if callsign matches the FCC GMRS format (e.g. WQXH7777)."""
@@ -2183,8 +2183,9 @@ async def lookup_callsign(
     if _is_gmrs_callsign(callsign):
         # 1. Local gmrs_licenses table (fast, no external call)
         row = db.query(GmrsLicense).filter(GmrsLicense.callsign == callsign).first()
+        log.info("GMRS lookup: callsign=%s row_found=%s status=%r", callsign, row is not None, row.status if row else None)
         if row:
-            status = "found" if row.status == "A" else "not_found"
+            status = "found" if (row.status or "").strip() == "A" else "not_found"
             return CallsignLookupResult(
                 callsign=row.callsign,
                 status=status,
