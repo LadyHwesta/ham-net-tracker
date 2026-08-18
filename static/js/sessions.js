@@ -63,6 +63,26 @@ function toggleNetScriptPanel() {
   icon.textContent = open ? '▼' : '▶';
 }
 
+function renderDutyBar(s) {
+  const bar = document.getElementById('duty-bar');
+  const ncEl = document.getElementById('duty-nc');
+  const bcEl = document.getElementById('duty-bc');
+  if (s.ncs_callsign) {
+    ncEl.querySelector('strong').textContent = s.ncs_name ? `${s.ncs_callsign} — ${s.ncs_name}` : s.ncs_callsign;
+    ncEl.style.display = '';
+  } else {
+    ncEl.style.display = 'none';
+  }
+  if (s.broadcaster_callsign) {
+    bcEl.querySelector('.duty-bc-label').textContent = s.broadcast_label || 'Broadcaster';
+    bcEl.querySelector('strong').textContent = s.broadcaster_name ? `${s.broadcaster_callsign} — ${s.broadcaster_name}` : s.broadcaster_callsign;
+    bcEl.style.display = '';
+  } else {
+    bcEl.style.display = 'none';
+  }
+  bar.style.display = (s.ncs_callsign || s.broadcaster_callsign) ? '' : 'none';
+}
+
 async function loadSessions() {
   let sessions = [];
   try { sessions = await apiFetch(`/nets/${currentNetId}/sessions`); } catch {}
@@ -146,6 +166,7 @@ async function loadSessionLive(sessionId) {
     document.getElementById('session-meta').textContent = `Started ${fmt(s.started_at)}${ended ? ' · Ended ' + fmt(s.ended_at) : ''}`;
     document.getElementById('end-session-btn').style.display = ended ? 'none' : '';
     document.getElementById('checkin-form-area').style.display = ended ? 'none' : '';
+    renderDutyBar(s);
     if (!ended) startClock(s.started_at); else stopClock();
     trafficMessages = [];
     renderTrafficMessages();

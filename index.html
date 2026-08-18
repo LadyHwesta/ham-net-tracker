@@ -226,6 +226,17 @@
               ARES / ACES Net — enables evacuation zone tracking per station
             </label>
           </div>
+          <div id="net-broadcast-section" style="margin-bottom:14px">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:700">
+              <input type="checkbox" id="net-has-broadcast" onchange="onBroadcastToggle()" style="accent-color:var(--lc-blue);width:16px;height:16px" />
+              Additional Broadcast — this net carries a segment like Amateur Radio Newsline
+            </label>
+            <div id="net-broadcast-label-group" class="form-group" style="display:none;margin-top:8px;max-width:320px">
+              <label style="font-size:12px">Broadcast Name</label>
+              <input class="form-control" id="net-broadcast-label" placeholder="Amateur Radio Newsline" style="font-size:13px" />
+              <div style="font-size:11px;color:var(--text-muted);margin-top:3px">Adds a Broadcaster role to this net's Schedule sign-ups, alongside Net Control.</div>
+            </div>
+          </div>
           <!-- DMR Integration — only shown when editing an existing net you own -->
           <div id="net-dmr-section" style="display:none;border-top:1px solid var(--lc-border);padding-top:14px;margin-bottom:14px">
             <div style="font-size:13px;font-weight:700;color:var(--lc-orange);margin-bottom:10px">📻 DMR Integration</div>
@@ -348,6 +359,12 @@
                 <button class="btn btn-ghost" onclick="openICS205(currentSessionId)">📄 ICS-205</button>
                 <button class="btn btn-ghost" onclick="exportSession()">⬇ CSV</button>
               </div>
+            </div>
+
+            <!-- Scheduled duty (Net Control / Broadcaster) for today, from the Schedule sign-up if one exists -->
+            <div id="duty-bar" style="display:none;font-size:12px;color:var(--text-muted);display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px">
+              <span id="duty-nc" style="display:none">🎙 Net Control: <strong></strong></span>
+              <span id="duty-bc" style="display:none">📻 <span class="duty-bc-label">Broadcaster</span>: <strong></strong></span>
             </div>
 
             <!-- Clock / session timer -->
@@ -593,10 +610,11 @@
           <!-- Self sign-up modal -->
           <div id="signup-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;align-items:center;justify-content:center">
             <div class="card" style="width:380px;margin:0">
-              <div class="card-header"><h2>Sign Up for Net Control</h2></div>
+              <div class="card-header"><h2 id="signup-modal-title">Sign Up for Net Control</h2></div>
               <p class="text-muted" style="font-size:13px;margin-bottom:14px">Date: <strong id="signup-date-label"></strong></p>
               <input type="hidden" id="signup-schedule-id" />
               <input type="hidden" id="signup-slot-date" />
+              <input type="hidden" id="signup-role" />
               <div class="form-group">
                 <label>Callsign *</label>
                 <input class="form-control mono" id="signup-callsign" placeholder="Your callsign" style="text-transform:uppercase" />
@@ -623,10 +641,11 @@
           <!-- Assign operator modal (net owner only) -->
           <div id="assign-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;align-items:center;justify-content:center">
             <div class="card" style="width:380px;margin:0">
-              <div class="card-header"><h2>Assign Net Control</h2></div>
+              <div class="card-header"><h2 id="assign-modal-title">Assign Net Control</h2></div>
               <p class="text-muted" style="font-size:13px;margin-bottom:14px">Date: <strong id="assign-date-label"></strong></p>
               <input type="hidden" id="assign-schedule-id" />
               <input type="hidden" id="assign-slot-date" />
+              <input type="hidden" id="assign-role" />
               <div class="form-group">
                 <label>Select Operator *</label>
                 <select class="form-control" id="assign-user-select" onchange="onAssignUserChange()">
@@ -697,20 +716,20 @@
   </main>
 </div><!-- /app -->
 
-  <script src="/static/js/state.js?v=6"></script>
-  <script src="/static/js/utils.js?v=6"></script>
-  <script src="/static/js/auth.js?v=6"></script>
-  <script src="/static/js/views.js?v=6"></script>
-  <script src="/static/js/branding.js?v=6"></script>
-  <script src="/static/js/report.js?v=6"></script>
-  <script src="/static/js/nets.js?v=6"></script>
-  <script src="/static/js/sessions.js?v=6"></script>
-  <script src="/static/js/checkins.js?v=6"></script>
-  <script src="/static/js/history.js?v=6"></script>
-  <script src="/static/js/admin.js?v=6"></script>
-  <script src="/static/js/schedules.js?v=6"></script>
-  <script src="/static/js/tokens.js?v=6"></script>
-  <script src="/static/js/dmr.js?v=6"></script>
-  <script src="/static/js/app.js?v=6"></script>
+  <script src="/static/js/state.js?v=7"></script>
+  <script src="/static/js/utils.js?v=7"></script>
+  <script src="/static/js/auth.js?v=7"></script>
+  <script src="/static/js/views.js?v=7"></script>
+  <script src="/static/js/branding.js?v=7"></script>
+  <script src="/static/js/report.js?v=7"></script>
+  <script src="/static/js/nets.js?v=7"></script>
+  <script src="/static/js/sessions.js?v=7"></script>
+  <script src="/static/js/checkins.js?v=7"></script>
+  <script src="/static/js/history.js?v=7"></script>
+  <script src="/static/js/admin.js?v=7"></script>
+  <script src="/static/js/schedules.js?v=7"></script>
+  <script src="/static/js/tokens.js?v=7"></script>
+  <script src="/static/js/dmr.js?v=7"></script>
+  <script src="/static/js/app.js?v=7"></script>
 </body>
 </html>

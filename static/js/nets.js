@@ -65,11 +65,19 @@ function showNetForm() {
   document.getElementById('net-desc').value = '';
   document.getElementById('net-script').value = '';
   document.getElementById('net-ares').checked = false;
+  document.getElementById('net-has-broadcast').checked = false;
+  document.getElementById('net-broadcast-label').value = '';
+  onBroadcastToggle();
   document.querySelector('input[name="net-type"][value="ham"]').checked = true;
   document.getElementById('net-sharing-section').style.display = 'none';
   document.getElementById('net-dmr-section').style.display = 'none';
   document.getElementById('net-form-card').style.display = '';
   onNetTypeChange();
+}
+
+function onBroadcastToggle() {
+  const on = document.getElementById('net-has-broadcast').checked;
+  document.getElementById('net-broadcast-label-group').style.display = on ? '' : 'none';
 }
 
 function onNetTypeChange() {
@@ -103,6 +111,9 @@ async function editNet(id) {
   document.getElementById('net-desc').value = n.description || '';
   document.getElementById('net-script').value = n.script || '';
   document.getElementById('net-ares').checked = !!n.is_ares;
+  document.getElementById('net-has-broadcast').checked = !!n.has_broadcast;
+  document.getElementById('net-broadcast-label').value = n.broadcast_label || '';
+  onBroadcastToggle();
   const netType = n.net_type || 'ham';
   const typeRadio = document.querySelector(`input[name="net-type"][value="${netType}"]`);
   if (typeRadio) typeRadio.checked = true;
@@ -128,13 +139,15 @@ async function saveNet() {
   const is_gmrs = net_type === 'gmrs';
   const is_ares = is_gmrs ? false : document.getElementById('net-ares').checked;
   const dmr_talkgroup = is_gmrs ? null : (document.getElementById('net-dmr-tg').value.trim() || null);
+  const has_broadcast = document.getElementById('net-has-broadcast').checked;
+  const broadcast_label = has_broadcast ? (document.getElementById('net-broadcast-label').value.trim() || null) : null;
   if (!name) return toast('Net name is required', 'error');
   try {
     if (editNetId) {
-      await apiFetch(`/nets/${editNetId}`, { method: 'PUT', body: JSON.stringify({ name, frequency, dmr_talkgroup, description, script, net_type, is_ares }) });
+      await apiFetch(`/nets/${editNetId}`, { method: 'PUT', body: JSON.stringify({ name, frequency, dmr_talkgroup, description, script, net_type, is_ares, has_broadcast, broadcast_label }) });
       toast('Net updated');
     } else {
-      await apiFetch('/nets', { method: 'POST', body: JSON.stringify({ name, frequency, dmr_talkgroup, description, script, net_type, is_ares }) });
+      await apiFetch('/nets', { method: 'POST', body: JSON.stringify({ name, frequency, dmr_talkgroup, description, script, net_type, is_ares, has_broadcast, broadcast_label }) });
       toast('Net created');
     }
     cancelNetForm();

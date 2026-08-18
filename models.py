@@ -48,6 +48,8 @@ class Net(Base):
     is_ares = Column(Boolean, default=False, nullable=False)  # ARES/ACES net — enables evac zone tracking (ham only)
     dmr_talkgroup = Column(String(20), nullable=True)  # Default DMR talk group for check-ins (ham only)
     script = Column(Text, nullable=True)  # Net control script, shown alongside the check-in screen
+    has_broadcast = Column(Boolean, default=False, nullable=False)  # e.g. a Newsline segment carried during the net
+    broadcast_label = Column(String(100), nullable=True)  # e.g. "Amateur Radio Newsline"
     owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
@@ -234,6 +236,8 @@ class NetControlSignup(Base):
     schedule_id = Column(Integer, ForeignKey("net_schedules.id", ondelete="CASCADE"), nullable=False)
     net_id = Column(Integer, ForeignKey("nets.id", ondelete="CASCADE"), nullable=False)
     slot_date = Column(Date, nullable=False)          # the specific date (YYYY-MM-DD)
+    # 'net_control' | 'broadcaster' | 'both' — 'both' means this one signup covers both duties
+    role = Column(String(20), nullable=False, default="net_control")
     user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     callsign = Column(String(12), nullable=False)
     name = Column(String(100), nullable=True)
@@ -244,8 +248,9 @@ class NetControlSignup(Base):
     schedule = relationship("NetSchedule", back_populates="signups")
 
     __table_args__ = (
-        # Only one signup per schedule date
-        UniqueConstraint("schedule_id", "slot_date", name="uq_signup_schedule_date"),
+        # One signup per schedule date per role (net_control and broadcaster fill independently;
+        # 'both' occupies the date exclusively — enforced at the application layer)
+        UniqueConstraint("schedule_id", "slot_date", "role", name="uq_signup_schedule_date_role"),
     )
 
     def __repr__(self):

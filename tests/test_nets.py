@@ -38,6 +38,26 @@ class TestNetCRUD:
         assert resp.status_code == 201
         assert resp.json()["script"] is None
 
+    def test_create_net_with_broadcast(self, client, admin_headers):
+        resp = client.post("/nets", json={
+            "name": "Newsline Net", "is_ares": False,
+            "has_broadcast": True, "broadcast_label": "Amateur Radio Newsline",
+        }, headers=admin_headers)
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["has_broadcast"] is True
+        assert data["broadcast_label"] == "Amateur Radio Newsline"
+
+    def test_broadcast_label_ignored_when_broadcast_disabled(self, client, admin_headers):
+        resp = client.post("/nets", json={
+            "name": "Plain Net", "is_ares": False,
+            "has_broadcast": False, "broadcast_label": "Should be dropped",
+        }, headers=admin_headers)
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["has_broadcast"] is False
+        assert data["broadcast_label"] is None
+
     def test_create_ares_net(self, client, admin_headers):
         resp = client.post("/nets", json={
             "name": "ARES Net",

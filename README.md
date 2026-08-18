@@ -28,7 +28,7 @@ A public demo is available at **[nettrackerdemo.meskis.net](https://nettrackerde
 - **Net control script** — attach a plain-text script to a net, shown in a collapsible panel alongside the check-in screen so you don't need a second window open
 - **Session clock** — live local/UTC time and elapsed session timer
 - **Net sharing** — share nets with individual operators or all registered users
-- **Scheduling** — weekly recurring time slots with net control operator sign-ups; confirmation emails include a `.ics` calendar attachment
+- **Scheduling** — weekly recurring time slots with sign-ups for Net Control and, on nets with an additional broadcast (e.g. Amateur Radio Newsline), a separate Broadcaster role; confirmation emails include a `.ics` calendar attachment
 - **Session history** — attendance statistics, filtering, and CSV export
 - **Public live page** — unauthenticated `/live` page showing active nets and check-in rosters in real time
 - **In-app problem reporting** — users can submit bug reports and enhancement requests directly to the administrator
@@ -204,6 +204,14 @@ The field is plain text: line breaks and spacing are preserved exactly as typed,
 ```
 
 Leave the field blank to hide the panel entirely.
+
+## Broadcaster Role (Additional Broadcast)
+
+Some nets carry a second segment alongside net control — for example, a member reading the latest **Amateur Radio Newsline** bulletin. Enable **Additional Broadcast** in the net's Edit form and give it a name (e.g. "Amateur Radio Newsline"); this adds a **Broadcaster** role to that net's Schedule sign-ups, separate from Net Control.
+
+On the Schedule tab, each upcoming date shows Net Control and Broadcaster as independent sign-up slots — different operators can claim each one, or a single operator can claim **Cover Both Roles**. The net owner can assign either role to a registered operator the same way they assign Net Control today.
+
+Whoever is signed up for a date appears — callsign and name — in the duty bar on the live check-in screen and on the public `/live` page, so anyone checking in (or watching the public page) can see who's running the net and who's carrying the broadcast that day. If no one has signed up for a date, Net Control on the public page falls back to whoever actually started the session.
 
 ## DMR Hotspot Integration
 

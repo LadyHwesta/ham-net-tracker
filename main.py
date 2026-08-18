@@ -163,8 +163,8 @@ def send_email(
         _email_log.warning("Failed to send email to %s: %s", to, exc)
 
 
-def _build_ics(net: "Net", schedule: "NetSchedule", signup: "NetControlSignup") -> str:
-    """Build an iCalendar (ICS) event string for a net control signup."""
+def _build_ics(net: "Net", schedule: "NetSchedule", signup: "NetControlSignup", role_label: str = "Net Control") -> str:
+    """Build an iCalendar (ICS) event string for a net control / broadcaster signup."""
     import re
     from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -190,7 +190,7 @@ def _build_ics(net: "Net", schedule: "NetSchedule", signup: "NetControlSignup") 
     uid = f"netcontrol-{signup.id}-{signup.slot_date}@hamnettracker"
 
     # Build description (escape commas and newlines per RFC 5545)
-    desc_parts = [f"You are scheduled as Net Control for {net.name}."]
+    desc_parts = [f"You are scheduled as {role_label} for {net.name}."]
     if net.frequency:
         desc_parts.append(f"Frequency: {net.frequency}")
     desc_parts.append(f"Date: {signup.slot_date}")
@@ -219,7 +219,7 @@ def _build_ics(net: "Net", schedule: "NetSchedule", signup: "NetControlSignup") 
         f"DTSTAMP:{dtstamp}",
         f"DTSTART:{dtstart}",
         f"DTEND:{dtend}",
-        f"SUMMARY:{net.name} – Net Control",
+        f"SUMMARY:{net.name} – {role_label}",
         f"DESCRIPTION:{description}",
     ]
     if organizer_email:
@@ -367,6 +367,8 @@ class NetCreate(BaseModel):
     is_ares: bool = False       # ham only; ignored (forced False) for GMRS nets
     dmr_talkgroup: Optional[str] = None   # ham only
     script: Optional[str] = None   # net control script, shown alongside the check-in screen
+    has_broadcast: bool = False    # e.g. a Newsline segment carried during the net
+    broadcast_label: Optional[str] = None   # e.g. "Amateur Radio Newsline"
 
 
 class NetOut(BaseModel):
@@ -378,6 +380,8 @@ class NetOut(BaseModel):
     is_ares: bool
     dmr_talkgroup: Optional[str] = None
     script: Optional[str] = None
+    has_broadcast: bool = False
+    broadcast_label: Optional[str] = None
     owner_id: int
     created_at: datetime
     # Sharing fields (populated by helper, not from ORM attributes directly)
@@ -433,6 +437,13 @@ class SessionOut(BaseModel):
     started_at: datetime
     ended_at: Optional[datetime]
     checkin_count: int = 0
+    # Scheduled duty for this session's date, from the Schedule sign-up if one exists
+    # (net control falls back to whoever started the session when no sign-up matches)
+    ncs_callsign: Optional[str] = None
+    ncs_name: Optional[str] = None
+    broadcaster_callsign: Optional[str] = None
+    broadcaster_name: Optional[str] = None
+    broadcast_label: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -867,16 +878,14 @@ def public_active_sessions(db: Session = Depends(get_db)):
         net = db.query(Net).filter(Net.id == s.net_id).first()
         if not net:
             continue
-        operator = db.query(User).filter(User.id == s.operator_id).first() if s.operator_id else None
         count = db.query(func.count(Checkin.id)).filter(Checkin.session_id == s.id).scalar()
         result.append({
             "session_id": s.id,
             "net_name": net.name,
             "frequency": net.frequency,
-            "ncs_callsign": operator.callsign if operator else None,
-            "ncs_name": operator.name if operator else None,
             "started_at": s.started_at.isoformat(),
             "checkin_count": count,
+            **_duty_labels_for_session(net, s, db),
         })
     return result
 
@@ -888,24 +897,26 @@ def public_session_detail(session_id: int, db: Session = Depends(get_db)):
     if not s:
         raise HTTPException(404, "Session not found or no longer active")
     net = db.query(Net).filter(Net.id == s.net_id).first()
-    operator = db.query(User).filter(User.id == s.operator_id).first() if s.operator_id else None
     checkins = (
         db.query(Checkin)
         .filter(Checkin.session_id == session_id)
         .order_by(Checkin.checked_in_at)
         .all()
     )
+    duty = _duty_labels_for_session(net, s, db) if net else {
+        "ncs_callsign": None, "ncs_name": None,
+        "broadcaster_callsign": None, "broadcaster_name": None, "broadcast_label": None,
+    }
     return {
         "session_id": s.id,
         "net_name": net.name if net else "Unknown Net",
         "frequency": net.frequency if net else None,
-        "ncs_callsign": operator.callsign if operator else None,
-        "ncs_name": operator.name if operator else None,
         "started_at": s.started_at.isoformat(),
         "checkins": [
             {"callsign": c.callsign, "name": c.name}
             for c in checkins
         ],
+        **duty,
     }
 
 
@@ -1133,6 +1144,8 @@ def create_net(data: NetCreate, current_user: User = Depends(get_current_user), 
         is_ares=data.is_ares if net_type == "ham" else False,
         dmr_talkgroup=data.dmr_talkgroup or None if net_type == "ham" else None,
         script=data.script,
+        has_broadcast=data.has_broadcast,
+        broadcast_label=(data.broadcast_label or None) if data.has_broadcast else None,
         owner_id=current_user.id,
     )
     db.add(net)
@@ -1158,6 +1171,8 @@ def update_net(net_id: int, data: NetCreate, current_user: User = Depends(get_cu
     net.is_ares = data.is_ares if net_type == "ham" else False
     net.dmr_talkgroup = data.dmr_talkgroup or None if net_type == "ham" else None
     net.script = data.script
+    net.has_broadcast = data.has_broadcast
+    net.broadcast_label = (data.broadcast_label or None) if data.has_broadcast else None
     db.commit()
     db.refresh(net)
     return _net_to_out(net, current_user, db)
@@ -1210,6 +1225,10 @@ def get_session(session_id: int, current_user: User = Depends(get_current_user),
     count = db.query(func.count(Checkin.id)).filter(Checkin.session_id == session.id).scalar()
     out = SessionOut.model_validate(session)
     out.checkin_count = count
+    net = db.query(Net).filter(Net.id == session.net_id).first()
+    if net:
+        for k, v in _duty_labels_for_session(net, session, db).items():
+            setattr(out, k, v)
     return out
 
 
@@ -2477,6 +2496,7 @@ class ScheduleOut(BaseModel):
 class SignupCreate(BaseModel):
     schedule_id: int
     slot_date: date
+    role: str = "net_control"   # 'net_control' | 'broadcaster' | 'both'
     # Self sign-up: provide callsign directly.
     # Assignment: provide assigned_user_id and callsign/name/email are pulled from that user.
     callsign: Optional[str] = None
@@ -2492,12 +2512,20 @@ class SignupCreate(BaseModel):
             return v.upper().strip()
         return v
 
+    @field_validator("role")
+    @classmethod
+    def valid_role(cls, v):
+        if v not in ("net_control", "broadcaster", "both"):
+            raise ValueError("role must be net_control, broadcaster, or both")
+        return v
+
 
 class SignupOut(BaseModel):
     id: int
     schedule_id: int
     net_id: int
     slot_date: date
+    role: str = "net_control"
     callsign: str
     name: Optional[str]
     email: Optional[str]
@@ -2512,7 +2540,7 @@ class UpcomingSlot(BaseModel):
     slot_date: date
     day_name: str
     schedule_id: int
-    signup: Optional[SignupOut] = None   # None = open
+    signups: list[SignupOut] = []   # empty = fully open
 
 
 def _next_occurrences(day_of_week: int, weeks: int = 8) -> list[date]:
@@ -2521,6 +2549,43 @@ def _next_occurrences(day_of_week: int, weeks: int = 8) -> list[date]:
     days_ahead = (day_of_week - today.weekday()) % 7
     first = today + timedelta(days=days_ahead)
     return [first + timedelta(weeks=i) for i in range(weeks)]
+
+
+def _signup_to_out(s: NetControlSignup, current_user: User) -> SignupOut:
+    return SignupOut(
+        id=s.id, schedule_id=s.schedule_id, net_id=s.net_id,
+        slot_date=s.slot_date, role=s.role, callsign=s.callsign, name=s.name,
+        email=s.email, notes=s.notes, signed_up_at=s.signed_up_at,
+        is_mine=(s.user_id == current_user.id),
+    )
+
+
+def _duty_for_date(net_id: int, slot_date: date, db: Session) -> tuple:
+    """Return (net_control_signup, broadcaster_signup) ORM rows for this net on slot_date,
+    across all of its schedules. A signup with role='both' fills both."""
+    signups = (
+        db.query(NetControlSignup)
+        .filter(NetControlSignup.net_id == net_id, NetControlSignup.slot_date == slot_date)
+        .all()
+    )
+    nc = next((s for s in signups if s.role in ("net_control", "both")), None)
+    bc = next((s for s in signups if s.role in ("broadcaster", "both")), None)
+    return nc, bc
+
+
+def _duty_labels_for_session(net: Net, session: NetSession, db: Session) -> dict:
+    """Net Control / Broadcaster display info for a session, sourced from the schedule
+    sign-up matching the session's date when one exists, falling back to whoever
+    actually started the session for Net Control."""
+    nc, bc = _duty_for_date(net.id, session.started_at.date(), db)
+    operator = db.query(User).filter(User.id == session.operator_id).first() if session.operator_id else None
+    return {
+        "ncs_callsign": nc.callsign if nc else (operator.callsign if operator else None),
+        "ncs_name": nc.name if nc else (operator.name if operator else None),
+        "broadcaster_callsign": bc.callsign if bc else None,
+        "broadcaster_name": bc.name if bc else None,
+        "broadcast_label": net.broadcast_label if (net.has_broadcast and bc) else None,
+    }
 
 
 def _schedule_to_out(s: NetSchedule) -> ScheduleOut:
@@ -2584,29 +2649,15 @@ def upcoming_slots(
     slots: list[UpcomingSlot] = []
     for sched in schedules:
         for slot_date in _next_occurrences(sched.day_of_week, weeks):
-            signup_row = db.query(NetControlSignup).filter(
+            signup_rows = db.query(NetControlSignup).filter(
                 NetControlSignup.schedule_id == sched.id,
                 NetControlSignup.slot_date == slot_date,
-            ).first()
-            signup_out = None
-            if signup_row:
-                signup_out = SignupOut(
-                    id=signup_row.id,
-                    schedule_id=signup_row.schedule_id,
-                    net_id=signup_row.net_id,
-                    slot_date=signup_row.slot_date,
-                    callsign=signup_row.callsign,
-                    name=signup_row.name,
-                    email=signup_row.email,
-                    notes=signup_row.notes,
-                    signed_up_at=signup_row.signed_up_at,
-                    is_mine=(signup_row.user_id == current_user.id),
-                )
+            ).all()
             slots.append(UpcomingSlot(
                 slot_date=slot_date,
                 day_name=DAYS[sched.day_of_week],
                 schedule_id=sched.id,
-                signup=signup_out,
+                signups=[_signup_to_out(s, current_user) for s in signup_rows],
             ))
 
     # Sort chronologically
@@ -2919,12 +2970,24 @@ def create_signup(net_id: int, data: SignupCreate, current_user: User = Depends(
     if data.slot_date.weekday() != sched.day_of_week:
         raise HTTPException(400, f"That date is not a {DAYS[sched.day_of_week]}")
 
-    existing = db.query(NetControlSignup).filter(
-        NetControlSignup.schedule_id == data.schedule_id,
-        NetControlSignup.slot_date == data.slot_date,
-    ).first()
-    if existing:
-        raise HTTPException(409, "That date is already claimed")
+    if data.role in ("broadcaster", "both") and not net.has_broadcast:
+        raise HTTPException(400, "This net does not have a broadcaster role enabled")
+
+    # A 'both' signup occupies the date exclusively; net_control/broadcaster only conflict
+    # with the same role or an existing 'both' signup.
+    existing_roles = {
+        r for (r,) in db.query(NetControlSignup.role).filter(
+            NetControlSignup.schedule_id == data.schedule_id,
+            NetControlSignup.slot_date == data.slot_date,
+        ).all()
+    }
+    conflicting = (
+        "both" in existing_roles
+        or data.role == "both" and existing_roles
+        or data.role in existing_roles
+    )
+    if conflicting:
+        raise HTTPException(409, "That date/role is already claimed")
 
     # Determine who is being signed up
     if data.assigned_user_id:
@@ -2951,6 +3014,7 @@ def create_signup(net_id: int, data: SignupCreate, current_user: User = Depends(
         schedule_id=data.schedule_id,
         net_id=net_id,
         slot_date=data.slot_date,
+        role=data.role,
         user_id=signup_user_id,
         callsign=signup_callsign,
         name=signup_name,
@@ -2961,22 +3025,28 @@ def create_signup(net_id: int, data: SignupCreate, current_user: User = Depends(
     db.commit()
     db.refresh(signup)
 
+    role_label = {
+        "net_control": "Net Control",
+        "broadcaster": net.broadcast_label or "Broadcaster",
+        "both": f"Net Control & {net.broadcast_label or 'Broadcaster'}",
+    }[data.role]
+
     # Send confirmation email with calendar attachment if we have an address
     _email_log.info(
-        "Signup created: callsign=%s email=%r smtp_configured=%s",
-        signup_callsign, signup_email, _smtp_configured(),
+        "Signup created: callsign=%s role=%s email=%r smtp_configured=%s",
+        signup_callsign, data.role, signup_email, _smtp_configured(),
     )
     if signup_email:
         days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         day_name = days[sched.day_of_week]
         assigned_by_admin = bool(data.assigned_user_id)
         action = "assigned you as" if assigned_by_admin else "confirmed your sign-up as"
-        subject = f"[{net.name}] Net Control – {signup.slot_date.strftime('%a %b %-d, %Y')}"
+        subject = f"[{net.name}] {role_label} – {signup.slot_date.strftime('%a %b %-d, %Y')}"
         body_html = f"""
 <html><body style="font-family:sans-serif;color:#222;max-width:600px">
 <h2 style="color:#1a6496">{net.name}</h2>
 <p>Hi {signup_name or signup_callsign},</p>
-<p>This email {action} <strong>Net Control Operator</strong> for the following session:</p>
+<p>This email {action} <strong>{role_label}</strong> for the following session:</p>
 <table style="border-collapse:collapse;margin:16px 0">
   <tr><td style="padding:6px 16px 6px 0;font-weight:bold">Date</td>
       <td style="padding:6px 0">{signup.slot_date.strftime('%A, %B %-d, %Y')}</td></tr>
@@ -2989,9 +3059,9 @@ def create_signup(net_id: int, data: SignupCreate, current_user: User = Depends(
 <p style="color:#666;font-size:12px">73 de Ham Net Tracker</p>
 </body></html>"""
         body_text = (
-            f"{net.name} – Net Control Confirmation\n\n"
+            f"{net.name} – {role_label} Confirmation\n\n"
             f"Hi {signup_name or signup_callsign},\n\n"
-            f"This email {action} Net Control Operator for:\n"
+            f"This email {action} {role_label} for:\n"
             f"  Date:      {signup.slot_date.strftime('%A, %B %-d, %Y')}\n"
             f"  Time:      {sched.start_time} {sched.timezone}\n"
             + (f"  Frequency: {net.frequency}\n" if net.frequency else "")
@@ -2999,7 +3069,7 @@ def create_signup(net_id: int, data: SignupCreate, current_user: User = Depends(
             + "\nA calendar event (.ics) is attached.\n\n73 de Ham Net Tracker"
         )
         try:
-            ics = _build_ics(net, sched, signup)
+            ics = _build_ics(net, sched, signup, role_label=role_label)
             send_email(
                 to=[signup_email],
                 subject=subject,
@@ -3011,18 +3081,7 @@ def create_signup(net_id: int, data: SignupCreate, current_user: User = Depends(
         except Exception as exc:
             _email_log.warning("Failed to send signup confirmation to %s: %s", signup_email, exc)
 
-    return SignupOut(
-        id=signup.id,
-        schedule_id=signup.schedule_id,
-        net_id=signup.net_id,
-        slot_date=signup.slot_date,
-        callsign=signup.callsign,
-        name=signup.name,
-        email=signup.email,
-        notes=signup.notes,
-        signed_up_at=signup.signed_up_at,
-        is_mine=(signup_user_id == current_user.id),
-    )
+    return _signup_to_out(signup, current_user)
 
 
 @app.delete("/signups/{signup_id}", status_code=204)
@@ -3047,15 +3106,7 @@ def list_signups(net_id: int, current_user: User = Depends(get_current_user), db
         .order_by(NetControlSignup.slot_date)
         .all()
     )
-    return [
-        SignupOut(
-            id=s.id, schedule_id=s.schedule_id, net_id=s.net_id,
-            slot_date=s.slot_date, callsign=s.callsign, name=s.name,
-            email=s.email, notes=s.notes, signed_up_at=s.signed_up_at,
-            is_mine=(s.user_id == current_user.id),
-        )
-        for s in signups
-    ]
+    return [_signup_to_out(s, current_user) for s in signups]
 
 
 # ---------------------------------------------------------------------------

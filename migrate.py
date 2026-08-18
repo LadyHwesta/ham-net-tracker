@@ -204,6 +204,30 @@ MIGRATIONS = [
 
     ("nets: net control script",
      "ALTER TABLE nets ADD COLUMN IF NOT EXISTS script TEXT"),
+
+    # ── Broadcaster role (e.g. Amateur Radio Newsline) ─────────────────────────
+    ("nets: additional broadcast flag",
+     "ALTER TABLE nets ADD COLUMN IF NOT EXISTS has_broadcast BOOLEAN NOT NULL DEFAULT FALSE"),
+
+    ("nets: broadcast label",
+     "ALTER TABLE nets ADD COLUMN IF NOT EXISTS broadcast_label VARCHAR(100)"),
+
+    ("net_control_signups: role (net_control/broadcaster/both)",
+     "ALTER TABLE net_control_signups ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'net_control'"),
+
+    ("net_control_signups: drop single-signup-per-date constraint",
+     "ALTER TABLE net_control_signups DROP CONSTRAINT IF EXISTS uq_signup_schedule_date"),
+
+    ("net_control_signups: one signup per date per role",
+     """DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint WHERE conname = 'uq_signup_schedule_date_role'
+          ) THEN
+            ALTER TABLE net_control_signups
+              ADD CONSTRAINT uq_signup_schedule_date_role UNIQUE (schedule_id, slot_date, role);
+          END IF;
+        END $$"""),
 ]
 
 # ---------------------------------------------------------------------------

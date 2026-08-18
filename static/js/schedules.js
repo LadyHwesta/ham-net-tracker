@@ -76,6 +76,36 @@ async function loadUpcoming() {
 
   // Build a lookup of scheduleId → schedule for time display
   const schedMap = Object.fromEntries(schedules.map(s => [s.id, s]));
+  const net = nets.find(n => n.id === currentNetId);
+  const hasBroadcast = !!(net && net.has_broadcast);
+  const broadcastLabel = (net && net.broadcast_label) || 'Broadcaster';
+  const isOwner = currentUser && currentNetOwnerId === currentUser.id;
+
+  function roleRow(label, signup, role, slot, dateStr, isPast) {
+    if (signup) {
+      const canRemove = signup.is_mine || isOwner;
+      return `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <span style="font-size:10px;color:var(--text-muted);min-width:70px">${esc(label)}</span>
+        <span class="slot-claimed">
+          <span class="callsign">${esc(signup.callsign)}</span>
+          ${signup.name ? `<span class="text-muted"> — ${esc(signup.name)}</span>` : ''}
+          ${signup.role === 'both' ? '<span class="text-muted"> (both roles)</span>' : ''}
+        </span>
+        ${canRemove ? `<button class="btn btn-ghost btn-sm" onclick="removeSignup(${signup.id})">✕</button>` : ''}
+      </div>`;
+    }
+    if (isPast) {
+      return `<div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:10px;color:var(--text-muted);min-width:70px">${esc(label)}</span>
+        <span class="lookup-notfound">No sign-up</span>
+      </div>`;
+    }
+    return `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+      <span style="font-size:10px;color:var(--text-muted);min-width:70px">${esc(label)}</span>
+      <button class="btn btn-success btn-sm" onclick="openSignupModal(${slot.schedule_id}, '${slot.slot_date}', '${esc(dateStr)}', '${role}')">+ Sign Up</button>
+      ${isOwner ? `<button class="btn btn-ghost btn-sm" onclick="openAssignModal(${slot.schedule_id}, '${slot.slot_date}', '${esc(dateStr)}', '${role}')">👤 Assign</button>` : ''}
+    </div>`;
+  }
 
   grid.innerHTML = slots.map(slot => {
     const sched = schedMap[slot.schedule_id] || {};
@@ -83,31 +113,21 @@ async function loadUpcoming() {
     const dateStr = dateObj.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
     const isPast  = slot.slot_date < new Date().toISOString().slice(0, 10);
 
-    let statusHtml;
-    if (slot.signup) {
-      const s = slot.signup;
-      const canRemove = s.is_mine || (currentUser && currentNetOwnerId === currentUser.id);
-      statusHtml = `
-        <span class="slot-claimed">
-          <span class="callsign">${esc(s.callsign)}</span>
-          ${s.name ? `<span class="text-muted"> — ${esc(s.name)}</span>` : ''}
-        </span>
-        ${canRemove ? `<button class="btn btn-ghost btn-sm" onclick="removeSignup(${s.id})" style="margin-left:8px">✕ Remove</button>` : ''}
-      `;
-    } else if (isPast) {
-      statusHtml = '<span class="lookup-notfound">Past — no sign-up</span>';
-    } else {
-      const isOwner = currentUser && currentNetOwnerId === currentUser.id;
-      statusHtml = `
-        <button class="btn btn-success btn-sm" onclick="openSignupModal(${slot.schedule_id}, '${slot.slot_date}', '${esc(dateStr)}')">+ I'll run control</button>
-        ${isOwner ? `<button class="btn btn-ghost btn-sm" style="margin-left:6px" onclick="openAssignModal(${slot.schedule_id}, '${slot.slot_date}', '${esc(dateStr)}')">👤 Assign</button>` : ''}
-      `;
+    const ncSignup = slot.signups.find(s => s.role === 'net_control' || s.role === 'both');
+    const bcSignup = slot.signups.find(s => s.role === 'broadcaster' || s.role === 'both');
+
+    let statusHtml = roleRow('Net Control', ncSignup, 'net_control', slot, dateStr, isPast);
+    if (hasBroadcast) {
+      statusHtml += roleRow(broadcastLabel, bcSignup, 'broadcaster', slot, dateStr, isPast);
+      if (!ncSignup && !bcSignup && !isPast) {
+        statusHtml += `<div><button class="btn btn-ghost btn-sm" onclick="openSignupModal(${slot.schedule_id}, '${slot.slot_date}', '${esc(dateStr)}', 'both')">+ Cover Both Roles</button></div>`;
+      }
     }
 
     return `<div class="slot-row${isPast ? '" style="opacity:.5' : ''}">
       <span class="slot-date">${dateStr}</span>
       <span class="slot-time text-muted">${esc(sched.start_time || '')} ${esc(sched.timezone || '')}</span>
-      <span class="slot-status">${statusHtml}</span>
+      <span class="slot-status" style="display:flex;flex-direction:column;gap:5px">${statusHtml}</span>
     </div>`;
   }).join('');
 }
@@ -115,10 +135,18 @@ async function loadUpcoming() {
 // ============================================================
 // SIGNUP MODAL
 // ============================================================
-function openSignupModal(scheduleId, slotDate, dateLabel) {
+function roleLabelFor(role) {
+  const net = nets.find(n => n.id === currentNetId);
+  const bcLabel = (net && net.broadcast_label) || 'Broadcaster';
+  return { net_control: 'Net Control', broadcaster: bcLabel, both: `Net Control & ${bcLabel}` }[role] || 'Net Control';
+}
+
+function openSignupModal(scheduleId, slotDate, dateLabel, role) {
   document.getElementById('signup-schedule-id').value = scheduleId;
   document.getElementById('signup-slot-date').value   = slotDate;
+  document.getElementById('signup-role').value        = role || 'net_control';
   document.getElementById('signup-date-label').textContent = dateLabel;
+  document.getElementById('signup-modal-title').textContent = `Sign Up for ${roleLabelFor(role)}`;
   // Pre-fill from current user
   if (currentUser) {
     document.getElementById('signup-callsign').value = currentUser.callsign;
@@ -136,6 +164,7 @@ function closeSignupModal() {
 async function submitSignup() {
   const schedule_id = parseInt(document.getElementById('signup-schedule-id').value);
   const slot_date   = document.getElementById('signup-slot-date').value;
+  const role        = document.getElementById('signup-role').value || 'net_control';
   const callsign    = document.getElementById('signup-callsign').value.trim().toUpperCase();
   const name        = document.getElementById('signup-name').value.trim() || null;
   const email       = document.getElementById('signup-email').value.trim() || null;
@@ -146,9 +175,9 @@ async function submitSignup() {
   try {
     await apiFetch(`/nets/${currentNetId}/signups`, {
       method: 'POST',
-      body: JSON.stringify({ schedule_id, slot_date, callsign, name, email, notes }),
+      body: JSON.stringify({ schedule_id, slot_date, role, callsign, name, email, notes }),
     });
-    toast(`${callsign} signed up for net control`, 'success');
+    toast(`${callsign} signed up for ${roleLabelFor(role)}`, 'success');
     closeSignupModal();
     await loadUpcoming();
   } catch (e) {
@@ -177,10 +206,12 @@ document.getElementById('assign-modal').addEventListener('click', function(e) {
 // ============================================================
 // ASSIGN MODAL
 // ============================================================
-function openAssignModal(scheduleId, slotDate, dateLabel) {
+function openAssignModal(scheduleId, slotDate, dateLabel, role) {
   document.getElementById('assign-schedule-id').value = scheduleId;
   document.getElementById('assign-slot-date').value   = slotDate;
+  document.getElementById('assign-role').value        = role || 'net_control';
   document.getElementById('assign-date-label').textContent = dateLabel;
+  document.getElementById('assign-modal-title').textContent = `Assign ${roleLabelFor(role)}`;
   document.getElementById('assign-notes').value = '';
   document.getElementById('assign-preview').style.display = 'none';
 
@@ -213,16 +244,17 @@ function onAssignUserChange() {
 async function submitAssign() {
   const schedule_id      = parseInt(document.getElementById('assign-schedule-id').value);
   const slot_date        = document.getElementById('assign-slot-date').value;
+  const role              = document.getElementById('assign-role').value || 'net_control';
   const assigned_user_id = parseInt(document.getElementById('assign-user-select').value);
   const notes            = document.getElementById('assign-notes').value.trim() || null;
   if (!assigned_user_id) return toast('Please select an operator', 'error');
   try {
     await apiFetch(`/nets/${currentNetId}/signups`, {
       method: 'POST',
-      body: JSON.stringify({ schedule_id, slot_date, assigned_user_id, notes }),
+      body: JSON.stringify({ schedule_id, slot_date, role, assigned_user_id, notes }),
     });
     const user = registeredUsers.find(u => u.id === assigned_user_id);
-    toast(`${user ? user.callsign : 'Operator'} assigned as net control`, 'success');
+    toast(`${user ? user.callsign : 'Operator'} assigned as ${roleLabelFor(role)}`, 'success');
     closeAssignModal();
     await loadUpcoming();
   } catch (e) { toast(e.message, 'error'); }

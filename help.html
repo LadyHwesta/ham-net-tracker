@@ -45,6 +45,17 @@
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
 
           <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-18 — Broadcaster Role &amp; Scheduling</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li><strong>Additional Broadcast</strong> — a net can now carry a second segment alongside Net Control (e.g. Amateur Radio Newsline). Enable it and name it in the net's Edit form.</li>
+              <li>The Schedule tab now shows <strong>Net Control</strong> and <strong>Broadcaster</strong> as independent sign-up slots per date — different operators can claim each, or one can click <strong>+ Cover Both Roles</strong>.</li>
+              <li>The net owner can <strong>👤 Assign</strong> either role to a registered operator, same as before.</li>
+              <li>Whoever is signed up (callsign + name) now shows on the live check-in screen's duty bar and on the public <strong>/live</strong> page, for both Net Control and Broadcaster.</li>
+              <li><strong>Upgrading an existing install:</strong> adds columns to <code style="background:var(--surface);padding:1px 5px;border-radius:3px">nets</code> and <code style="background:var(--surface);padding:1px 5px;border-radius:3px">net_control_signups</code> and changes a unique constraint — <code style="background:var(--surface);padding:1px 5px;border-radius:3px">./deploy.sh</code> runs <code style="background:var(--surface);padding:1px 5px;border-radius:3px">migrate.py</code> automatically; run it by hand if upgrading another way.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-18 — Net Control Script</div>
             <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
               <li>Nets can now have a <strong>Net Script</strong> attached — a plain-text field in the net's Edit form, below Description.</li>
@@ -285,7 +296,8 @@
         <div class="card" style="margin-bottom:16px">
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">SCHEDULING</h3>
           <p style="margin:0 0 8px">In the <strong>Schedule</strong> tab of a net, add weekly repeating time slots (day, time, timezone). These appear as a calendar of upcoming dates.</p>
-          <p style="margin:0">Operators can click <strong>Sign Up</strong> next to any future date to claim the Net Control Operator slot.</p>
+          <p style="margin:0 0 8px">Operators can click <strong>Sign Up</strong> next to any future date to claim the Net Control slot. The net owner can instead click <strong>👤 Assign</strong> to put a registered operator on the schedule.</p>
+          <p style="margin:0">If the net has <strong>Additional Broadcast</strong> enabled in its Edit form (e.g. for a segment like Amateur Radio Newsline), each date also shows a separate <strong>Broadcaster</strong> sign-up slot — a different operator can claim it, or one operator can click <strong>+ Cover Both Roles</strong> to take both for that date. Whoever is signed up is shown, callsign and name, on the live check-in screen and the public <strong>/live</strong> page.</p>
         </div>
 
         <div id="help-admin-section" class="card" style="margin-bottom:16px">
