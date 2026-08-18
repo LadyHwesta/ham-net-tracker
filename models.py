@@ -50,6 +50,8 @@ class Net(Base):
     script = Column(Text, nullable=True)  # Net control script, shown alongside the check-in screen
     has_broadcast = Column(Boolean, default=False, nullable=False)  # e.g. a Newsline segment carried during the net
     broadcast_label = Column(String(100), nullable=True)  # e.g. "Amateur Radio Newsline"
+    reminder_enabled = Column(Boolean, default=False, nullable=False)  # email signed-up operators before net start
+    reminder_minutes_before = Column(Integer, nullable=True)  # lead time in minutes, e.g. 30
     owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
@@ -244,6 +246,7 @@ class NetControlSignup(Base):
     email = Column(String(255), nullable=True)
     notes = Column(Text, nullable=True)
     signed_up_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    reminder_sent_at = Column(DateTime(timezone=True), nullable=True)  # set once a reminder email has gone out
 
     schedule = relationship("NetSchedule", back_populates="signups")
 

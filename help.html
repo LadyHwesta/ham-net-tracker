@@ -45,6 +45,16 @@
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
 
           <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-18 — Scheduled Net Reminders</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>Nets can now send <strong>Reminder Emails</strong> — enable it in the Edit form and set a lead time in minutes. Whoever is signed up as Net Control or Broadcaster on the Schedule tab is emailed shortly before their net starts, at the address they gave when signing up.</li>
+              <li>Each role is reminded independently; no reminder is sent for a date nobody has signed up for.</li>
+              <li>Requires a new standalone script, <code style="background:var(--surface);padding:1px 5px;border-radius:3px">send_reminders.py</code>, run frequently via cron — see Help → Database Migrations (admins) or README.md for setup. Safe to run every few minutes; each signup is only ever reminded once.</li>
+              <li><strong>Upgrading an existing install:</strong> adds columns to <code style="background:var(--surface);padding:1px 5px;border-radius:3px">nets</code> and <code style="background:var(--surface);padding:1px 5px;border-radius:3px">net_control_signups</code> — <code style="background:var(--surface);padding:1px 5px;border-radius:3px">./deploy.sh</code> runs <code style="background:var(--surface);padding:1px 5px;border-radius:3px">migrate.py</code> automatically; run it by hand if upgrading another way.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-18 — Net Script Markup &amp; Variables</div>
             <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
               <li>The Net Script field now supports basic formatting — <strong>**bold**</strong>, <em>*italic*</em>, headings, bullet lists, and horizontal rules. See Help → Net Control Script for the full syntax.</li>
@@ -338,6 +348,12 @@ Thank you all for checking in. This net is now closed.</pre>
           <p style="margin:0">If the net has <strong>Additional Broadcast</strong> enabled in its Edit form (e.g. for a segment like Amateur Radio Newsline), each date also shows a separate <strong>Broadcaster</strong> sign-up slot — a different operator can claim it, or one operator can click <strong>+ Cover Both Roles</strong> to take both for that date. Whoever is signed up is shown, callsign and name, on the live check-in screen and the public <strong>/live</strong> page.</p>
         </div>
 
+        <div class="card" style="margin-bottom:16px">
+          <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">SCHEDULED NET REMINDERS</h3>
+          <p style="margin:0 0 8px">Enable <strong>Reminder Emails</strong> in a net's Edit form and set a lead time (in minutes) to have whoever's signed up as <strong>Net Control</strong> or <strong>Broadcaster</strong> on the Schedule tab emailed shortly before their net starts. Each role is reminded independently, at the email address they gave when signing up.</p>
+          <p style="margin:0">If nobody has signed up for a date, no reminder goes out — there's no one to email. This depends on the server having SMTP configured and a reminders cron job running; ask your administrator if you enable this and don't receive anything.</p>
+        </div>
+
         <div id="help-admin-section" class="card" style="margin-bottom:16px">
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">ADMIN PANEL</h3>
           <p style="margin:0 0 8px">The first user to register automatically becomes admin. Additional registrations require approval before login is permitted.</p>
@@ -365,6 +381,9 @@ python3 /opt/netcontrol/gmrs_sync.py --mode full
 
 # Routine update (runs automatically via cron — daily transaction file)
 python3 /opt/netcontrol/gmrs_sync.py --mode update</pre>
+          <p style="margin:8px 0 4px;font-size:12px;font-weight:700;color:var(--text-muted)">Scheduled net reminders</p>
+          <p style="margin:0 0 6px;font-size:12px;color:var(--text-muted)">Net owners enable reminders per-net in the Edit form, but sending them requires <code style="background:var(--surface);padding:1px 5px;border-radius:3px">send_reminders.py</code> running frequently via cron (it's idempotent, safe to run every few minutes):</p>
+          <pre style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:12px;overflow-x:auto;margin:0 0 4px">*/5 * * * *  /opt/netcontrol/venv/bin/python3 /opt/netcontrol/send_reminders.py >> /var/log/nettracker/reminders.log 2>&amp;1</pre>
         </div>
       </div>
     </div>

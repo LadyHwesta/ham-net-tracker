@@ -228,6 +228,16 @@ MIGRATIONS = [
               ADD CONSTRAINT uq_signup_schedule_date_role UNIQUE (schedule_id, slot_date, role);
           END IF;
         END $$"""),
+
+    # ── Scheduled net reminders ─────────────────────────────────────────────
+    ("nets: reminder emails enabled flag",
+     "ALTER TABLE nets ADD COLUMN IF NOT EXISTS reminder_enabled BOOLEAN NOT NULL DEFAULT FALSE"),
+
+    ("nets: reminder lead time in minutes",
+     "ALTER TABLE nets ADD COLUMN IF NOT EXISTS reminder_minutes_before INTEGER"),
+
+    ("net_control_signups: reminder sent timestamp",
+     "ALTER TABLE net_control_signups ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMPTZ"),
 ]
 
 # ---------------------------------------------------------------------------

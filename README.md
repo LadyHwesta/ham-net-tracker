@@ -30,6 +30,7 @@ A public demo is available at **[nettrackerdemo.meskis.net](https://nettrackerde
 - **Session clock** — live local/UTC time and elapsed session timer
 - **Net sharing** — share nets with individual operators or all registered users
 - **Scheduling** — weekly recurring time slots with sign-ups for Net Control and, on nets with an additional broadcast (e.g. Amateur Radio Newsline), a separate Broadcaster role; confirmation emails include a `.ics` calendar attachment
+- **Scheduled reminder emails** — configurable per-net lead time; reminds whoever signed up as Net Control / Broadcaster shortly before their net starts (needs a cron job — see below)
 - **Session history** — attendance statistics, filtering, and CSV export
 - **Public live page** — unauthenticated `/live` page showing active nets and check-in rosters in real time
 - **In-app problem reporting** — users can submit bug reports and enhancement requests directly to the administrator
@@ -253,6 +254,23 @@ Some nets carry a second segment alongside net control — for example, a member
 On the Schedule tab, each upcoming date shows Net Control and Broadcaster as independent sign-up slots — different operators can claim each one, or a single operator can claim **Cover Both Roles**. The net owner can assign either role to a registered operator the same way they assign Net Control today.
 
 Whoever is signed up for a date appears — callsign and name — in the duty bar on the live check-in screen and on the public `/live` page, so anyone checking in (or watching the public page) can see who's running the net and who's carrying the broadcast that day. If no one has signed up for a date, Net Control on the public page falls back to whoever actually started the session.
+
+## Scheduled Net Reminders
+
+Enable **Reminder Emails** in a net's Edit form and set a lead time (e.g. 30 minutes) to email whoever's signed up as Net Control or Broadcaster on the Schedule tab shortly before their net starts. Each role is reminded independently, using the email address they gave when signing up — there's no reminder if nobody's signed up for that date, since there's no one to email.
+
+This is driven by `send_reminders.py`, a standalone script (not part of the running web app) meant to run frequently from cron:
+
+```bash
+python3 /opt/netcontrol/send_reminders.py
+```
+
+```cron
+*/5 * * * *  /opt/netcontrol/venv/bin/python3 /opt/netcontrol/send_reminders.py \
+             >> /var/log/nettracker/reminders.log 2>&1
+```
+
+It's safe to run every few minutes — each signup is only ever reminded once, tracked via a `reminder_sent_at` timestamp set the first time its reminder window is caught, so overlapping cron runs don't double-send. Uses the same `SMTP_*` settings in `.env` as the rest of the app; reminders are silently skipped (logged, not sent) if SMTP isn't configured.
 
 ## DMR Hotspot Integration
 

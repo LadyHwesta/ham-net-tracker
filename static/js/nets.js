@@ -68,6 +68,9 @@ function showNetForm() {
   document.getElementById('net-has-broadcast').checked = false;
   document.getElementById('net-broadcast-label').value = '';
   onBroadcastToggle();
+  document.getElementById('net-reminder-enabled').checked = false;
+  document.getElementById('net-reminder-minutes').value = '';
+  onReminderToggle();
   document.querySelector('input[name="net-type"][value="ham"]').checked = true;
   document.getElementById('net-sharing-section').style.display = 'none';
   document.getElementById('net-dmr-section').style.display = 'none';
@@ -78,6 +81,11 @@ function showNetForm() {
 function onBroadcastToggle() {
   const on = document.getElementById('net-has-broadcast').checked;
   document.getElementById('net-broadcast-label-group').style.display = on ? '' : 'none';
+}
+
+function onReminderToggle() {
+  const on = document.getElementById('net-reminder-enabled').checked;
+  document.getElementById('net-reminder-minutes-group').style.display = on ? '' : 'none';
 }
 
 function onNetTypeChange() {
@@ -114,6 +122,9 @@ async function editNet(id) {
   document.getElementById('net-has-broadcast').checked = !!n.has_broadcast;
   document.getElementById('net-broadcast-label').value = n.broadcast_label || '';
   onBroadcastToggle();
+  document.getElementById('net-reminder-enabled').checked = !!n.reminder_enabled;
+  document.getElementById('net-reminder-minutes').value = n.reminder_minutes_before || '';
+  onReminderToggle();
   const netType = n.net_type || 'ham';
   const typeRadio = document.querySelector(`input[name="net-type"][value="${netType}"]`);
   if (typeRadio) typeRadio.checked = true;
@@ -141,13 +152,16 @@ async function saveNet() {
   const dmr_talkgroup = is_gmrs ? null : (document.getElementById('net-dmr-tg').value.trim() || null);
   const has_broadcast = document.getElementById('net-has-broadcast').checked;
   const broadcast_label = has_broadcast ? (document.getElementById('net-broadcast-label').value.trim() || null) : null;
+  const reminder_enabled = document.getElementById('net-reminder-enabled').checked;
+  const reminderMinutesRaw = document.getElementById('net-reminder-minutes').value.trim();
+  const reminder_minutes_before = reminder_enabled ? (parseInt(reminderMinutesRaw, 10) || 30) : null;
   if (!name) return toast('Net name is required', 'error');
   try {
     if (editNetId) {
-      await apiFetch(`/nets/${editNetId}`, { method: 'PUT', body: JSON.stringify({ name, frequency, dmr_talkgroup, description, script, net_type, is_ares, has_broadcast, broadcast_label }) });
+      await apiFetch(`/nets/${editNetId}`, { method: 'PUT', body: JSON.stringify({ name, frequency, dmr_talkgroup, description, script, net_type, is_ares, has_broadcast, broadcast_label, reminder_enabled, reminder_minutes_before }) });
       toast('Net updated');
     } else {
-      await apiFetch('/nets', { method: 'POST', body: JSON.stringify({ name, frequency, dmr_talkgroup, description, script, net_type, is_ares, has_broadcast, broadcast_label }) });
+      await apiFetch('/nets', { method: 'POST', body: JSON.stringify({ name, frequency, dmr_talkgroup, description, script, net_type, is_ares, has_broadcast, broadcast_label, reminder_enabled, reminder_minutes_before }) });
       toast('Net created');
     }
     cancelNetForm();

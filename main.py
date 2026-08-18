@@ -369,6 +369,15 @@ class NetCreate(BaseModel):
     script: Optional[str] = None   # net control script, shown alongside the check-in screen
     has_broadcast: bool = False    # e.g. a Newsline segment carried during the net
     broadcast_label: Optional[str] = None   # e.g. "Amateur Radio Newsline"
+    reminder_enabled: bool = False   # email signed-up Net Control / Broadcaster before start
+    reminder_minutes_before: Optional[int] = None   # lead time, e.g. 30
+
+    @field_validator("reminder_minutes_before")
+    @classmethod
+    def valid_reminder_lead(cls, v):
+        if v is not None and not (1 <= v <= 1440):
+            raise ValueError("reminder_minutes_before must be between 1 and 1440")
+        return v
 
 
 class NetOut(BaseModel):
@@ -382,6 +391,8 @@ class NetOut(BaseModel):
     script: Optional[str] = None
     has_broadcast: bool = False
     broadcast_label: Optional[str] = None
+    reminder_enabled: bool = False
+    reminder_minutes_before: Optional[int] = None
     owner_id: int
     created_at: datetime
     # Sharing fields (populated by helper, not from ORM attributes directly)
@@ -1154,6 +1165,8 @@ def create_net(data: NetCreate, current_user: User = Depends(get_current_user), 
         script=data.script,
         has_broadcast=data.has_broadcast,
         broadcast_label=(data.broadcast_label or None) if data.has_broadcast else None,
+        reminder_enabled=data.reminder_enabled,
+        reminder_minutes_before=(data.reminder_minutes_before or 30) if data.reminder_enabled else None,
         owner_id=current_user.id,
     )
     db.add(net)
@@ -1181,6 +1194,8 @@ def update_net(net_id: int, data: NetCreate, current_user: User = Depends(get_cu
     net.script = data.script
     net.has_broadcast = data.has_broadcast
     net.broadcast_label = (data.broadcast_label or None) if data.has_broadcast else None
+    net.reminder_enabled = data.reminder_enabled
+    net.reminder_minutes_before = (data.reminder_minutes_before or 30) if data.reminder_enabled else None
     db.commit()
     db.refresh(net)
     return _net_to_out(net, current_user, db)
