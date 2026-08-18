@@ -1,0 +1,39 @@
+<svg viewBox="0 0 300 260" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="300" height="260" rx="18" fill="#0a0a1a"/>
+  <rect width="300" height="260" rx="18" fill="none" stroke="#FF9900" stroke-width="3.5"/>
+
+  <!-- Antenna tip -->
+  <circle cx="150" cy="42" r="5" fill="#FF9900"/>
+  <!-- Mast -->
+  <rect x="147" y="42" width="6" height="88" rx="2" fill="#FF9900"/>
+
+  <!-- Cross arms -->
+  <rect x="106" y="76" width="88" height="6" rx="3" fill="#FF9900"/>
+  <rect x="117" y="94" width="66" height="5" rx="2.5" fill="#FF9900"/>
+  <rect x="128" y="110" width="44" height="4.5" rx="2" fill="#FF9900"/>
+
+  <!-- Tower legs -->
+  <line x1="148" y1="130" x2="120" y2="175" stroke="#FF9900" stroke-width="5.5" stroke-linecap="round"/>
+  <line x1="152" y1="130" x2="180" y2="175" stroke="#FF9900" stroke-width="5.5" stroke-linecap="round"/>
+  <!-- Base platform -->
+  <rect x="108" y="173" width="84" height="10" rx="5" fill="#FF9900"/>
+  <!-- Ground feet -->
+  <rect x="102" y="181" width="24" height="8" rx="4" fill="#FF9900" opacity="0.6"/>
+  <rect x="174" y="181" width="24" height="8" rx="4" fill="#FF9900" opacity="0.6"/>
+
+  <!-- Signal arcs (bowing upward from tip) -->
+  <path d="M126 58 A26 26 0 0 0 174 58" stroke="#9999FF" stroke-width="3.5" fill="none" stroke-linecap="round" opacity="0.9"/>
+  <path d="M114 50 A39 39 0 0 0 186 50" stroke="#9999FF" stroke-width="2.5" fill="none" stroke-linecap="round" opacity="0.6"/>
+  <path d="M101 42 A53 53 0 0 0 199 42" stroke="#9999FF" stroke-width="1.8" fill="none" stroke-linecap="round" opacity="0.35"/>
+
+  <!-- Text -->
+  <text x="150" y="222" text-anchor="middle"
+        font-family="'Exo 2', Arial, sans-serif"
+        font-weight="900" font-size="22"
+        fill="#FF9900" letter-spacing="5">NET TRACKER</text>
+  <text x="150" y="241" text-anchor="middle"
+        font-family="Arial, sans-serif"
+        font-weight="700" font-size="11"
+        fill="#9999FF" letter-spacing="3" opacity="0.8">HAM RADIO LOGGING</text>
+</svg>
