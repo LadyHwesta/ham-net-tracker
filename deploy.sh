@@ -24,15 +24,25 @@ cd "$(dirname "$0")"
 SYSTEMD_SERVICE=$(grep -E '^SYSTEMD_SERVICE=' .env 2>/dev/null | tail -1 | cut -d= -f2-)
 SYSTEMD_SERVICE="${SYSTEMD_SERVICE:-nettracker}"
 
+# Use this checkout's own virtualenv if one exists, rather than whatever
+# `python3` happens to resolve to on the caller's PATH -- each checkout
+# (e.g. production vs. a demo instance) has its own venv with its own
+# installed deps, and deploy.sh shouldn't depend on the shell that invoked
+# it having activated the right one.
+PYTHON=python3
+if [ -x venv/bin/python3 ]; then
+  PYTHON=venv/bin/python3
+fi
+
 echo "Pulling latest from GitHub..."
 git pull
 
 echo "Running test suite..."
-python3 -m pytest tests/ -q
+"$PYTHON" -m pytest tests/ -q
 echo "✓ All tests passed"
 
 echo "Applying database migrations..."
-python3 migrate.py
+"$PYTHON" migrate.py
 echo "✓ Migrations applied"
 
 echo "Restarting $SYSTEMD_SERVICE..."
