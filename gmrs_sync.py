@@ -246,8 +246,8 @@ def main():
                         help="Override the FCC ULS download URL")
     args = parser.parse_args()
 
-    global GMRS_ULS_URL
-    GMRS_ULS_URL = args.url
+    if args.url != GMRS_ULS_URL:
+        globals()["GMRS_ULS_URL"] = args.url
 
     _log("=== GMRS Sync starting ===")
     try:
