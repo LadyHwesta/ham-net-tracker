@@ -115,7 +115,7 @@ uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 
 > **Fresh installs:** the app creates the full current schema automatically on first startup. No migration step needed.
 
-**Upgrading an existing install** — run `migrate.py` after pulling new code:
+**Upgrading an existing install** — `./deploy.sh` runs `migrate.py` automatically as part of every deploy, so no manual step is needed if you use it. Running it by hand:
 
 ```bash
 sudo -u netcontrol python3 /opt/netcontrol/migrate.py

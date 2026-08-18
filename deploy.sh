@@ -19,6 +19,10 @@ echo "Running test suite..."
 python3 -m pytest tests/ -q
 echo "✓ All tests passed"
 
+echo "Applying database migrations..."
+python3 migrate.py
+echo "✓ Migrations applied"
+
 echo "Restarting service..."
 sudo systemctl restart nettracker
 

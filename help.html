@@ -50,7 +50,7 @@
               <li>Nets can now have a <strong>Net Script</strong> attached — a plain-text field in the net's Edit form, below Description.</li>
               <li>When a net has a script, a collapsible <strong>📜 NET SCRIPT</strong> panel appears on the live check-in screen (open by default) so you don't need a second window or a printed sheet.</li>
               <li>The field preserves line breaks and spacing exactly as typed, but is not Markdown or HTML — see Help → Net Control Script for an example template.</li>
-              <li><strong>Upgrading an existing install:</strong> this adds a new column to the <code style="background:var(--surface);padding:1px 5px;border-radius:3px">nets</code> table — run <code style="background:var(--surface);padding:1px 5px;border-radius:3px">migrate.py</code> after pulling (see Help → Database Migrations). Skipping this makes <strong>My Nets</strong> appear empty until the migration is run.</li>
+              <li><strong>Upgrading an existing install:</strong> this adds a new column to the <code style="background:var(--surface);padding:1px 5px;border-radius:3px">nets</code> table. <code style="background:var(--surface);padding:1px 5px;border-radius:3px">./deploy.sh</code> now runs <code style="background:var(--surface);padding:1px 5px;border-radius:3px">migrate.py</code> automatically on every deploy (see Help → Database Migrations) — if you're upgrading by hand instead, run it yourself or <strong>My Nets</strong> will appear empty until you do.</li>
             </ul>
           </div>
 
@@ -300,7 +300,9 @@
           <p style="margin:0 0 8px">
             Schema migrations are managed by <code style="background:var(--surface);padding:1px 5px;border-radius:3px">migrate.py</code> in the app directory.
             It is safe to re-run at any time — every step uses <code style="background:var(--surface);padding:1px 5px;border-radius:3px">IF NOT EXISTS</code>.
+            <code style="background:var(--surface);padding:1px 5px;border-radius:3px">./deploy.sh</code> now runs it automatically as part of every deploy, before the service restarts — no manual step needed if you use it.
           </p>
+          <p style="margin:0 0 8px;font-size:12px;color:var(--text-muted)">To run it by hand:</p>
           <pre style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:12px;overflow-x:auto;margin:0 0 8px">sudo -u netcontrol python3 /opt/netcontrol/migrate.py</pre>
           <p style="margin:0 0 8px;font-size:12px;color:var(--text-muted)">
             Fresh installs: new tables are created automatically on first startup — no migration needed.
