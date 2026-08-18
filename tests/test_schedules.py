@@ -8,7 +8,7 @@ Tests for scheduling and Net Control / Broadcaster sign-ups:
   GET    /public/active          — scheduled duty display (public)
 """
 
-from datetime import date
+from datetime import date, timedelta
 
 
 def _schedule_for_today(client, headers, net_id):
@@ -141,3 +141,22 @@ class TestDutyDisplay:
         assert row["broadcaster_callsign"] == "K2ABC"
         assert row["broadcaster_name"] == "Bob"
         assert row["broadcast_label"] == "Amateur Radio Newsline"
+
+    def test_session_shows_next_week_signup(self, client, admin_headers, net):
+        sched, today = _schedule_for_today(client, admin_headers, net["id"])
+        next_week = today + timedelta(days=7)
+        client.post(f"/nets/{net['id']}/signups", json={
+            "schedule_id": sched["id"], "slot_date": str(next_week), "callsign": "K2NEXT", "name": "Next Op",
+        }, headers=admin_headers)
+        s = client.post(f"/nets/{net['id']}/sessions", json={"name": "Test"}, headers=admin_headers).json()
+        resp = client.get(f"/sessions/{s['id']}", headers=admin_headers)
+        assert resp.status_code == 200
+        assert resp.json()["next_ncs_callsign"] == "K2NEXT"
+        assert resp.json()["next_ncs_name"] == "Next Op"
+
+    def test_session_next_week_has_no_operator_fallback(self, client, admin_headers, session):
+        """Unlike this week, next week has no signup yet -- it should stay empty rather
+        than fall back to anyone, since no one has started that session yet."""
+        resp = client.get(f"/sessions/{session['id']}", headers=admin_headers)
+        assert resp.status_code == 200
+        assert resp.json()["next_ncs_callsign"] is None

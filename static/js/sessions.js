@@ -68,25 +68,35 @@ function toggleNetScriptPanel() {
 //   ---  or  ===  (3+ chars, alone on a line)   horizontal rule
 //   {{net_control}} {{net_control_callsign}} {{net_control_name}}
 //   {{broadcaster}} {{broadcaster_callsign}} {{broadcaster_name}} {{broadcast_label}}
+//   {{net_control_next}} {{net_control_next_callsign}} {{net_control_next_name}}
+//   {{broadcaster_next}} {{broadcaster_next_callsign}} {{broadcaster_next_name}}
 //   {{net_name}}
 
 function escapeHtml(s) {
   return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+function combineNameCallsign(callsign, name) {
+  return callsign ? (name ? `${name} — ${callsign}` : callsign) : '';
+}
+
 function scriptVarsForSession(s) {
   const net = nets.find(n => n.id === currentNetId);
-  const ncCombined = s.ncs_callsign ? (s.ncs_name ? `${s.ncs_callsign} — ${s.ncs_name}` : s.ncs_callsign) : '';
-  const bcCombined = s.broadcaster_callsign ? (s.broadcaster_name ? `${s.broadcaster_callsign} — ${s.broadcaster_name}` : s.broadcaster_callsign) : '';
   return {
     net_name: net ? net.name : '',
-    net_control: ncCombined,
+    net_control: combineNameCallsign(s.ncs_callsign, s.ncs_name),
     net_control_callsign: s.ncs_callsign || '',
     net_control_name: s.ncs_name || '',
-    broadcaster: bcCombined,
+    broadcaster: combineNameCallsign(s.broadcaster_callsign, s.broadcaster_name),
     broadcaster_callsign: s.broadcaster_callsign || '',
     broadcaster_name: s.broadcaster_name || '',
     broadcast_label: s.broadcast_label || 'Broadcaster',
+    net_control_next: combineNameCallsign(s.next_ncs_callsign, s.next_ncs_name),
+    net_control_next_callsign: s.next_ncs_callsign || '',
+    net_control_next_name: s.next_ncs_name || '',
+    broadcaster_next: combineNameCallsign(s.next_broadcaster_callsign, s.next_broadcaster_name),
+    broadcaster_next_callsign: s.next_broadcaster_callsign || '',
+    broadcaster_next_name: s.next_broadcaster_name || '',
   };
 }
 

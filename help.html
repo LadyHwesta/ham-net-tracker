@@ -49,6 +49,7 @@
             <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
               <li>The Net Script field now supports basic formatting — <strong>**bold**</strong>, <em>*italic*</em>, headings, bullet lists, and horizontal rules. See Help → Net Control Script for the full syntax.</li>
               <li><strong>{{variable}}</strong> placeholders — <code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{net_control}}</code>, <code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{broadcaster}}</code>, and related callsign/name variants — are filled in with the live session's Net Control and Broadcaster whenever the script is shown.</li>
+              <li>Added <code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{net_control_next}}</code> and <code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{broadcaster_next}}</code> (plus callsign/name variants) — show who's signed up for <strong>next week</strong> on the Schedule tab, useful for closing announcements. These never fall back to anyone — they stay blank until someone actually signs up.</li>
               <li>No database changes — this is a display-only change, safe to deploy without a migration.</li>
             </ul>
           </div>
@@ -243,13 +244,17 @@
           <p style="margin:0 0 8px"><code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{variable}}</code> placeholders are filled in with live session info wherever the script is shown:</p>
           <table style="width:100%;border-collapse:collapse;font-size:12px;margin:0 0 8px">
             <tr><td style="padding:3px 8px 3px 0;white-space:nowrap"><code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{net_name}}</code></td><td style="padding:3px 0;color:var(--text-muted)">The net's name</td></tr>
-            <tr><td style="padding:3px 8px 3px 0;white-space:nowrap"><code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{net_control}}</code></td><td style="padding:3px 0;color:var(--text-muted)">Net Control callsign — name</td></tr>
+            <tr><td style="padding:3px 8px 3px 0;white-space:nowrap"><code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{net_control}}</code></td><td style="padding:3px 0;color:var(--text-muted)">Net Control name — callsign</td></tr>
             <tr><td style="padding:3px 8px 3px 0;white-space:nowrap"><code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{net_control_callsign}}</code> / <code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{net_control_name}}</code></td><td style="padding:3px 0;color:var(--text-muted)">Just the callsign / just the name</td></tr>
-            <tr><td style="padding:3px 8px 3px 0;white-space:nowrap"><code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{broadcaster}}</code></td><td style="padding:3px 0;color:var(--text-muted)">Broadcaster callsign — name (Additional Broadcast nets only)</td></tr>
+            <tr><td style="padding:3px 8px 3px 0;white-space:nowrap"><code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{broadcaster}}</code></td><td style="padding:3px 0;color:var(--text-muted)">Broadcaster name — callsign (Additional Broadcast nets only)</td></tr>
             <tr><td style="padding:3px 8px 3px 0;white-space:nowrap"><code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{broadcaster_callsign}}</code> / <code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{broadcaster_name}}</code></td><td style="padding:3px 0;color:var(--text-muted)">Just the callsign / just the name</td></tr>
             <tr><td style="padding:3px 8px 3px 0;white-space:nowrap"><code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{broadcast_label}}</code></td><td style="padding:3px 0;color:var(--text-muted)">The net's custom broadcast name (e.g. "Amateur Radio Newsline")</td></tr>
+            <tr><td style="padding:3px 8px 3px 0;white-space:nowrap"><code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{net_control_next}}</code></td><td style="padding:3px 0;color:var(--text-muted)"><strong>Next week's</strong> Net Control name — callsign</td></tr>
+            <tr><td style="padding:3px 8px 3px 0;white-space:nowrap"><code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{net_control_next_callsign}}</code> / <code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{net_control_next_name}}</code></td><td style="padding:3px 0;color:var(--text-muted)">Just the callsign / just the name</td></tr>
+            <tr><td style="padding:3px 8px 3px 0;white-space:nowrap"><code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{broadcaster_next}}</code></td><td style="padding:3px 0;color:var(--text-muted)"><strong>Next week's</strong> Broadcaster name — callsign</td></tr>
+            <tr><td style="padding:3px 8px 3px 0;white-space:nowrap"><code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{broadcaster_next_callsign}}</code> / <code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{broadcaster_next_name}}</code></td><td style="padding:3px 0;color:var(--text-muted)">Just the callsign / just the name</td></tr>
           </table>
-          <p style="margin:0 0 8px">Net Control falls back to whoever started the session if no one signed up on the Schedule tab for that date; Broadcaster only fills in from a Schedule sign-up. An unrecognized <code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{...}}</code> is left as-is rather than silently dropped, so a typo is easy to spot. For example:</p>
+          <p style="margin:0 0 8px">Net Control falls back to whoever started the session if no one signed up on the Schedule tab for that date; Broadcaster only fills in from a Schedule sign-up. The <code style="background:var(--surface);padding:1px 5px;border-radius:3px">_next</code> variables look one week ahead and are <strong>never</strong> filled by fallback — they stay blank until someone actually signs up on the Schedule tab for that date. An unrecognized <code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{...}}</code> is left as-is rather than silently dropped, so a typo is easy to spot. For example:</p>
           <pre style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:12px;overflow-x:auto;margin:0 0 8px"># Monday Night Net Script
 
 Good evening, this is **{{net_control}}**, your net control operator
@@ -261,6 +266,8 @@ Coming up: tonight's {{broadcast_label}} segment, read by {{broadcaster}}.
 - Traffic? Let us know when you check in.
 
 ---
+
+Next week's net control will be {{net_control_next}}.
 
 Thank you all for checking in. This net is now closed.</pre>
           <p style="margin:0">Leave the field blank to hide the panel entirely. Click the panel header any time to collapse or reopen it during a session.</p>

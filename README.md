@@ -202,13 +202,17 @@ Anything else — blank lines, indentation, plain text — renders exactly as ty
 | Variable | Value |
 |----------|-------|
 | `{{net_name}}` | The net's name |
-| `{{net_control}}` | Net Control callsign — name |
+| `{{net_control}}` | Net Control name — callsign |
 | `{{net_control_callsign}}` / `{{net_control_name}}` | Just the callsign / just the name |
-| `{{broadcaster}}` | Broadcaster callsign — name (only meaningful on nets with [Additional Broadcast](#broadcaster-role-additional-broadcast) enabled) |
+| `{{broadcaster}}` | Broadcaster name — callsign (only meaningful on nets with [Additional Broadcast](#broadcaster-role-additional-broadcast) enabled) |
 | `{{broadcaster_callsign}}` / `{{broadcaster_name}}` | Just the callsign / just the name |
 | `{{broadcast_label}}` | The net's custom broadcast name (e.g. "Amateur Radio Newsline") |
+| `{{net_control_next}}` | **Next week's** Net Control name — callsign, from the Schedule tab |
+| `{{net_control_next_callsign}}` / `{{net_control_next_name}}` | Just the callsign / just the name |
+| `{{broadcaster_next}}` | **Next week's** Broadcaster name — callsign |
+| `{{broadcaster_next_callsign}}` / `{{broadcaster_next_name}}` | Just the callsign / just the name |
 
-Net Control falls back to whoever actually started the session if no one signed up on the Schedule tab for that date; Broadcaster is only filled from a Schedule sign-up (there's no session-operator fallback, since a session has one operator but two possible roles). An unrecognized `{{...}}` is left as-is rather than silently dropped, so a typo is easy to spot. For example:
+Net Control falls back to whoever actually started the session if no one signed up on the Schedule tab for that date; Broadcaster is only filled from a Schedule sign-up (there's no session-operator fallback, since a session has one operator but two possible roles). The `_next` variables look at the date exactly one week after this session and are **never** filled by fallback — next week hasn't happened yet, so there's no operator to fall back to — they stay blank until someone actually signs up on the Schedule tab. An unrecognized `{{...}}` is left as-is rather than silently dropped, so a typo is easy to spot. For example:
 
 ```
 # Monday Night Net Script
@@ -222,6 +226,8 @@ Coming up: tonight's {{broadcast_label}} segment, read by {{broadcaster}}.
 - Traffic? Let us know when you check in.
 
 ---
+
+Next week's net control will be {{net_control_next}}.
 
 Thank you all for checking in. This net is now closed.
 ```

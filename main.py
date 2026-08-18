@@ -444,6 +444,12 @@ class SessionOut(BaseModel):
     broadcaster_callsign: Optional[str] = None
     broadcaster_name: Optional[str] = None
     broadcast_label: Optional[str] = None
+    # Same, but for the schedule sign-up one week after this session's date (no fallback —
+    # there's no operator yet for a session that hasn't started).
+    next_ncs_callsign: Optional[str] = None
+    next_ncs_name: Optional[str] = None
+    next_broadcaster_callsign: Optional[str] = None
+    next_broadcaster_name: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -906,6 +912,8 @@ def public_session_detail(session_id: int, db: Session = Depends(get_db)):
     duty = _duty_labels_for_session(net, s, db) if net else {
         "ncs_callsign": None, "ncs_name": None,
         "broadcaster_callsign": None, "broadcaster_name": None, "broadcast_label": None,
+        "next_ncs_callsign": None, "next_ncs_name": None,
+        "next_broadcaster_callsign": None, "next_broadcaster_name": None,
     }
     return {
         "session_id": s.id,
@@ -2576,8 +2584,11 @@ def _duty_for_date(net_id: int, slot_date: date, db: Session) -> tuple:
 def _duty_labels_for_session(net: Net, session: NetSession, db: Session) -> dict:
     """Net Control / Broadcaster display info for a session, sourced from the schedule
     sign-up matching the session's date when one exists, falling back to whoever
-    actually started the session for Net Control."""
-    nc, bc = _duty_for_date(net.id, session.started_at.date(), db)
+    actually started the session for Net Control. Also includes the sign-up (if any)
+    for one week later, so a script can announce next week's duty."""
+    session_date = session.started_at.date()
+    nc, bc = _duty_for_date(net.id, session_date, db)
+    next_nc, next_bc = _duty_for_date(net.id, session_date + timedelta(days=7), db)
     operator = db.query(User).filter(User.id == session.operator_id).first() if session.operator_id else None
     return {
         "ncs_callsign": nc.callsign if nc else (operator.callsign if operator else None),
@@ -2585,6 +2596,10 @@ def _duty_labels_for_session(net: Net, session: NetSession, db: Session) -> dict
         "broadcaster_callsign": bc.callsign if bc else None,
         "broadcaster_name": bc.name if bc else None,
         "broadcast_label": net.broadcast_label if (net.has_broadcast and bc) else None,
+        "next_ncs_callsign": next_nc.callsign if next_nc else None,
+        "next_ncs_name": next_nc.name if next_nc else None,
+        "next_broadcaster_callsign": next_bc.callsign if next_bc else None,
+        "next_broadcaster_name": next_bc.name if next_bc else None,
     }
 
 
