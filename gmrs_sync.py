@@ -50,26 +50,10 @@ from datetime import datetime, timezone
 # The Saturday file is the weekly full database rebuild.
 GMRS_ULS_URL = "https://data.fcc.gov/download/pub/uls/daily/l_gm_sat.zip"
 
-# Headers that mimic a browser — the FCC blocks plain requests/curl User-Agents.
-_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    ),
-    "Accept": "application/zip,application/octet-stream,*/*",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Referer": "https://www.fcc.gov/wireless/data/public-access-files-database-downloads",
-}
 
 # ---------------------------------------------------------------------------
 # Bootstrap dependencies
 # ---------------------------------------------------------------------------
-try:
-    import requests
-except ImportError:
-    sys.exit("requests not found — activate the virtualenv first.")
-
 try:
     from dotenv import load_dotenv
 except ImportError:
@@ -98,59 +82,46 @@ def _log(msg: str):
     print(f"[{ts}] {msg}", flush=True)
 
 
-def _download_via_curl(url: str) -> bytes:
-    """Use the system curl binary, which handles TLS fingerprinting better than requests."""
-    import subprocess, shutil
-    curl = shutil.which("curl")
-    if not curl:
-        raise RuntimeError("curl not found on PATH")
-    result = subprocess.run(
-        [
-            curl, "-L", "--silent", "--show-error", "--fail",
-            "--max-time", "120",
-            "--user-agent", _HEADERS["User-Agent"],
-            "--referer", _HEADERS["Referer"],
-            "-o", "-",   # write to stdout
-            url,
-        ],
-        capture_output=True,
-        timeout=130,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"curl exited {result.returncode}: {result.stderr.decode().strip()}")
-    return result.stdout
-
-
 def download_gmrs_zip() -> bytes:
-    """Download the FCC GMRS weekly full database zip and return raw bytes."""
+    """
+    Download the FCC GMRS weekly full database zip.
+    Uses system curl with no extra headers — the FCC blocks Python's requests
+    and curl with browser-like headers, but accepts plain curl.
+    """
+    import subprocess, shutil, tempfile
+
     _log(f"Downloading GMRS database …")
     _log(f"  URL: {GMRS_ULS_URL}")
 
-    # 1. Try requests (fast, no subprocess overhead)
-    try:
-        r = requests.get(GMRS_ULS_URL, headers=_HEADERS, timeout=120, stream=True)
-        r.raise_for_status()
-        data = b"".join(r.iter_content(chunk_size=1 << 20))
-        _log(f"  Downloaded {len(data):,} bytes via requests")
-        return data
-    except Exception as exc:
-        _log(f"  requests failed ({exc}) — retrying with curl …")
-
-    # 2. Fall back to system curl (better TLS/browser fingerprinting)
-    try:
-        data = _download_via_curl(GMRS_ULS_URL)
-        _log(f"  Downloaded {len(data):,} bytes via curl")
-        return data
-    except Exception as exc:
-        _log(f"  curl also failed: {exc}")
+    curl = shutil.which("curl")
+    if not curl:
         raise RuntimeError(
-            f"Could not download {GMRS_ULS_URL}\n"
-            "Try running manually to diagnose:\n"
-            f"  curl -L -o /tmp/gmrs_test.zip '{GMRS_ULS_URL}'\n"
-            "If that also fails, the FCC may require a session cookie — download\n"
-            "the file manually from https://www.fcc.gov/uls/transactions/daily-weekly\n"
-            "and run:  python3 gmrs_sync.py --zip /path/to/l_gm_sat.zip"
-        ) from exc
+            "curl not found on PATH. Install it or download the file manually and use --zip."
+        )
+
+    with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
+        tmp_path = tmp.name
+
+    try:
+        result = subprocess.run(
+            [curl, "-L", "--fail", "--silent", "--show-error",
+             "--max-time", "120", "-o", tmp_path, GMRS_ULS_URL],
+            capture_output=True,
+            timeout=130,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"curl exited {result.returncode}: {result.stderr.decode().strip()}\n"
+                "Download the file manually from "
+                "https://www.fcc.gov/uls/transactions/daily-weekly and use --zip."
+            )
+        with open(tmp_path, "rb") as fh:
+            data = fh.read()
+        _log(f"  Downloaded {len(data):,} bytes")
+        return data
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
 
 
 def parse_gmrs_zip(zip_bytes: bytes) -> dict:
