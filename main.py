@@ -72,7 +72,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from database import get_db, init_db
-from models import ApiToken, Checkin, DmrConfig, EvacZone, Net, NetControlSignup, NetSchedule, NetSession, NetShare, StationRemark, SystemSetting, TrafficMessage, User, utcnow
+from models import ApiToken, CallsignCache, Checkin, DmrConfig, EvacZone, Net, NetControlSignup, NetSchedule, NetSession, NetShare, StationRemark, SystemSetting, TrafficMessage, User, utcnow
 
 load_dotenv()
 
@@ -2078,19 +2078,89 @@ def search_callsigns(
     return results
 
 
+# Cache TTLs for callsign lookups
+_CALLSIGN_CACHE_TTL_FOUND = 30 * 24 * 3600      # 30 days — licenses rarely change
+_CALLSIGN_CACHE_TTL_NOT_FOUND = 7 * 24 * 3600   # 7 days — callsign might get issued
+
+
+def _callsign_cache_read(callsign: str, db: Session) -> Optional[CallsignLookupResult]:
+    """Return a cached lookup result if still within TTL, else None."""
+    row = db.query(CallsignCache).filter(CallsignCache.callsign == callsign).first()
+    if not row:
+        return None
+    ttl = _CALLSIGN_CACHE_TTL_FOUND if row.status == "found" else _CALLSIGN_CACHE_TTL_NOT_FOUND
+    # SQLite returns tz-naive datetimes; PostgreSQL returns tz-aware — normalize to UTC.
+    cached_at = row.cached_at
+    if cached_at.tzinfo is None:
+        cached_at = cached_at.replace(tzinfo=timezone.utc)
+    if (utcnow() - cached_at).total_seconds() > ttl:
+        return None
+    return CallsignLookupResult(
+        callsign=row.callsign,
+        status=row.status,
+        name=row.name,
+        license_class=row.license_class,
+        state=row.state,
+        grid=row.grid,
+        expires=row.expires,
+        source=row.source,
+    )
+
+
+def _callsign_cache_write(result: CallsignLookupResult, db: Session) -> None:
+    """Upsert a lookup result into the local cache."""
+    row = db.query(CallsignCache).filter(CallsignCache.callsign == result.callsign).first()
+    if row:
+        row.status = result.status
+        row.name = result.name
+        row.license_class = result.license_class
+        row.state = result.state
+        row.grid = result.grid
+        row.expires = result.expires
+        row.source = result.source
+        row.cached_at = utcnow()
+    else:
+        db.add(CallsignCache(
+            callsign=result.callsign,
+            status=result.status,
+            name=result.name,
+            license_class=result.license_class,
+            state=result.state,
+            grid=result.grid,
+            expires=result.expires,
+            source=result.source,
+        ))
+    db.commit()
+
+
 @app.get("/callsign/{callsign}/lookup", response_model=CallsignLookupResult)
-async def lookup_callsign(callsign: str, current_user: User = Depends(get_current_user)):
+async def lookup_callsign(
+    callsign: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
     Resolve a callsign to FCC license data.
     Sources tried in order:
-      1. FCC ULS (official, authoritative)
-      2. HamDB.org
-      3. callook.info
+      1. Local cache (30-day TTL for found, 7-day for not_found)
+      2. FCC ULS (official, authoritative)
+      3. HamDB.org
+      4. callook.info
     Errors from each source are logged; check journalctl -u ham-net-tracker for details.
     """
     import logging
     log = logging.getLogger("callsign_lookup")
     callsign = callsign.upper().strip()
+
+    # Return cached result if still fresh
+    cached = _callsign_cache_read(callsign, db)
+    if cached:
+        return cached
+
+    def _save(result: CallsignLookupResult) -> CallsignLookupResult:
+        """Persist to cache then return."""
+        _callsign_cache_write(result, db)
+        return result
 
     async with httpx.AsyncClient(timeout=8.0) as client:
 
@@ -2113,7 +2183,7 @@ async def lookup_callsign(callsign: str, current_user: User = Depends(get_curren
                 if match and match.get("statusDesc", "").lower() == "active":
                     name = (match.get("licenseeName") or "").strip().title() or None
                     # FCC returns "JOHN DOE" — title-case it to "John Doe"
-                    return CallsignLookupResult(
+                    return _save(CallsignLookupResult(
                         callsign=match["callsign"],
                         status="found",
                         name=name,
@@ -2122,7 +2192,7 @@ async def lookup_callsign(callsign: str, current_user: User = Depends(get_curren
                         grid=None,
                         expires=match.get("expiredDate") or None,
                         source="FCC ULS",
-                    )
+                    ))
                 elif match:
                     # Callsign exists but licence is not active
                     log.info("FCC ULS: %s found but status=%s", callsign, match.get("statusDesc"))
@@ -2149,7 +2219,7 @@ async def lookup_callsign(callsign: str, current_user: User = Depends(get_curren
                     fname = (cs.get("fname") or "").strip()
                     lname = (cs.get("name") or "").strip()
                     name = f"{fname} {lname}".strip() or None
-                    return CallsignLookupResult(
+                    return _save(CallsignLookupResult(
                         callsign=cs["call"],
                         status="found",
                         name=name,
@@ -2158,7 +2228,7 @@ async def lookup_callsign(callsign: str, current_user: User = Depends(get_curren
                         grid=cs.get("grid") or None,
                         expires=cs.get("expires") or None,
                         source="HamDB",
-                    )
+                    ))
                 else:
                     log.info("HamDB: no result for %s (status=%s)", callsign, msgs.get("status"))
             else:
@@ -2206,7 +2276,7 @@ async def lookup_callsign(callsign: str, current_user: User = Depends(get_curren
                         state_zip = parts[-1].strip().split()
                         state = state_zip[0] if state_zip else None
 
-                    return CallsignLookupResult(
+                    return _save(CallsignLookupResult(
                         callsign=_safe_get(current, "callsign") or callsign,
                         status="found",
                         name=name,
@@ -2215,7 +2285,7 @@ async def lookup_callsign(callsign: str, current_user: User = Depends(get_curren
                         grid=_safe_get(loc, "gridsquare") or None,
                         expires=_safe_get(other, "expiryDate") or None,
                         source="callook.info",
-                    )
+                    ))
                 else:
                     log.info("callook.info: status=%s for %s", data.get("status") if isinstance(data, dict) else data, callsign)
             else:
@@ -2224,7 +2294,7 @@ async def lookup_callsign(callsign: str, current_user: User = Depends(get_curren
             log.warning("callook.info error for %s: %s", callsign, exc)
 
     log.warning("All sources exhausted for %s — returning not_found", callsign)
-    return CallsignLookupResult(callsign=callsign, status="not_found")
+    return _save(CallsignLookupResult(callsign=callsign, status="not_found"))
 
 
 # ---------------------------------------------------------------------------

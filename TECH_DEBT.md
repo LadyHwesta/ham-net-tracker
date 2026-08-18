@@ -28,8 +28,7 @@ Known issues, shortcuts, and areas for future improvement. Not bugs — the app 
 ### No email verification on registration
 New accounts require admin approval but no email verification step. An admin could approve a typo'd email address, and the user would never receive notifications. Adding a verification token sent on registration (before the approval step) would close this gap.
 
-### FCC callsign lookup depends on an external service
-Callsign lookup hits an external API. If that service is down or rate-limits the instance, lookups silently fail. There's no fallback, no caching of previously resolved callsigns, and no clear error shown to the user. A local cache of previously seen callsigns (already stored in checkin history) would reduce dependency on the external service for known callsigns.
+~~FCC callsign lookup depends on an external service~~ — resolved; see Resolved section.
 
 ### SQLAlchemy is used synchronously
 All database calls use synchronous SQLAlchemy with a thread-per-request model. This is fine for a small club deployment but won't scale well under concurrent load. Migrating to `asyncpg` + async SQLAlchemy would be the path forward if this ever sees heavier use.
@@ -51,3 +50,4 @@ The Python relay script (`dmr_relay.py`) and the backend's `_dmr_normalize_wpsd(
 - ~~No test suite~~ — 59-test pytest suite covering auth, nets, sessions, and check-ins; runs against SQLite in-memory via `python -m pytest tests/`; `requirements-dev.txt` has the test deps (2026-08-16)
 - ~~DMR push cache is in-memory only~~ — `_dmr_cache_write` now persists each push to `SystemSetting` as JSON; `_dmr_cache_read` falls back to `SystemSetting` on an in-memory miss (e.g., after restart); no new table or migration needed (2026-08-17)
 - ~~`httpx` imported twice under different names~~ — duplicate `import httpx as _httpx` removed; all DMR proxy calls use the top-level `httpx` import (2026-08-16)
+- ~~FCC callsign lookup depends on an external service~~ — `CallsignCache` table added; results cached for 30 days (found) or 7 days (not_found); `_callsign_cache_read/write` helpers wrap all four return paths in `lookup_callsign`; 4 cache-hit tests added (2026-08-17)

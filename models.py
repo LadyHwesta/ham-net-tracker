@@ -268,6 +268,24 @@ class ApiToken(Base):
         return f"<ApiToken name={self.name} user={self.user_id}>"
 
 
+class CallsignCache(Base):
+    """Local cache of FCC/external callsign lookups to reduce external API dependency."""
+    __tablename__ = "callsign_cache"
+
+    callsign = Column(String(12), primary_key=True)
+    status = Column(String(10), nullable=False)          # "found" | "not_found"
+    name = Column(String(200), nullable=True)
+    license_class = Column(String(10), nullable=True)
+    state = Column(String(10), nullable=True)
+    grid = Column(String(10), nullable=True)
+    expires = Column(String(20), nullable=True)
+    source = Column(String(50), nullable=True)
+    cached_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
+
+    def __repr__(self):
+        return f"<CallsignCache {self.callsign} status={self.status}>"
+
+
 class DmrConfig(Base):
     """Per-net DMR integration configuration (hotspot or network API)."""
     __tablename__ = "dmr_configs"

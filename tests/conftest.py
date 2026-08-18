@@ -117,6 +117,16 @@ def user_headers(user_token):
 
 
 @pytest.fixture
+def db():
+    """Raw DB session for seeding test data directly (e.g. cache rows)."""
+    session = _TestSession()
+    try:
+        yield session
+    finally:
+        session.close()
+
+
+@pytest.fixture
 def net(client, admin_headers):
     """Create and return a test net owned by the admin."""
     resp = client.post("/nets", json={

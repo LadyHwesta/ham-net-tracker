@@ -166,6 +166,18 @@ MIGRATIONS = [
          token_hash VARCHAR(64) NOT NULL UNIQUE,
          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
          last_used_at TIMESTAMPTZ)"""),
+
+    ("table: callsign_cache",
+     """CREATE TABLE IF NOT EXISTS callsign_cache (
+         callsign VARCHAR(12) PRIMARY KEY,
+         status VARCHAR(10) NOT NULL,
+         name VARCHAR(200),
+         license_class VARCHAR(10),
+         state VARCHAR(10),
+         grid VARCHAR(10),
+         expires VARCHAR(20),
+         source VARCHAR(50),
+         cached_at TIMESTAMPTZ NOT NULL DEFAULT NOW())"""),
 ]
 
 # ---------------------------------------------------------------------------
