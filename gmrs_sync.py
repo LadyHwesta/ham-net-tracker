@@ -45,10 +45,11 @@ from datetime import datetime, timezone
 # FCC ULS download URL for GMRS (service code ZA) — weekly full database
 # If the FCC ever changes this URL update it here.
 # ---------------------------------------------------------------------------
-# FCC ULS weekly full download for GMRS (General Mobile Radio Service).
-# Source: https://www.fcc.gov/uls/transactions/daily-weekly
-# The Saturday file is the weekly full database rebuild.
-GMRS_ULS_URL = "https://data.fcc.gov/download/pub/uls/daily/l_gm_sat.zip"
+# FCC ULS complete database download for GMRS (General Mobile Radio Service).
+# Source: https://www.fcc.gov/wireless/data/public-access-files-database-downloads
+# This is the full snapshot (not a transaction/delta file).
+# If this URL 404s, check the page above for the current complete-dump URL.
+GMRS_ULS_URL = "https://data.fcc.gov/download/pub/uls/complete/l_gmrs.zip"
 
 
 # ---------------------------------------------------------------------------
