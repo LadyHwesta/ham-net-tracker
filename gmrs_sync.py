@@ -98,30 +98,59 @@ def _log(msg: str):
     print(f"[{ts}] {msg}", flush=True)
 
 
+def _download_via_curl(url: str) -> bytes:
+    """Use the system curl binary, which handles TLS fingerprinting better than requests."""
+    import subprocess, shutil
+    curl = shutil.which("curl")
+    if not curl:
+        raise RuntimeError("curl not found on PATH")
+    result = subprocess.run(
+        [
+            curl, "-L", "--silent", "--show-error", "--fail",
+            "--max-time", "120",
+            "--user-agent", _HEADERS["User-Agent"],
+            "--referer", _HEADERS["Referer"],
+            "-o", "-",   # write to stdout
+            url,
+        ],
+        capture_output=True,
+        timeout=130,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"curl exited {result.returncode}: {result.stderr.decode().strip()}")
+    return result.stdout
+
+
 def download_gmrs_zip() -> bytes:
     """Download the FCC GMRS weekly full database zip and return raw bytes."""
-    urls_to_try = [
-        GMRS_ULS_URL,
-    ]
-    # Deduplicate while preserving order
-    seen: set = set()
-    candidates = [u for u in urls_to_try if not (u in seen or seen.add(u))]
+    _log(f"Downloading GMRS database …")
+    _log(f"  URL: {GMRS_ULS_URL}")
 
-    last_exc: Exception = RuntimeError("No URLs to try")
-    for url in candidates:
-        _log(f"Downloading GMRS database …")
-        _log(f"  URL: {url}")
-        try:
-            r = requests.get(url, headers=_HEADERS, timeout=120, stream=True)
-            r.raise_for_status()
-            data = b"".join(r.iter_content(chunk_size=1 << 20))
-            _log(f"  Downloaded {len(data):,} bytes")
-            return data
-        except Exception as exc:
-            _log(f"  Failed ({exc}) — trying next URL …")
-            last_exc = exc
+    # 1. Try requests (fast, no subprocess overhead)
+    try:
+        r = requests.get(GMRS_ULS_URL, headers=_HEADERS, timeout=120, stream=True)
+        r.raise_for_status()
+        data = b"".join(r.iter_content(chunk_size=1 << 20))
+        _log(f"  Downloaded {len(data):,} bytes via requests")
+        return data
+    except Exception as exc:
+        _log(f"  requests failed ({exc}) — retrying with curl …")
 
-    raise last_exc
+    # 2. Fall back to system curl (better TLS/browser fingerprinting)
+    try:
+        data = _download_via_curl(GMRS_ULS_URL)
+        _log(f"  Downloaded {len(data):,} bytes via curl")
+        return data
+    except Exception as exc:
+        _log(f"  curl also failed: {exc}")
+        raise RuntimeError(
+            f"Could not download {GMRS_ULS_URL}\n"
+            "Try running manually to diagnose:\n"
+            f"  curl -L -o /tmp/gmrs_test.zip '{GMRS_ULS_URL}'\n"
+            "If that also fails, the FCC may require a session cookie — download\n"
+            "the file manually from https://www.fcc.gov/uls/transactions/daily-weekly\n"
+            "and run:  python3 gmrs_sync.py --zip /path/to/l_gm_sat.zip"
+        ) from exc
 
 
 def parse_gmrs_zip(zip_bytes: bytes) -> dict:
@@ -271,6 +300,8 @@ def main():
                         help="Download and parse but do not write to the database")
     parser.add_argument("--url", default=GMRS_ULS_URL,
                         help="Override the FCC ULS download URL")
+    parser.add_argument("--zip", metavar="FILE",
+                        help="Use a local zip file instead of downloading (e.g. manually saved l_gm_sat.zip)")
     args = parser.parse_args()
 
     if args.url != GMRS_ULS_URL:
@@ -278,8 +309,14 @@ def main():
 
     _log("=== GMRS Sync starting ===")
     try:
-        zip_bytes = download_gmrs_zip()
-        records   = parse_gmrs_zip(zip_bytes)
+        if args.zip:
+            _log(f"Using local file: {args.zip}")
+            with open(args.zip, "rb") as fh:
+                zip_bytes = fh.read()
+            _log(f"  Read {len(zip_bytes):,} bytes")
+        else:
+            zip_bytes = download_gmrs_zip()
+        records = parse_gmrs_zip(zip_bytes)
         upsert_to_db(records, dry_run=args.dry_run)
         _log("=== GMRS Sync complete ===")
     except Exception as exc:
