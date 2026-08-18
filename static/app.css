@@ -160,7 +160,11 @@
     #sidebar.collapsed::before { border-radius: 0 0 12px 0; }
 
     /* ===== CONTENT ===== */
-    #content { flex: 1; padding: 24px; overflow-y: auto; }
+    /* No overflow set here — #app/main use min-height, not a hard height, so the page
+       itself scrolls (not #content). An overflow value here would still claim the
+       "nearest scrolling ancestor" role for position:sticky descendants without ever
+       actually scrolling, silently breaking sticky headers inside #content. */
+    #content { flex: 1; padding: 24px; }
 
     /* ===== CARDS ===== */
     .card {

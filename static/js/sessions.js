@@ -50,6 +50,7 @@ async function openNet(netId) {
   document.getElementById('nav-history').style.display = '';
   document.getElementById('live-session-panel').style.display = 'none';
   document.getElementById('sessions-list-container').style.display = '';
+  document.getElementById('session-tab-bar').style.display = '';
   showView('session');
   switchSubTab('sessions');
   await loadSessions();
@@ -158,8 +159,17 @@ async function loadSessionLive(sessionId) {
     const s = await apiFetch(`/sessions/${sessionId}`);
     const ended = !!s.ended_at;
     document.getElementById('live-session-panel').style.display = '';
-    // Hide the sessions list while a live session is active; restore it when ended
-    document.getElementById('sessions-list-container').style.display = ended ? '' : 'none';
+    // Hide the Sessions/Schedule tabs and the sessions toolbar while a session is live
+    // to cut clutter; restore them once it ends (helpful when reviewing a closed session).
+    document.getElementById('session-tab-bar').style.display = ended ? '' : 'none';
+    document.getElementById('sessions-panel').style.display = ended ? '' : 'none';
+    document.getElementById('schedule-panel').style.display = 'none';
+    if (ended) {
+      document.getElementById('sub-tab-sessions').classList.add('active');
+      document.getElementById('sub-tab-schedule').classList.remove('active');
+    } else {
+      collapseSidebar();
+    }
     document.getElementById('session-status-dot').className = 'status-dot' + (ended ? ' ended' : '');
     const sessionLabel = s.name ? s.name : `Session ${sessionId}`;
     document.getElementById('session-status-label').textContent = `${sessionLabel} — ${ended ? 'Ended' : 'Live'}`;
@@ -195,6 +205,8 @@ async function endSession() {
     currentSessionId = null;
     document.getElementById('live-session-panel').style.display = 'none';
     document.getElementById('sessions-list-container').style.display = '';
+    document.getElementById('session-tab-bar').style.display = '';
+    document.getElementById('sessions-panel').style.display = '';
     await loadSessions();
     // Show session summary
     try {

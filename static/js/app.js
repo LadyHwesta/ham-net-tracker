@@ -19,6 +19,15 @@ function toggleSidebarCollapse() {
   localStorage.setItem('nt_sidebar_collapsed', collapsed ? '1' : '0');
 }
 
+function collapseSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const btn     = document.getElementById('sidebar-collapse-btn');
+  if (!sidebar || sidebar.classList.contains('collapsed')) return;
+  sidebar.classList.add('collapsed');
+  if (btn) { btn.textContent = '▶'; btn.title = 'Expand sidebar'; }
+  localStorage.setItem('nt_sidebar_collapsed', '1');
+}
+
 function restoreSidebarCollapse() {
   if (localStorage.getItem('nt_sidebar_collapsed') === '1') {
     const sidebar = document.getElementById('sidebar');

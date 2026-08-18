@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230a0a1a'/%3E%3C!-- Tower base --%3E%3Crect x='15' y='20' width='2' height='8' fill='%23ff9900'/%3E%3Crect x='11' y='27' width='10' height='2' rx='1' fill='%23ff9900'/%3E%3C!-- Tower mast --%3E%3Crect x='15.5' y='6' width='1' height='14' fill='%23ff9900'/%3E%3C!-- Signal arcs --%3E%3Cpath d='M10 14 A8 8 0 0 1 22 14' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M7 18 A11 11 0 0 1 25 18' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round' opacity='0.6'/%3E%3Cpath d='M4 22 A14 14 0 0 1 28 22' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round' opacity='0.3'/%3E%3C!-- Tip dot --%3E%3Ccircle cx='16' cy='6' r='1.5' fill='%23ff9900'/%3E%3C/svg%3E" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/app.css?v=7">
+  <link rel="stylesheet" href="/static/app.css?v=8">
 </head>
 <body>
 
@@ -319,8 +319,8 @@
           <h2 class="section-title mb-0" id="session-net-name"></h2>
         </div>
 
-        <!-- Sub-tabs -->
-        <div class="tab-bar">
+        <!-- Sub-tabs — hidden while a session is live to reduce clutter; restored when it ends -->
+        <div class="tab-bar" id="session-tab-bar">
           <button class="tab-btn active" id="sub-tab-sessions" onclick="switchSubTab('sessions')">Sessions</button>
           <button class="tab-btn" id="sub-tab-schedule" onclick="switchSubTab('schedule')">Schedule</button>
         </div>
@@ -350,43 +350,47 @@
         <!-- Live session checkin panel -->
         <div id="live-session-panel" style="display:none">
           <div class="card">
-            <div class="status-bar">
-              <span class="status-dot" id="session-status-dot"></span>
-              <strong id="session-status-label"></strong>
-              <span class="text-muted" id="session-meta"></span>
-              <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
-                <button class="btn btn-danger" id="end-session-btn" onclick="endSession()">■ End Session</button>
-                <button class="btn btn-ghost" onclick="openICS205(currentSessionId)">📄 ICS-205</button>
-                <button class="btn btn-ghost" onclick="exportSession()">⬇ CSV</button>
+            <!-- Session info + net script — pinned to the top of the card so it stays visible
+                 while scrolling through the check-in form, expected stations, or check-ins table -->
+            <div id="session-sticky-header" style="position:sticky;top:0;z-index:5;background:var(--surface);padding-bottom:6px;margin-bottom:6px;border-bottom:1px solid var(--lc-border)">
+              <div class="status-bar">
+                <span class="status-dot" id="session-status-dot"></span>
+                <strong id="session-status-label"></strong>
+                <span class="text-muted" id="session-meta"></span>
+                <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+                  <button class="btn btn-danger" id="end-session-btn" onclick="endSession()">■ End Session</button>
+                  <button class="btn btn-ghost" onclick="openICS205(currentSessionId)">📄 ICS-205</button>
+                  <button class="btn btn-ghost" onclick="exportSession()">⬇ CSV</button>
+                </div>
               </div>
-            </div>
 
-            <!-- Scheduled duty (Net Control / Broadcaster) for today, from the Schedule sign-up if one exists -->
-            <div id="duty-bar" style="display:none;font-size:12px;color:var(--text-muted);display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px">
-              <span id="duty-nc" style="display:none">🎙 Net Control: <strong></strong></span>
-              <span id="duty-bc" style="display:none">📻 <span class="duty-bc-label">Broadcaster</span>: <strong></strong></span>
-            </div>
+              <!-- Scheduled duty (Net Control / Broadcaster) for today, from the Schedule sign-up if one exists -->
+              <div id="duty-bar" style="display:none;font-size:12px;color:var(--text-muted);display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px">
+                <span id="duty-nc" style="display:none">🎙 Net Control: <strong></strong></span>
+                <span id="duty-bc" style="display:none">📻 <span class="duty-bc-label">Broadcaster</span>: <strong></strong></span>
+              </div>
 
-            <!-- Clock / session timer -->
-            <div id="session-clock-bar" style="display:none;font-family:monospace;color:var(--lc-blue);display:flex;gap:24px;margin-bottom:12px;flex-wrap:wrap;align-items:center;background:rgba(0,153,255,0.06);border:1px solid rgba(0,153,255,0.2);border-radius:8px;padding:8px 14px">
-              <span title="Local time" style="font-size:18px;letter-spacing:.04em">🕐 <span id="clk-local">—</span></span>
-              <span title="UTC time" style="font-size:18px;letter-spacing:.04em">🌐 <span id="clk-utc">—</span>Z</span>
-              <span title="Session elapsed time" style="font-size:18px;letter-spacing:.04em;color:var(--lc-orange)">⏱ <span id="clk-elapsed">—</span></span>
-            </div>
+              <!-- Clock / session timer -->
+              <div id="session-clock-bar" style="display:none;font-family:monospace;color:var(--lc-blue);display:flex;gap:24px;margin-bottom:12px;flex-wrap:wrap;align-items:center;background:rgba(0,153,255,0.06);border:1px solid rgba(0,153,255,0.2);border-radius:8px;padding:8px 14px">
+                <span title="Local time" style="font-size:18px;letter-spacing:.04em">🕐 <span id="clk-local">—</span></span>
+                <span title="UTC time" style="font-size:18px;letter-spacing:.04em">🌐 <span id="clk-utc">—</span>Z</span>
+                <span title="Session elapsed time" style="font-size:18px;letter-spacing:.04em;color:var(--lc-orange)">⏱ <span id="clk-elapsed">—</span></span>
+              </div>
 
-            <!-- Traffic banner (shown when any station has traffic) -->
-            <div id="traffic-banner" style="display:none;background:var(--lc-red);color:#000;border-radius:8px;padding:8px 14px;margin-bottom:12px;font-size:13px;font-weight:700">
-              <span>📢 TRAFFIC: </span><span id="traffic-callsigns" style="display:inline-flex;flex-wrap:wrap;gap:8px;align-items:center;vertical-align:middle"></span>
-            </div>
+              <!-- Traffic banner (shown when any station has traffic) -->
+              <div id="traffic-banner" style="display:none;background:var(--lc-red);color:#000;border-radius:8px;padding:8px 14px;margin-bottom:12px;font-size:13px;font-weight:700">
+                <span>📢 TRAFFIC: </span><span id="traffic-callsigns" style="display:inline-flex;flex-wrap:wrap;gap:8px;align-items:center;vertical-align:middle"></span>
+              </div>
 
-            <!-- Net script panel (shown when the net has a script attached) -->
-            <div id="net-script-panel" style="display:none;margin-bottom:12px;border:1px solid var(--lc-blue);border-radius:8px;overflow:hidden">
-              <button onclick="toggleNetScriptPanel()" style="width:100%;background:rgba(0,153,255,0.12);border:none;color:var(--lc-blue);padding:10px 14px;text-align:left;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700;letter-spacing:.05em;display:flex;align-items:center;justify-content:space-between">
-                <span>📜 NET SCRIPT</span>
-                <span id="net-script-toggle-icon">▼</span>
-              </button>
-              <div id="net-script-body" style="border-top:1px solid var(--lc-blue);padding:12px;max-height:320px;overflow-y:auto">
-                <pre id="net-script-text" class="mono" style="white-space:pre-wrap;font-size:13px;margin:0"></pre>
+              <!-- Net script panel (shown when the net has a script attached) -->
+              <div id="net-script-panel" style="display:none;margin-bottom:6px;border:1px solid var(--lc-blue);border-radius:8px;overflow:hidden">
+                <button onclick="toggleNetScriptPanel()" style="width:100%;background:rgba(0,153,255,0.12);border:none;color:var(--lc-blue);padding:10px 14px;text-align:left;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700;letter-spacing:.05em;display:flex;align-items:center;justify-content:space-between">
+                  <span>📜 NET SCRIPT</span>
+                  <span id="net-script-toggle-icon">▼</span>
+                </button>
+                <div id="net-script-body" style="border-top:1px solid var(--lc-blue);padding:12px;max-height:320px;overflow-y:auto">
+                  <pre id="net-script-text" class="mono" style="white-space:pre-wrap;font-size:13px;margin:0"></pre>
+                </div>
               </div>
             </div>
 
