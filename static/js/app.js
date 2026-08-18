@@ -1,3 +1,33 @@
+// ============================================================
+// SIDEBAR — STATS + COLLAPSE
+// ============================================================
+async function loadSidebarStats() {
+  try {
+    const s = await apiFetch('/stats');
+    document.getElementById('stat-nets').textContent   = s.total_nets;
+    document.getElementById('stat-active').textContent = s.active_sessions;
+    document.getElementById('stat-today').textContent  = s.checkins_today;
+  } catch { /* non-critical; silently ignore */ }
+}
+
+function toggleSidebarCollapse() {
+  const sidebar = document.getElementById('sidebar');
+  const btn     = document.getElementById('sidebar-collapse-btn');
+  const collapsed = sidebar.classList.toggle('collapsed');
+  btn.textContent = collapsed ? '▶' : '◀';
+  btn.title       = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+  localStorage.setItem('nt_sidebar_collapsed', collapsed ? '1' : '0');
+}
+
+function restoreSidebarCollapse() {
+  if (localStorage.getItem('nt_sidebar_collapsed') === '1') {
+    const sidebar = document.getElementById('sidebar');
+    const btn     = document.getElementById('sidebar-collapse-btn');
+    if (sidebar) sidebar.classList.add('collapsed');
+    if (btn) { btn.textContent = '▶'; btn.title = 'Expand sidebar'; }
+  }
+}
+
 // Auto-login if token stored
 if (token) enterApp();
 

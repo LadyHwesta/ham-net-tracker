@@ -756,6 +756,44 @@ def me(current_user: User = Depends(get_current_user)):
     return current_user
 
 
+@app.get("/stats")
+def get_stats(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Quick stats for the sidebar dashboard panel."""
+    from datetime import date, datetime, timezone
+
+    # Net IDs the user can see (owned + shared)
+    owned_ids = [r[0] for r in db.query(Net.id).filter(Net.owner_id == current_user.id).all()]
+    shared_ids = [r[0] for r in db.query(NetShare.net_id).filter(NetShare.user_id == current_user.id).all()]
+    all_net_ids = list(set(owned_ids + shared_ids))
+
+    total_nets = len(all_net_ids)
+
+    active_sessions = 0
+    checkins_today = 0
+    if all_net_ids:
+        active_sessions = (
+            db.query(func.count(NetSession.id))
+            .filter(NetSession.net_id.in_(all_net_ids), NetSession.ended_at.is_(None))
+            .scalar() or 0
+        )
+        today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        checkins_today = (
+            db.query(func.count(Checkin.id))
+            .join(NetSession, Checkin.session_id == NetSession.id)
+            .filter(NetSession.net_id.in_(all_net_ids), Checkin.checked_in_at >= today_start)
+            .scalar() or 0
+        )
+
+    gmrs_row = db.query(SystemSetting).filter(SystemSetting.key == "gmrs_db_synced_at").first()
+
+    return {
+        "total_nets": total_nets,
+        "active_sessions": active_sessions,
+        "checkins_today": checkins_today,
+        "gmrs_synced_at": gmrs_row.value[:10] if gmrs_row and gmrs_row.value else None,
+    }
+
+
 # ---------------------------------------------------------------------------
 # API Token management
 # ---------------------------------------------------------------------------

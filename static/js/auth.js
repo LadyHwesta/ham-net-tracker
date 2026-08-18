@@ -88,7 +88,9 @@ async function enterApp() {
   const shortEl = document.getElementById('header-callsign-short');
   if (shortEl) shortEl.textContent = currentUser.callsign;
   await loadBranding();
+  restoreSidebarCollapse();
   await loadNets();
+  loadSidebarStats();   // fire-and-forget; non-blocking
   showView('nets');
 }
 

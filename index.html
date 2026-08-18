@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230a0a1a'/%3E%3C!-- Tower base --%3E%3Crect x='15' y='20' width='2' height='8' fill='%23ff9900'/%3E%3Crect x='11' y='27' width='10' height='2' rx='1' fill='%23ff9900'/%3E%3C!-- Tower mast --%3E%3Crect x='15.5' y='6' width='1' height='14' fill='%23ff9900'/%3E%3C!-- Signal arcs --%3E%3Cpath d='M10 14 A8 8 0 0 1 22 14' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M7 18 A11 11 0 0 1 25 18' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round' opacity='0.6'/%3E%3Cpath d='M4 22 A14 14 0 0 1 28 22' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round' opacity='0.3'/%3E%3C!-- Tip dot --%3E%3Ccircle cx='16' cy='6' r='1.5' fill='%23ff9900'/%3E%3C/svg%3E" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/app.css?v=4">
+  <link rel="stylesheet" href="/static/app.css?v=6">
 </head>
 <body>
 
@@ -95,20 +95,39 @@
   <main>
     <!-- Sidebar -->
     <nav id="sidebar">
+      <!-- Quick stats panel (fills the space below the LCARS endcap) -->
+      <div id="sidebar-stats" class="sidebar-stats">
+        <div class="sb-stat">
+          <span class="sb-stat-value" id="stat-nets">—</span>
+          <span class="sb-stat-label">Nets</span>
+        </div>
+        <div class="sb-stat">
+          <span class="sb-stat-value" id="stat-active" style="color:var(--lc-green)">—</span>
+          <span class="sb-stat-label">Active</span>
+        </div>
+        <div class="sb-stat">
+          <span class="sb-stat-value" id="stat-today">—</span>
+          <span class="sb-stat-label">Check-ins today</span>
+        </div>
+      </div>
+
       <div class="sidebar-section">Navigation</div>
-      <button class="sidebar-btn active" onclick="showView('nets')" id="nav-nets">My Nets</button>
-      <button class="sidebar-btn" onclick="showView('history')" id="nav-history" style="display:none">📊 History</button>
-      <a class="sidebar-btn" id="nav-admin" href="/admin" style="display:none">🔑 Admin</a>
-      <a class="sidebar-btn" href="/tokens">🪙 API Tokens</a>
-      <a class="sidebar-btn" href="/help">❓ Help</a>
-      <a class="sidebar-btn" href="/report">🐛 Report / Request</a>
-      <a class="sidebar-btn" href="/live" target="_blank" style="display:block;text-decoration:none">📡 Live Public Page ↗</a>
+      <button class="sidebar-btn active" onclick="showView('nets')" id="nav-nets"><span class="sb-icon">📡</span><span class="sb-label">My Nets</span></button>
+      <button class="sidebar-btn" onclick="showView('history')" id="nav-history" style="display:none"><span class="sb-icon">📊</span><span class="sb-label">History</span></button>
+      <a class="sidebar-btn" id="nav-admin" href="/admin" style="display:none"><span class="sb-icon">🔑</span><span class="sb-label">Admin</span></a>
+      <a class="sidebar-btn" href="/tokens"><span class="sb-icon">🪙</span><span class="sb-label">API Tokens</span></a>
+      <a class="sidebar-btn" href="/help"><span class="sb-icon">❓</span><span class="sb-label">Help</span></a>
+      <a class="sidebar-btn" href="/report"><span class="sb-icon">🐛</span><span class="sb-label">Report / Request</span></a>
+      <a class="sidebar-btn" href="/live" target="_blank" style="display:block;text-decoration:none"><span class="sb-icon">🔴</span><span class="sb-label">Live Public Page ↗</span></a>
 
       <div id="net-sidebar-section" style="display:none">
         <hr style="border-color:var(--border);margin:8px 16px">
         <div class="sidebar-section" id="net-sidebar-label">Current Net</div>
         <div id="net-sessions-list"></div>
       </div>
+
+      <!-- Collapse toggle -->
+      <button id="sidebar-collapse-btn" onclick="toggleSidebarCollapse()" title="Collapse sidebar">◀</button>
     </nav>
 
     <!-- Content -->
@@ -621,20 +640,20 @@
   </main>
 </div><!-- /app -->
 
-  <script src="/static/js/state.js?v=4"></script>
-  <script src="/static/js/utils.js?v=4"></script>
-  <script src="/static/js/auth.js?v=4"></script>
-  <script src="/static/js/views.js?v=4"></script>
-  <script src="/static/js/branding.js?v=4"></script>
-  <script src="/static/js/report.js?v=4"></script>
-  <script src="/static/js/nets.js?v=4"></script>
-  <script src="/static/js/sessions.js?v=4"></script>
-  <script src="/static/js/checkins.js?v=4"></script>
-  <script src="/static/js/history.js?v=4"></script>
-  <script src="/static/js/admin.js?v=4"></script>
-  <script src="/static/js/schedules.js?v=4"></script>
-  <script src="/static/js/tokens.js?v=4"></script>
-  <script src="/static/js/dmr.js?v=4"></script>
-  <script src="/static/js/app.js?v=4"></script>
+  <script src="/static/js/state.js?v=6"></script>
+  <script src="/static/js/utils.js?v=6"></script>
+  <script src="/static/js/auth.js?v=6"></script>
+  <script src="/static/js/views.js?v=6"></script>
+  <script src="/static/js/branding.js?v=6"></script>
+  <script src="/static/js/report.js?v=6"></script>
+  <script src="/static/js/nets.js?v=6"></script>
+  <script src="/static/js/sessions.js?v=6"></script>
+  <script src="/static/js/checkins.js?v=6"></script>
+  <script src="/static/js/history.js?v=6"></script>
+  <script src="/static/js/admin.js?v=6"></script>
+  <script src="/static/js/schedules.js?v=6"></script>
+  <script src="/static/js/tokens.js?v=6"></script>
+  <script src="/static/js/dmr.js?v=6"></script>
+  <script src="/static/js/app.js?v=6"></script>
 </body>
 </html>

@@ -110,6 +110,54 @@
       float: right; background: #000; color: var(--lc-orange);
       font-size: 10px; border-radius: 10px; padding: 1px 6px;
     }
+    .sb-icon { margin-right: 6px; }
+    .sb-label { }
+
+    /* ===== SIDEBAR STATS PANEL ===== */
+    .sidebar-stats {
+      display: flex; flex-direction: column; gap: 2px;
+      padding: 10px 14px 14px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      margin-bottom: 4px;
+    }
+    .sb-stat {
+      display: flex; align-items: baseline; gap: 8px;
+      padding: 3px 0;
+    }
+    .sb-stat-value {
+      font-size: 20px; font-weight: 900; color: var(--lc-orange);
+      font-family: 'Exo 2', sans-serif; line-height: 1; min-width: 28px;
+    }
+    .sb-stat-label {
+      font-size: 9px; font-weight: 700; letter-spacing: 1.5px;
+      text-transform: uppercase; color: rgba(255,255,255,.45);
+    }
+
+    /* ===== SIDEBAR COLLAPSE TOGGLE ===== */
+    #sidebar-collapse-btn {
+      display: block; width: 100%; border: none; cursor: pointer;
+      background: rgba(255,255,255,.06); color: rgba(255,255,255,.4);
+      font-size: 11px; padding: 7px 0; margin-top: auto;
+      transition: background .15s, color .15s;
+      flex-shrink: 0;
+    }
+    #sidebar-collapse-btn:hover { background: rgba(255,255,255,.12); color: #fff; }
+
+    /* ===== COLLAPSED SIDEBAR ===== */
+    #sidebar.collapsed {
+      width: 48px; min-width: 48px;
+    }
+    #sidebar.collapsed .sidebar-stats,
+    #sidebar.collapsed .sidebar-section,
+    #sidebar.collapsed .sb-label,
+    #sidebar.collapsed #net-sidebar-section { display: none !important; }
+    #sidebar.collapsed .sidebar-btn {
+      width: calc(100% - 6px); margin-left: 3px; padding: 10px 0;
+      text-align: center; border-radius: 4px; letter-spacing: 0;
+    }
+    #sidebar.collapsed .sb-icon { margin-right: 0; font-size: 16px; }
+    #sidebar.collapsed #sidebar-collapse-btn { font-size: 13px; }
+    #sidebar.collapsed::before { border-radius: 0 0 12px 0; }
 
     /* ===== CONTENT ===== */
     #content { flex: 1; padding: 24px; overflow-y: auto; }
