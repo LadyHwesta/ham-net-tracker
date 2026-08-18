@@ -50,10 +50,16 @@ from datetime import datetime, timezone
 #         https://www.fcc.gov/uls/transactions/daily-weekly
 #
 # Full database (~54 MB) — use for initial seeding or periodic full refresh.
-GMRS_URL_FULL   = "https://data.fcc.gov/download/pub/uls/complete/l_gmrs.zip"
-# Weekly transaction file — new/modified/cancelled licences since last week.
-# Use for routine weekly updates once the table is seeded.
-GMRS_URL_UPDATE = "https://data.fcc.gov/download/pub/uls/daily/l_gm_sat.zip"
+GMRS_URL_FULL = "https://data.fcc.gov/download/pub/uls/complete/l_gmrs.zip"
+# Daily transaction files — named by day abbreviation (sun/mon/tue/wed/thu/fri/sat).
+# URL is built at runtime from today's weekday so the cron needs no changes.
+GMRS_URL_DAILY_TEMPLATE = "https://data.fcc.gov/download/pub/uls/daily/l_gm_{day}.zip"
+
+_DAY_ABBREVS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]  # matches Python weekday() 0=Mon
+
+def _daily_url() -> str:
+    day = _DAY_ABBREVS[datetime.now(timezone.utc).weekday()]
+    return GMRS_URL_DAILY_TEMPLATE.format(day=day)
 
 
 # ---------------------------------------------------------------------------
@@ -276,16 +282,14 @@ def main():
         epilog="""
 Modes:
   --mode full     Download the complete GMRS database (~54 MB).
-                  Use for initial seeding or a periodic full refresh.
-  --mode update   Download the weekly transaction file (new/changed/cancelled
-                  licences only).  Much smaller; use for routine weekly runs
-                  once the table is already seeded.
+                  Use for initial seeding or an occasional full refresh.
+  --mode update   Download today's FCC daily transaction file (new/changed/
+                  cancelled licences).  URL is built automatically from the
+                  current weekday — no cron changes needed as days rotate.
 
-Cron examples:
-  # Weekly update every Sunday at 03:00
-  0 3 * * 0  python3 /opt/netcontrol/gmrs_sync.py --mode update
-  # Full refresh on the first Sunday of each month at 03:30
-  30 3 1-7 * 0  python3 /opt/netcontrol/gmrs_sync.py --mode full
+Cron example (daily update at 03:00, full refresh on the 1st of each month):
+  0 3 * * *    python3 /opt/netcontrol/gmrs_sync.py --mode update
+  0 3 1 * *    python3 /opt/netcontrol/gmrs_sync.py --mode full
 """,
     )
     parser.add_argument(
@@ -300,7 +304,7 @@ Cron examples:
                         help="Use a local zip file instead of downloading")
     args = parser.parse_args()
 
-    url = args.url or (GMRS_URL_FULL if args.mode == "full" else GMRS_URL_UPDATE)
+    url = args.url or (GMRS_URL_FULL if args.mode == "full" else _daily_url())
 
     _log("=== GMRS Sync starting ===")
     _log(f"  mode: {args.mode}  dry-run: {args.dry_run}")
