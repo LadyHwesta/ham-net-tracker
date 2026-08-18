@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230a0a1a'/%3E%3C!-- Tower base --%3E%3Crect x='15' y='20' width='2' height='8' fill='%23ff9900'/%3E%3Crect x='11' y='27' width='10' height='2' rx='1' fill='%23ff9900'/%3E%3C!-- Tower mast --%3E%3Crect x='15.5' y='6' width='1' height='14' fill='%23ff9900'/%3E%3C!-- Signal arcs --%3E%3Cpath d='M10 14 A8 8 0 0 1 22 14' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M7 18 A11 11 0 0 1 25 18' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round' opacity='0.6'/%3E%3Cpath d='M4 22 A14 14 0 0 1 28 22' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round' opacity='0.3'/%3E%3C!-- Tip dot --%3E%3Ccircle cx='16' cy='6' r='1.5' fill='%23ff9900'/%3E%3C/svg%3E" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/app.css?v=4">
+  <link rel="stylesheet" href="/static/app.css?v=5">
 
 </head>
 <body>
@@ -43,6 +43,16 @@
 
         <div class="card" style="margin-bottom:16px">
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-18 — v1.9.0 GMRS Net Support</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li><strong>GMRS net type</strong> — when creating or editing a net, choose <strong>Ham Radio</strong> or <strong>GMRS</strong>. GMRS nets display a <span style="font-size:10px;background:#22c55e;color:#000;border-radius:8px;padding:1px 6px;font-weight:700">GMRS</span> badge in the net list.</li>
+              <li><strong>Shared family callsigns</strong> — GMRS licences cover an entire family. Multiple stations may check in using the same callsign; use the Name field to identify each operator.</li>
+              <li><strong>GMRS callsign lookup</strong> — callsigns in the GMRS format (e.g. WSMC512) are resolved against a local copy of the FCC ULS GMRS database rather than ham radio sources. The database is updated daily from the FCC.</li>
+              <li>ARES mode and DMR integration are automatically hidden and disabled for GMRS nets (neither applies to GMRS operations).</li>
+            </ul>
+          </div>
 
           <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-16 — Mobile Responsiveness</div>
@@ -180,6 +190,14 @@
         </div>
 
         <div class="card" style="margin-bottom:16px">
+          <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">GMRS NETS</h3>
+          <p style="margin:0 0 8px">When creating a net, select <strong>GMRS</strong> as the net type. GMRS nets behave like ham nets with a few differences:</p>
+          <p style="margin:0 0 8px"><strong>Shared callsigns</strong> — a GMRS licence covers an entire family. The same callsign can check in multiple times in a single session. Use the <strong>Name</strong> field to identify each individual operator (e.g. "Dad", "Mom", "Mobile 1").</p>
+          <p style="margin:0 0 8px"><strong>Callsign lookup</strong> — GMRS callsigns (format: 3–4 letters followed by 3–4 digits, e.g. <code style="background:var(--surface);padding:1px 5px;border-radius:3px">WSMC512</code>) are looked up in a local copy of the FCC ULS GMRS database. The database is refreshed daily; new licences may take up to 24 hours to appear.</p>
+          <p style="margin:0">ARES mode and DMR integration are not available for GMRS nets and are hidden automatically.</p>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">EXPECTED STATIONS</h3>
           <p style="margin:0 0 8px">Click <strong>Expected Stations</strong> to expand the panel. Set the minimum check-in count and lookback window (weeks), then click <strong>Load List</strong>.</p>
           <p style="margin:0 0 8px">Each row shows two checkboxes: <strong style="color:var(--lc-orange)">Check In</strong> to log them immediately, and <strong style="color:var(--lc-red)">Traffic</strong> to pre-flag traffic before they're formally logged. On ARES nets, a 📍 zone badge shows their last known evacuation zone.</p>
@@ -249,19 +267,26 @@
             It is safe to re-run at any time — every step uses <code style="background:var(--surface);padding:1px 5px;border-radius:3px">IF NOT EXISTS</code>.
           </p>
           <pre style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:12px;overflow-x:auto;margin:0 0 8px">sudo -u netcontrol python3 /opt/netcontrol/migrate.py</pre>
-          <p style="margin:0;font-size:12px;color:var(--text-muted)">
+          <p style="margin:0 0 8px;font-size:12px;color:var(--text-muted)">
             Fresh installs: new tables are created automatically on first startup — no migration needed.
             Run <code style="background:var(--surface);padding:1px 5px;border-radius:3px">migrate.py</code> only when upgrading an existing instance after a code update.
           </p>
+          <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:var(--text-muted)">GMRS licence database</p>
+          <p style="margin:0 0 6px;font-size:12px;color:var(--text-muted)">Seed the local GMRS callsign database on first install, then let the daily cron keep it current:</p>
+          <pre style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:12px;overflow-x:auto;margin:0 0 4px"># Initial seed (full ~54 MB download)
+python3 /opt/netcontrol/gmrs_sync.py --mode full
+
+# Routine update (runs automatically via cron — daily transaction file)
+python3 /opt/netcontrol/gmrs_sync.py --mode update</pre>
         </div>
       </div>
     </div>
   </main>
 </div>
-  <script src="/static/js/state.js?v=4"></script>
-  <script src="/static/js/utils.js?v=4"></script>
-  <script src="/static/js/auth.js?v=4"></script>
-  <script src="/static/js/branding.js?v=4"></script>
+  <script src="/static/js/state.js?v=5"></script>
+  <script src="/static/js/utils.js?v=5"></script>
+  <script src="/static/js/auth.js?v=5"></script>
+  <script src="/static/js/branding.js?v=5"></script>
 
   <script>
     async function initPage() {
