@@ -139,10 +139,10 @@ After=network.target postgresql.service
 Type=simple
 User=netcontrol
 WorkingDirectory=/opt/netcontrol
-ExecStart=/usr/bin/uvicorn main:app --host 127.0.0.1 --port 8000
+EnvironmentFile=/opt/netcontrol/.env
+ExecStart=/usr/bin/uvicorn main:app --host 127.0.0.1 --port ${PORT}
 Restart=on-failure
 RestartSec=5
-EnvironmentFile=/opt/netcontrol/.env
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=nettracker
@@ -151,11 +151,23 @@ SyslogIdentifier=nettracker
 WantedBy=multi-user.target
 ```
 
+`${PORT}` is substituted by systemd from `PORT` in `.env` (see `.env.example`) — the unit file itself doesn't need to change per instance.
+
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable nettracker
 sudo systemctl start nettracker
 ```
+
+#### Running more than one instance on the same server
+
+The template above, plus `PORT` and `SYSTEMD_SERVICE` in `.env`, is all `deploy.sh` needs to work unmodified for multiple instances (e.g. a production site and a demo site) checked out separately on one server — no per-instance edits to `deploy.sh` or the unit file's `ExecStart` line. For each instance:
+
+1. Check out the repo to its own directory (e.g. `/opt/netcontrol` and `/opt/netcontrol-demo`).
+2. Give each its own `.env` with a distinct `DATABASE_URL`, `PORT`, and `SYSTEMD_SERVICE` (e.g. `nettracker` and `nettrackerdemo`).
+3. Copy the unit file template above to `/etc/systemd/system/<SYSTEMD_SERVICE>.service` for each instance — the file contents are identical except the description/working directory; only `.env` needs to differ.
+4. Add a matching sudoers `NOPASSWD` line for each `SYSTEMD_SERVICE` value (see the prerequisite comment at the top of `deploy.sh`) — `deploy.sh` reads `SYSTEMD_SERVICE` from the `.env` in its own checkout and restarts exactly that unit.
+5. Point each Apache vhost's reverse proxy at the matching `PORT`.
 
 ### Apache reverse proxy
 
