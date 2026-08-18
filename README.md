@@ -25,6 +25,7 @@ A public demo is available at **[nettrackerdemo.meskis.net](https://nettrackerde
 - **Expected stations** — pre-built check-in list from historical attendees with pre-flag support
 - **Station remarks** — persistent per-net notes on any callsign
 - **Session summary & ICS-205** — automatic summary card on session end, printable net log export
+- **Net control script** — attach a plain-text script to a net, shown in a collapsible panel alongside the check-in screen so you don't need a second window open
 - **Session clock** — live local/UTC time and elapsed session timer
 - **Net sharing** — share nets with individual operators or all registered users
 - **Scheduling** — weekly recurring time slots with net control operator sign-ups; confirmation emails include a `.ics` calendar attachment
@@ -174,6 +175,35 @@ The first user to register is automatically granted admin privileges. Subsequent
 ## Public Live Page
 
 A public, unauthenticated page showing all currently active nets is available at `/live`. Share this URL with club members or post it on your club website — it auto-refreshes every 30 seconds and shows the real-time check-in roster for each active net.
+
+## Net Control Script
+
+Net owners can attach a script to a net from its **Edit** form — a **Net Script** field below Description. It's shown in a collapsible **📜 NET SCRIPT** panel on the live check-in screen (open by default whenever a script is set), so you don't need a second window or a printed sheet next to the keyboard.
+
+The field is plain text: line breaks and spacing are preserved exactly as typed, but it is not Markdown or HTML — `**bold**` or `# heading` will show up as literal characters, not formatting. Write it in any external editor and paste it in; use blank lines, indentation, and simple headers (`===`, `---`, ALL CAPS) to add visual structure. For example:
+
+```
+=== MONDAY NIGHT NET SCRIPT ===
+
+1. OPENING
+   "Good evening, this is [callsign], net control for the Monday
+   Night Net on the [repeater name] repeater."
+
+2. PURPOSE
+   "This net meets every Monday at 7:30 PM local time to handle
+   routine and emergency traffic for [club/group name]."
+
+3. CHECK-INS
+   "If you would like to check in, please call now with your callsign."
+
+4. TRAFFIC
+   "Does anyone have traffic for the net?"
+
+5. CLOSING
+   "Thank you all for checking in. This net is now closed."
+```
+
+Leave the field blank to hide the panel entirely.
 
 ## DMR Hotspot Integration
 

@@ -45,6 +45,16 @@
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
 
           <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-18 — Net Control Script</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>Nets can now have a <strong>Net Script</strong> attached — a plain-text field in the net's Edit form, below Description.</li>
+              <li>When a net has a script, a collapsible <strong>📜 NET SCRIPT</strong> panel appears on the live check-in screen (open by default) so you don't need a second window or a printed sheet.</li>
+              <li>The field preserves line breaks and spacing exactly as typed, but is not Markdown or HTML — see Help → Net Control Script for an example template.</li>
+              <li><strong>Upgrading an existing install:</strong> this adds a new column to the <code style="background:var(--surface);padding:1px 5px;border-radius:3px">nets</code> table — run <code style="background:var(--surface);padding:1px 5px;border-radius:3px">migrate.py</code> after pulling (see Help → Database Migrations). Skipping this makes <strong>My Nets</strong> appear empty until the migration is run.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-18 — v1.9.0 GMRS Net Support</div>
             <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
               <li><strong>GMRS net type</strong> — when creating or editing a net, choose <strong>Ham Radio</strong> or <strong>GMRS</strong>. GMRS nets display a <span style="font-size:10px;background:#22c55e;color:#000;border-radius:8px;padding:1px 6px;font-weight:700">GMRS</span> badge in the net list.</li>
@@ -187,6 +197,31 @@
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">MANUAL CHECK-IN FORM</h3>
           <p style="margin:0 0 8px">Fill in callsign, name (auto-filled from FCC), signal report, and optional comments. Check <strong>Has Traffic</strong> before clicking <strong>Check In</strong> or pressing Enter.</p>
           <p style="margin:0">Duplicate callsigns in the same session are automatically rejected.</p>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">NET CONTROL SCRIPT</h3>
+          <p style="margin:0 0 8px">Net owners can attach a script to a net from its <strong>Edit</strong> form — the <strong>Net Script</strong> field below Description. When set, a collapsible <strong>📜 NET SCRIPT</strong> panel appears near the top of the live check-in screen, open by default, so you can read from it without a second window or a printed sheet.</p>
+          <p style="margin:0 0 8px">The field is <strong>plain text</strong>, not Markdown or HTML — line breaks and spacing are preserved exactly as typed, but formatting syntax like <code style="background:var(--surface);padding:1px 5px;border-radius:3px">**bold**</code> or <code style="background:var(--surface);padding:1px 5px;border-radius:3px"># heading</code> will show up as literal characters. Write your script in any external editor and paste it straight in — use blank lines, indentation, and simple headers (<code style="background:var(--surface);padding:1px 5px;border-radius:3px">===</code>, <code style="background:var(--surface);padding:1px 5px;border-radius:3px">---</code>, ALL CAPS) to add visual structure. For example:</p>
+          <pre style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:12px;overflow-x:auto;margin:0 0 8px">=== MONDAY NIGHT NET SCRIPT ===
+
+1. OPENING
+   "Good evening, this is [callsign], net control for the Monday
+   Night Net on the [repeater name] repeater."
+
+2. PURPOSE
+   "This net meets every Monday at 7:30 PM local time to handle
+   routine and emergency traffic for [club/group name]."
+
+3. CHECK-INS
+   "If you would like to check in, please call now with your callsign."
+
+4. TRAFFIC
+   "Does anyone have traffic for the net?"
+
+5. CLOSING
+   "Thank you all for checking in. This net is now closed."</pre>
+          <p style="margin:0">Leave the field blank to hide the panel entirely. Click the panel header any time to collapse or reopen it during a session.</p>
         </div>
 
         <div class="card" style="margin-bottom:16px">
