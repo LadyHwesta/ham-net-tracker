@@ -45,11 +45,15 @@ from datetime import datetime, timezone
 # FCC ULS download URL for GMRS (service code ZA) — weekly full database
 # If the FCC ever changes this URL update it here.
 # ---------------------------------------------------------------------------
-# FCC ULS complete database download for GMRS (General Mobile Radio Service).
+# FCC ULS URLs for GMRS (General Mobile Radio Service).
 # Source: https://www.fcc.gov/wireless/data/public-access-files-database-downloads
-# This is the full snapshot (not a transaction/delta file).
-# If this URL 404s, check the page above for the current complete-dump URL.
-GMRS_ULS_URL = "https://data.fcc.gov/download/pub/uls/complete/l_gmrs.zip"
+#         https://www.fcc.gov/uls/transactions/daily-weekly
+#
+# Full database (~54 MB) — use for initial seeding or periodic full refresh.
+GMRS_URL_FULL   = "https://data.fcc.gov/download/pub/uls/complete/l_gmrs.zip"
+# Weekly transaction file — new/modified/cancelled licences since last week.
+# Use for routine weekly updates once the table is seeded.
+GMRS_URL_UPDATE = "https://data.fcc.gov/download/pub/uls/daily/l_gm_sat.zip"
 
 
 # ---------------------------------------------------------------------------
@@ -83,16 +87,15 @@ def _log(msg: str):
     print(f"[{ts}] {msg}", flush=True)
 
 
-def download_gmrs_zip() -> bytes:
+def download_gmrs_zip(url: str) -> bytes:
     """
-    Download the FCC GMRS weekly full database zip.
-    Uses system curl with no extra headers — the FCC blocks Python's requests
-    and curl with browser-like headers, but accepts plain curl.
+    Download a FCC ULS GMRS zip from the given URL.
+    Uses system curl — the FCC blocks Python's requests library.
     """
     import subprocess, shutil, tempfile
 
     _log(f"Downloading GMRS database …")
-    _log(f"  URL: {GMRS_ULS_URL}")
+    _log(f"  URL: {url}")
 
     curl = shutil.which("curl")
     if not curl:
@@ -106,7 +109,7 @@ def download_gmrs_zip() -> bytes:
     try:
         result = subprocess.run(
             [curl, "-L", "--fail", "--silent", "--show-error",
-             "--max-time", "120", "-o", tmp_path, GMRS_ULS_URL],
+             "--max-time", "120", "-o", tmp_path, url],
             capture_output=True,
             timeout=130,
         )
@@ -267,19 +270,40 @@ def upsert_to_db(records: dict, dry_run: bool = False):
 # ---------------------------------------------------------------------------
 
 def main():
-    parser = argparse.ArgumentParser(description="Sync FCC GMRS database into local DB")
+    parser = argparse.ArgumentParser(
+        description="Sync FCC GMRS licence database into local DB",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Modes:
+  --mode full     Download the complete GMRS database (~54 MB).
+                  Use for initial seeding or a periodic full refresh.
+  --mode update   Download the weekly transaction file (new/changed/cancelled
+                  licences only).  Much smaller; use for routine weekly runs
+                  once the table is already seeded.
+
+Cron examples:
+  # Weekly update every Sunday at 03:00
+  0 3 * * 0  python3 /opt/netcontrol/gmrs_sync.py --mode update
+  # Full refresh on the first Sunday of each month at 03:30
+  30 3 1-7 * 0  python3 /opt/netcontrol/gmrs_sync.py --mode full
+""",
+    )
+    parser.add_argument(
+        "--mode", choices=["full", "update"], default="update",
+        help="'full' = complete DB download; 'update' = weekly transaction file (default: update)",
+    )
     parser.add_argument("--dry-run", action="store_true",
                         help="Download and parse but do not write to the database")
-    parser.add_argument("--url", default=GMRS_ULS_URL,
-                        help="Override the FCC ULS download URL")
+    parser.add_argument("--url", default=None,
+                        help="Override the download URL (overrides --mode URL selection)")
     parser.add_argument("--zip", metavar="FILE",
-                        help="Use a local zip file instead of downloading (e.g. manually saved l_gm_sat.zip)")
+                        help="Use a local zip file instead of downloading")
     args = parser.parse_args()
 
-    if args.url != GMRS_ULS_URL:
-        globals()["GMRS_ULS_URL"] = args.url
+    url = args.url or (GMRS_URL_FULL if args.mode == "full" else GMRS_URL_UPDATE)
 
     _log("=== GMRS Sync starting ===")
+    _log(f"  mode: {args.mode}  dry-run: {args.dry_run}")
     try:
         if args.zip:
             _log(f"Using local file: {args.zip}")
@@ -287,7 +311,7 @@ def main():
                 zip_bytes = fh.read()
             _log(f"  Read {len(zip_bytes):,} bytes")
         else:
-            zip_bytes = download_gmrs_zip()
+            zip_bytes = download_gmrs_zip(url)
         records = parse_gmrs_zip(zip_bytes)
         upsert_to_db(records, dry_run=args.dry_run)
         _log("=== GMRS Sync complete ===")
