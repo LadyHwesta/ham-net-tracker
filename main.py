@@ -2686,6 +2686,51 @@ def dmr_push(
     _dmr_cache_write(net_id, entries, db)
 
 
+class DmrRawPushPayload(BaseModel):
+    """Raw (un-normalized) last-heard entries from a hotspot API.
+
+    The relay script should send whatever the hotspot returns directly, along with
+    the source type so the backend can apply the correct normalizer.  This keeps all
+    normalization logic in one place and prevents relay ↔ backend drift.
+    """
+    source: str = "wpsd"   # wpsd | pistar | brandmeister
+    entries: list[dict]
+
+
+@app.post("/nets/{net_id}/dmr/push/raw", status_code=204)
+def dmr_push_raw(
+    net_id: int,
+    data: DmrRawPushPayload,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Accept raw hotspot JSON from a relay script and normalize server-side.
+
+    Prefer this endpoint over /dmr/push — it keeps normalization logic in the backend
+    so relay scripts stay simple fetch-and-forward proxies.
+    """
+    _get_net_for_user(net_id, current_user, db)
+    cfg = db.query(DmrConfig).filter(DmrConfig.net_id == net_id).first()
+    if not cfg:
+        raise HTTPException(404, "DMR not configured for this net")
+
+    source = data.source.lower()
+    if source in ("wpsd", "pistar"):
+        entries = [_dmr_normalize_wpsd(e) for e in data.entries]
+    elif source == "brandmeister":
+        entries = [_dmr_normalize_brandmeister(e) for e in data.entries]
+    else:
+        raise HTTPException(400, f"Unknown source type '{source}'. Use wpsd, pistar, or brandmeister.")
+
+    # Filter out NCS callsign and any entries with no callsign after normalization
+    skip = (cfg.filter_callsign or "").upper()
+    entries = [e for e in entries if e.get("callsign")]
+    if skip:
+        entries = [e for e in entries if e["callsign"].upper() != skip]
+
+    _dmr_cache_write(net_id, entries, db)
+
+
 @app.get("/nets/{net_id}/dmr/cache")
 def dmr_cache(
     net_id: int,
