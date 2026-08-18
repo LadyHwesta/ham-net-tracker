@@ -8,16 +8,20 @@ async function openNet(netId) {
   const net = nets.find(n => n.id === netId);
   currentNetOwnerId = net ? net.owner_id : null;
   currentNetIsAres = net ? !!net.is_ares : false;
-  // Pre-fill default TG from net settings
-  const netDefaultTg = net ? (net.dmr_talkgroup || '') : '';
+  currentNetIsGmrs = net ? net.net_type === 'gmrs' : false;
+  // Pre-fill default TG from net settings (ham only)
+  const netDefaultTg = (!currentNetIsGmrs && net) ? (net.dmr_talkgroup || '') : '';
   document.getElementById('ci-dmr-tg').value = netDefaultTg;
   document.getElementById('session-net-name').textContent = net ? net.name : 'Net';
 
-  // Show/hide ARES-specific UI elements
+  // Show/hide ARES-specific UI elements (ham only)
   document.getElementById('ci-zone-group').style.display = currentNetIsAres ? '' : 'none';
   document.getElementById('zone-roster-panel').style.display = currentNetIsAres ? '' : 'none';
   document.getElementById('traffic-log-panel').style.display = currentNetIsAres ? '' : 'none';
   document.getElementById('th-zone').style.display = currentNetIsAres ? '' : 'none';
+
+  // Hide DMR panel entirely for GMRS nets
+  document.getElementById('dmr-heard-panel').style.display = currentNetIsGmrs ? 'none' : '';
 
   // Load evac zones for this net
   evacZones = {};

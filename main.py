@@ -270,7 +270,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="Ham Radio Net Tracker", version="1.8.0", lifespan=lifespan)
+app = FastAPI(title="Ham Radio Net Tracker", version="1.9.0", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -363,8 +363,9 @@ class NetCreate(BaseModel):
     name: str
     frequency: Optional[str] = None
     description: Optional[str] = None
-    is_ares: bool = False
-    dmr_talkgroup: Optional[str] = None
+    net_type: str = "ham"       # "ham" | "gmrs"
+    is_ares: bool = False       # ham only; ignored (forced False) for GMRS nets
+    dmr_talkgroup: Optional[str] = None   # ham only
 
 
 class NetOut(BaseModel):
@@ -372,6 +373,7 @@ class NetOut(BaseModel):
     name: str
     frequency: Optional[str]
     description: Optional[str]
+    net_type: str
     is_ares: bool
     dmr_talkgroup: Optional[str] = None
     owner_id: int
@@ -1082,9 +1084,16 @@ def list_nets(current_user: User = Depends(get_current_user), db: Session = Depe
 
 @app.post("/nets", response_model=NetOut, status_code=201)
 def create_net(data: NetCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    net = Net(name=data.name, frequency=data.frequency, description=data.description,
-              is_ares=data.is_ares, dmr_talkgroup=data.dmr_talkgroup or None,
-              owner_id=current_user.id)
+    net_type = data.net_type if data.net_type in ("ham", "gmrs") else "ham"
+    net = Net(
+        name=data.name,
+        frequency=data.frequency,
+        description=data.description,
+        net_type=net_type,
+        is_ares=data.is_ares if net_type == "ham" else False,
+        dmr_talkgroup=data.dmr_talkgroup or None if net_type == "ham" else None,
+        owner_id=current_user.id,
+    )
     db.add(net)
     db.commit()
     db.refresh(net)
@@ -1100,11 +1109,13 @@ def get_net(net_id: int, current_user: User = Depends(get_current_user), db: Ses
 @app.put("/nets/{net_id}", response_model=NetOut)
 def update_net(net_id: int, data: NetCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     net = _get_owned_net(net_id, current_user, db)
+    net_type = data.net_type if data.net_type in ("ham", "gmrs") else "ham"
     net.name = data.name
     net.frequency = data.frequency
     net.description = data.description
-    net.is_ares = data.is_ares
-    net.dmr_talkgroup = data.dmr_talkgroup or None
+    net.net_type = net_type
+    net.is_ares = data.is_ares if net_type == "ham" else False
+    net.dmr_talkgroup = data.dmr_talkgroup or None if net_type == "ham" else None
     db.commit()
     db.refresh(net)
     return _net_to_out(net, current_user, db)
@@ -1403,13 +1414,17 @@ def add_checkin(session_id: int, data: CheckinCreate, current_user: User = Depen
     if session.ended_at is not None:
         raise HTTPException(400, "Cannot add checkins to an ended session")
 
-    # Prevent duplicate callsign in same session
-    existing = db.query(Checkin).filter(
-        Checkin.session_id == session_id,
-        Checkin.callsign == data.callsign,
-    ).first()
-    if existing:
-        raise HTTPException(409, f"{data.callsign} has already checked in to this session")
+    # Prevent duplicate callsign in the same session — except for GMRS nets where a
+    # single family licence is shared among multiple stations.
+    net = db.query(Net).filter(Net.id == session.net_id).first()
+    is_gmrs = net and net.net_type == "gmrs"
+    if not is_gmrs:
+        existing = db.query(Checkin).filter(
+            Checkin.session_id == session_id,
+            Checkin.callsign == data.callsign,
+        ).first()
+        if existing:
+            raise HTTPException(409, f"{data.callsign} has already checked in to this session")
 
     checkin = Checkin(
         session_id=session_id,
@@ -2604,16 +2619,24 @@ def _dmr_fetch_proxy(cfg: DmrConfig) -> list[dict]:
         raise HTTPException(502, f"DMR fetch failed: {exc}")
 
 
+def _assert_ham_net(net: Net):
+    """Raise 400 if the net is GMRS — DMR is not permitted on GMRS frequencies."""
+    if net and net.net_type == "gmrs":
+        raise HTTPException(400, "DMR integration is not available for GMRS nets")
+
+
 @app.get("/nets/{net_id}/dmr/config", response_model=Optional[DmrConfigOut])
 def get_dmr_config(net_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    _get_net_for_user(net_id, current_user, db)
+    net = _get_net_for_user(net_id, current_user, db)
+    _assert_ham_net(net)
     cfg = db.query(DmrConfig).filter(DmrConfig.net_id == net_id).first()
     return cfg  # None → null in JSON → frontend shows "not configured"
 
 
 @app.put("/nets/{net_id}/dmr/config", response_model=DmrConfigOut)
 def save_dmr_config(net_id: int, data: DmrConfigCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    _get_owned_net(net_id, current_user, db)
+    net = _get_owned_net(net_id, current_user, db)
+    _assert_ham_net(net)
     cfg = db.query(DmrConfig).filter(DmrConfig.net_id == net_id).first()
     if cfg:
         cfg.source_type     = data.source_type
@@ -2638,7 +2661,8 @@ def save_dmr_config(net_id: int, data: DmrConfigCreate, current_user: User = Dep
 
 @app.delete("/nets/{net_id}/dmr/config", status_code=204)
 def delete_dmr_config(net_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    _get_owned_net(net_id, current_user, db)
+    net = _get_owned_net(net_id, current_user, db)
+    _assert_ham_net(net)
     cfg = db.query(DmrConfig).filter(DmrConfig.net_id == net_id).first()
     if cfg:
         db.delete(cfg)
@@ -2648,7 +2672,8 @@ def delete_dmr_config(net_id: int, current_user: User = Depends(get_current_user
 @app.get("/nets/{net_id}/dmr/lastheard", response_model=list[DmrHeardEntry])
 def dmr_lastheard(net_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Backend-proxy last-heard fetch. Only used when direct_mode=False."""
-    _get_net_for_user(net_id, current_user, db)
+    net = _get_net_for_user(net_id, current_user, db)
+    _assert_ham_net(net)
     cfg = db.query(DmrConfig).filter(DmrConfig.net_id == net_id).first()
     if not cfg:
         raise HTTPException(404, "DMR not configured for this net")
@@ -2674,7 +2699,8 @@ def dmr_push(
     db: Session = Depends(get_db),
 ):
     """Accept last-heard data pushed from a local relay script (bypasses CORS entirely)."""
-    _get_net_for_user(net_id, current_user, db)
+    net = _get_net_for_user(net_id, current_user, db)
+    _assert_ham_net(net)
     cfg = db.query(DmrConfig).filter(DmrConfig.net_id == net_id).first()
     if not cfg:
         raise HTTPException(404, "DMR not configured for this net")
@@ -2709,7 +2735,8 @@ def dmr_push_raw(
     Prefer this endpoint over /dmr/push — it keeps normalization logic in the backend
     so relay scripts stay simple fetch-and-forward proxies.
     """
-    _get_net_for_user(net_id, current_user, db)
+    net = _get_net_for_user(net_id, current_user, db)
+    _assert_ham_net(net)
     cfg = db.query(DmrConfig).filter(DmrConfig.net_id == net_id).first()
     if not cfg:
         raise HTTPException(404, "DMR not configured for this net")
@@ -2738,7 +2765,8 @@ def dmr_cache(
     db: Session = Depends(get_db),
 ):
     """Return relay-pushed DMR data with freshness info."""
-    _get_net_for_user(net_id, current_user, db)
+    net = _get_net_for_user(net_id, current_user, db)
+    _assert_ham_net(net)
     cached = _dmr_cache_read(net_id, db)
     if not cached:
         raise HTTPException(404, "No relay data for this net — is the relay script running?")

@@ -44,8 +44,9 @@ class Net(Base):
     name = Column(String(200), nullable=False)
     frequency = Column(String(20), nullable=True)   # e.g. "146.520 MHz"
     description = Column(Text, nullable=True)
-    is_ares = Column(Boolean, default=False, nullable=False)  # ARES/ACES net — enables evac zone tracking
-    dmr_talkgroup = Column(String(20), nullable=True)  # Default DMR talk group for check-ins
+    net_type = Column(String(10), nullable=False, default='ham')  # 'ham' | 'gmrs'
+    is_ares = Column(Boolean, default=False, nullable=False)  # ARES/ACES net — enables evac zone tracking (ham only)
+    dmr_talkgroup = Column(String(20), nullable=True)  # Default DMR talk group for check-ins (ham only)
     owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
@@ -103,10 +104,9 @@ class Checkin(Base):
 
     session = relationship("NetSession", back_populates="checkins")
 
-    __table_args__ = (
-        # A callsign can only check in once per session
-        UniqueConstraint("session_id", "callsign", name="uq_checkin_session_callsign"),
-    )
+    # No DB-level unique constraint on (session_id, callsign) — GMRS nets allow the
+    # same callsign multiple times (shared family licence). Uniqueness for ham nets
+    # is enforced at the application layer in add_checkin().
 
     def __repr__(self):
         return f"<Checkin callsign={self.callsign} session={self.session_id}>"

@@ -115,11 +115,14 @@ async function addCheckin() {
 }
 
 // ── Callsign search helpers ──────────────────────────────────
-// US amateur pattern: 1-2 prefix letters + digit + 1-3 suffix letters
-const FULL_CS_RE = /^[A-Z]{1,2}[0-9][A-Z]{1,3}$/;
+// US amateur pattern: 1-2 prefix letters + digit + 1-3 suffix letters  (e.g. W1AW, KD9XYZ)
+const HAM_CS_RE  = /^[A-Z]{1,2}[0-9][A-Z]{1,3}$/;
+// GMRS pattern: letter + 2-3 letters + 4 digits  (e.g. WQXH7777, KAB1234)
+const GMRS_CS_RE = /^[A-Z][A-Z]{2,3}\d{4}$/;
 
 function isLikelyFullCallsign(val) {
-  return val.length >= 4 && FULL_CS_RE.test(val);
+  if (val.length < 4) return false;
+  return HAM_CS_RE.test(val) || GMRS_CS_RE.test(val);
 }
 
 function clearCallsignDropdown() {

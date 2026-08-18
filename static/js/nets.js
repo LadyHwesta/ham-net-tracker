@@ -16,6 +16,9 @@ function renderNets() {
     const aresBadge = n.is_ares
       ? ' <span style="font-size:11px;background:var(--lc-orange);color:#000;border-radius:10px;padding:2px 8px;font-weight:700;vertical-align:middle">ARES</span>'
       : '';
+    const gmrsBadge = n.net_type === 'gmrs'
+      ? ' <span style="font-size:11px;background:#22c55e;color:#000;border-radius:10px;padding:2px 8px;font-weight:700;vertical-align:middle">GMRS</span>'
+      : '';
     // Shared badge — shown for nets not owned by current user
     const sharedBadge = !n.is_owner
       ? ` <span style="font-size:11px;background:var(--lc-blue);color:#000;border-radius:10px;padding:2px 8px;font-weight:700;vertical-align:middle">Shared</span>`
@@ -39,7 +42,7 @@ function renderNets() {
     <div class="card" style="max-width:600px">
       <div class="card-header">
         <div>
-          <h2>${esc(n.name)}${aresBadge}${sharedBadge}</h2>
+          <h2>${esc(n.name)}${gmrsBadge}${aresBadge}${sharedBadge}</h2>
           ${n.frequency ? `<span class="text-muted" style="font-size:12px">📡 ${esc(n.frequency)}</span>` : ''}
           ${shareInfo}
         </div>
@@ -61,9 +64,23 @@ function showNetForm() {
   document.getElementById('net-dmr-tg').value = '';
   document.getElementById('net-desc').value = '';
   document.getElementById('net-ares').checked = false;
+  document.querySelector('input[name="net-type"][value="ham"]').checked = true;
   document.getElementById('net-sharing-section').style.display = 'none';
   document.getElementById('net-dmr-section').style.display = 'none';
   document.getElementById('net-form-card').style.display = '';
+  onNetTypeChange();
+}
+
+function onNetTypeChange() {
+  const isGmrs = document.querySelector('input[name="net-type"]:checked')?.value === 'gmrs';
+  document.getElementById('net-ares-section').style.display = isGmrs ? 'none' : '';
+  document.getElementById('net-dmr-tg-group').style.display = isGmrs ? 'none' : '';
+  if (isGmrs) {
+    document.getElementById('net-ares').checked = false;
+    document.getElementById('net-dmr-tg').value = '';
+    // DMR integration section should also stay hidden for GMRS
+    document.getElementById('net-dmr-section').style.display = 'none';
+  }
 }
 
 function cancelNetForm() {
@@ -84,12 +101,16 @@ async function editNet(id) {
   document.getElementById('net-dmr-tg').value = n.dmr_talkgroup || '';
   document.getElementById('net-desc').value = n.description || '';
   document.getElementById('net-ares').checked = !!n.is_ares;
+  const netType = n.net_type || 'ham';
+  const typeRadio = document.querySelector(`input[name="net-type"][value="${netType}"]`);
+  if (typeRadio) typeRadio.checked = true;
+  onNetTypeChange();
   document.getElementById('net-form-card').style.display = '';
-  // Load sharing and DMR config if owner
+  // Load sharing and DMR config if owner (DMR section only for ham nets)
   if (n.is_owner) {
     document.getElementById('net-sharing-section').style.display = '';
     await loadSharesForNet(id);
-    await loadDmrConfig(id);
+    if (netType === 'ham') await loadDmrConfig(id);
   } else {
     document.getElementById('net-sharing-section').style.display = 'none';
     document.getElementById('net-dmr-section').style.display = 'none';
@@ -99,16 +120,18 @@ async function editNet(id) {
 async function saveNet() {
   const name = document.getElementById('net-name').value.trim();
   const frequency = document.getElementById('net-freq').value.trim() || null;
-  const dmr_talkgroup = document.getElementById('net-dmr-tg').value.trim() || null;
   const description = document.getElementById('net-desc').value.trim() || null;
-  const is_ares = document.getElementById('net-ares').checked;
+  const net_type = document.querySelector('input[name="net-type"]:checked')?.value || 'ham';
+  const is_gmrs = net_type === 'gmrs';
+  const is_ares = is_gmrs ? false : document.getElementById('net-ares').checked;
+  const dmr_talkgroup = is_gmrs ? null : (document.getElementById('net-dmr-tg').value.trim() || null);
   if (!name) return toast('Net name is required', 'error');
   try {
     if (editNetId) {
-      await apiFetch(`/nets/${editNetId}`, { method: 'PUT', body: JSON.stringify({ name, frequency, dmr_talkgroup, description, is_ares }) });
+      await apiFetch(`/nets/${editNetId}`, { method: 'PUT', body: JSON.stringify({ name, frequency, dmr_talkgroup, description, net_type, is_ares }) });
       toast('Net updated');
     } else {
-      await apiFetch('/nets', { method: 'POST', body: JSON.stringify({ name, frequency, dmr_talkgroup, description, is_ares }) });
+      await apiFetch('/nets', { method: 'POST', body: JSON.stringify({ name, frequency, dmr_talkgroup, description, net_type, is_ares }) });
       toast('Net created');
     }
     cancelNetForm();

@@ -51,6 +51,9 @@ if not DATABASE_URL:
 
 MIGRATIONS = [
     # ── Columns added after initial launch ──────────────────────────────────
+    ("nets: net type (ham/gmrs)",
+     "ALTER TABLE nets ADD COLUMN IF NOT EXISTS net_type VARCHAR(10) NOT NULL DEFAULT 'ham'"),
+
     ("nets: ARES net flag",
      "ALTER TABLE nets ADD COLUMN IF NOT EXISTS is_ares BOOLEAN NOT NULL DEFAULT FALSE"),
 
@@ -178,6 +181,13 @@ MIGRATIONS = [
          expires VARCHAR(20),
          source VARCHAR(50),
          cached_at TIMESTAMPTZ NOT NULL DEFAULT NOW())"""),
+
+    # ── GMRS support ─────────────────────────────────────────────────────────
+    # Drop the DB-level unique constraint on (session_id, callsign) so that
+    # GMRS nets can accept the same callsign multiple times (shared family
+    # licence).  Uniqueness for ham nets is enforced at the application layer.
+    ("checkins: drop unique-callsign-per-session constraint for GMRS support",
+     "ALTER TABLE checkins DROP CONSTRAINT IF EXISTS uq_checkin_session_callsign"),
 ]
 
 # ---------------------------------------------------------------------------

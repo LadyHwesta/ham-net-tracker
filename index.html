@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230a0a1a'/%3E%3C!-- Tower base --%3E%3Crect x='15' y='20' width='2' height='8' fill='%23ff9900'/%3E%3Crect x='11' y='27' width='10' height='2' rx='1' fill='%23ff9900'/%3E%3C!-- Tower mast --%3E%3Crect x='15.5' y='6' width='1' height='14' fill='%23ff9900'/%3E%3C!-- Signal arcs --%3E%3Cpath d='M10 14 A8 8 0 0 1 22 14' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M7 18 A11 11 0 0 1 25 18' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round' opacity='0.6'/%3E%3Cpath d='M4 22 A14 14 0 0 1 28 22' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round' opacity='0.3'/%3E%3C!-- Tip dot --%3E%3Ccircle cx='16' cy='6' r='1.5' fill='%23ff9900'/%3E%3C/svg%3E" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/app.css?v=3">
+  <link rel="stylesheet" href="/static/app.css?v=4">
 </head>
 <body>
 
@@ -128,12 +128,25 @@
             <label>Net Name *</label>
             <input class="form-control" id="net-name" placeholder="Monday Night 2m Net" />
           </div>
+          <div style="margin-bottom:14px">
+            <label style="font-size:12px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:6px">Net Type</label>
+            <div style="display:flex;gap:16px">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:700">
+                <input type="radio" name="net-type" value="ham" checked onchange="onNetTypeChange()" style="accent-color:var(--lc-orange);width:15px;height:15px" />
+                📻 Ham Radio
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:700">
+                <input type="radio" name="net-type" value="gmrs" onchange="onNetTypeChange()" style="accent-color:#22c55e;width:15px;height:15px" />
+                📡 GMRS
+              </label>
+            </div>
+          </div>
           <div class="form-row">
             <div class="form-group">
               <label>Frequency</label>
               <input class="form-control" id="net-freq" placeholder="146.520 MHz" />
             </div>
-            <div class="form-group" style="max-width:140px">
+            <div class="form-group" id="net-dmr-tg-group" style="max-width:140px">
               <label>DMR Talk Group</label>
               <input class="form-control" id="net-dmr-tg" placeholder="3117" />
             </div>
@@ -142,7 +155,7 @@
             <label>Description</label>
             <textarea class="form-control" id="net-desc" rows="2" placeholder="Optional notes"></textarea>
           </div>
-          <div style="margin-bottom:14px">
+          <div id="net-ares-section" style="margin-bottom:14px">
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:700">
               <input type="checkbox" id="net-ares" style="accent-color:var(--lc-orange);width:16px;height:16px" />
               ARES / ACES Net — enables evacuation zone tracking per station
@@ -608,20 +621,20 @@
   </main>
 </div><!-- /app -->
 
-  <script src="/static/js/state.js?v=3"></script>
-  <script src="/static/js/utils.js?v=3"></script>
-  <script src="/static/js/auth.js?v=3"></script>
-  <script src="/static/js/views.js?v=3"></script>
-  <script src="/static/js/branding.js?v=3"></script>
-  <script src="/static/js/report.js?v=3"></script>
-  <script src="/static/js/nets.js?v=3"></script>
-  <script src="/static/js/sessions.js?v=3"></script>
-  <script src="/static/js/checkins.js?v=3"></script>
-  <script src="/static/js/history.js?v=3"></script>
-  <script src="/static/js/admin.js?v=3"></script>
-  <script src="/static/js/schedules.js?v=3"></script>
-  <script src="/static/js/tokens.js?v=3"></script>
-  <script src="/static/js/dmr.js?v=3"></script>
-  <script src="/static/js/app.js?v=3"></script>
+  <script src="/static/js/state.js?v=4"></script>
+  <script src="/static/js/utils.js?v=4"></script>
+  <script src="/static/js/auth.js?v=4"></script>
+  <script src="/static/js/views.js?v=4"></script>
+  <script src="/static/js/branding.js?v=4"></script>
+  <script src="/static/js/report.js?v=4"></script>
+  <script src="/static/js/nets.js?v=4"></script>
+  <script src="/static/js/sessions.js?v=4"></script>
+  <script src="/static/js/checkins.js?v=4"></script>
+  <script src="/static/js/history.js?v=4"></script>
+  <script src="/static/js/admin.js?v=4"></script>
+  <script src="/static/js/schedules.js?v=4"></script>
+  <script src="/static/js/tokens.js?v=4"></script>
+  <script src="/static/js/dmr.js?v=4"></script>
+  <script src="/static/js/app.js?v=4"></script>
 </body>
 </html>

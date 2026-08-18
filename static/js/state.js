@@ -12,6 +12,7 @@ let nets = [];
 let currentNetId = null;
 let currentNetOwnerId = null;
 let currentNetIsAres = false;
+let currentNetIsGmrs = false;
 let currentSessionId = null;
 let activeView = 'nets';
 let historyData = [];
