@@ -268,6 +268,24 @@ class ApiToken(Base):
         return f"<ApiToken name={self.name} user={self.user_id}>"
 
 
+class GmrsLicense(Base):
+    """
+    Local copy of the FCC ULS GMRS (service ZA) database.
+    Populated by gmrs_sync.py; updated weekly from the FCC bulk download.
+    """
+    __tablename__ = "gmrs_licenses"
+
+    callsign = Column(String(16), primary_key=True)
+    licensee_name = Column(String(200), nullable=True)   # full name or entity name
+    state = Column(String(10), nullable=True)
+    expires = Column(String(20), nullable=True)           # raw date string from FCC (MM/DD/YYYY)
+    status = Column(String(4), nullable=True)             # 'A'=Active, 'E'=Expired, etc.
+    synced_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
+
+    def __repr__(self):
+        return f"<GmrsLicense {self.callsign} {self.licensee_name}>"
+
+
 class CallsignCache(Base):
     """Local cache of FCC/external callsign lookups to reduce external API dependency."""
     __tablename__ = "callsign_cache"

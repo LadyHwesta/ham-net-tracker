@@ -72,7 +72,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from database import get_db, init_db
-from models import ApiToken, CallsignCache, Checkin, DmrConfig, EvacZone, Net, NetControlSignup, NetSchedule, NetSession, NetShare, StationRemark, SystemSetting, TrafficMessage, User, utcnow
+from models import ApiToken, CallsignCache, Checkin, DmrConfig, EvacZone, GmrsLicense, Net, NetControlSignup, NetSchedule, NetSession, NetShare, StationRemark, SystemSetting, TrafficMessage, User, utcnow
 
 load_dotenv()
 
@@ -2148,6 +2148,14 @@ def _callsign_cache_write(result: CallsignLookupResult, db: Session) -> None:
     db.commit()
 
 
+import re as _re
+_GMRS_CS_RE = _re.compile(r'^[A-Z]{3,4}\d{4}$')
+
+def _is_gmrs_callsign(cs: str) -> bool:
+    """Return True if callsign matches the FCC GMRS format (e.g. WQXH7777)."""
+    return bool(_GMRS_CS_RE.match(cs))
+
+
 @app.get("/callsign/{callsign}/lookup", response_model=CallsignLookupResult)
 async def lookup_callsign(
     callsign: str,
@@ -2156,17 +2164,86 @@ async def lookup_callsign(
 ):
     """
     Resolve a callsign to FCC license data.
-    Sources tried in order:
-      1. Local cache (30-day TTL for found, 7-day for not_found)
-      2. FCC ULS (official, authoritative)
+
+    GMRS callsigns (e.g. WQXH7777):
+      1. Local gmrs_licenses table (populated by gmrs_sync.py from FCC bulk download)
+      2. FCC ULS API fallback (if local DB is empty / callsign not found locally)
+
+    Ham callsigns (e.g. W1AW):
+      1. Local callsign_cache (30-day TTL found / 7-day not_found)
+      2. FCC ULS API
       3. HamDB.org
       4. callook.info
-    Errors from each source are logged; check journalctl -u ham-net-tracker for details.
     """
     import logging
     log = logging.getLogger("callsign_lookup")
     callsign = callsign.upper().strip()
 
+    # ── GMRS branch ──────────────────────────────────────────────────────────
+    if _is_gmrs_callsign(callsign):
+        # 1. Local gmrs_licenses table (fast, no external call)
+        row = db.query(GmrsLicense).filter(GmrsLicense.callsign == callsign).first()
+        if row:
+            status = "found" if row.status == "A" else "not_found"
+            return CallsignLookupResult(
+                callsign=row.callsign,
+                status=status,
+                name=row.licensee_name,
+                license_class=None,   # GMRS has no license classes
+                state=row.state,
+                grid=None,
+                expires=row.expires,
+                source="FCC GMRS DB",
+            )
+
+        # 2. FCC ULS API fallback (when local DB hasn't been synced yet, or callsign
+        #    is very newly issued between weekly syncs)
+        log.info("GMRS %s not in local DB — trying FCC ULS API", callsign)
+        cached = _callsign_cache_read(callsign, db)
+        if cached:
+            return cached
+
+        def _save(result: CallsignLookupResult) -> CallsignLookupResult:
+            _callsign_cache_write(result, db)
+            return result
+
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            try:
+                r = await client.get(
+                    "https://data.fcc.gov/api/license-view/basicSearch/getLicenses",
+                    params={"format": "json", "searchValue": callsign},
+                    headers={"User-Agent": "HamNetTracker/1.0"},
+                )
+                if r.status_code == 200:
+                    data = r.json()
+                    rows = data.get("Licenses", {}).get("License", [])
+                    match = next(
+                        (lic for lic in rows if lic.get("callsign", "").upper() == callsign),
+                        None,
+                    )
+                    if match and match.get("statusDesc", "").lower() == "active":
+                        name = (match.get("licenseeName") or "").strip().title() or None
+                        return _save(CallsignLookupResult(
+                            callsign=match["callsign"],
+                            status="found",
+                            name=name,
+                            license_class=None,
+                            state=None,
+                            grid=None,
+                            expires=match.get("expiredDate") or None,
+                            source="FCC ULS",
+                        ))
+                    elif match:
+                        log.info("FCC ULS: GMRS %s found but status=%s", callsign, match.get("statusDesc"))
+                else:
+                    log.warning("FCC ULS HTTP %s for GMRS %s", r.status_code, callsign)
+            except Exception as exc:
+                log.warning("FCC ULS error for GMRS %s: %s", callsign, exc)
+
+        log.warning("GMRS lookup exhausted for %s", callsign)
+        return _save(CallsignLookupResult(callsign=callsign, status="not_found"))
+
+    # ── Ham branch ───────────────────────────────────────────────────────────
     # Return cached result if still fresh
     cached = _callsign_cache_read(callsign, db)
     if cached:

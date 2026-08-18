@@ -188,6 +188,16 @@ MIGRATIONS = [
     # licence).  Uniqueness for ham nets is enforced at the application layer.
     ("checkins: drop unique-callsign-per-session constraint for GMRS support",
      "ALTER TABLE checkins DROP CONSTRAINT IF EXISTS uq_checkin_session_callsign"),
+
+    # Local copy of FCC ULS GMRS database — populated/refreshed by gmrs_sync.py
+    ("table: gmrs_licenses",
+     """CREATE TABLE IF NOT EXISTS gmrs_licenses (
+         callsign VARCHAR(16) PRIMARY KEY,
+         licensee_name VARCHAR(200),
+         state VARCHAR(10),
+         expires VARCHAR(20),
+         status VARCHAR(4),
+         synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW())"""),
 ]
 
 # ---------------------------------------------------------------------------
