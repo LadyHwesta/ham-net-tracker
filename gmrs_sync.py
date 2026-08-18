@@ -149,7 +149,7 @@ def parse_gmrs_zip(zip_bytes: bytes) -> dict:
         if not hd_name:
             raise RuntimeError("HD.dat not found in ULS zip")
 
-        hd: dict[str, dict] = {}   # call_sign → {status, expires}
+        hd: dict[str, dict] = {}   # call_sign → {status, expires, name_fallback}
         _log("Parsing HD.dat …")
         with zf.open(hd_name) as f:
             for raw in f:
@@ -163,54 +163,64 @@ def parse_gmrs_zip(zip_bytes: bytes) -> dict:
                 status = cols[5].strip()
                 if not call:
                     continue
-                # Keep active licences; also track expired ones so we can
-                # update status in the DB if a licence was once active.
+                # GMRS full database embeds first/middle/last name in HD.dat
+                # at columns 30-32 (beyond the standard 30-column HD layout).
+                # Use these as a fallback when EN.dat has no matching record.
+                name_fallback = None
+                if len(cols) > 32:
+                    first = cols[30].strip()
+                    last  = cols[32].strip()
+                    if first or last:
+                        name_fallback = f"{first} {last}".strip().title() or None
                 hd[call] = {
-                    "status":  status,
-                    "expires": cols[8].strip() or None,
+                    "status":       status,
+                    "expires":      cols[8].strip() or None,
+                    "name_fallback": name_fallback,
                 }
         _log(f"  {len(hd):,} HD records read")
 
         # ── EN.dat — entity (name + address) ────────────────────────────────
         en_name = names_lower.get("en.dat")
         if not en_name:
-            raise RuntimeError("EN.dat not found in ULS zip")
+            _log("  EN.dat not found in zip — will use HD.dat embedded names only")
 
         en: dict[str, dict] = {}   # call_sign → {name, state}
-        _log("Parsing EN.dat …")
-        with zf.open(en_name) as f:
-            for raw in f:
-                line = raw.decode("latin-1").rstrip("\r\n")
-                cols = line.split("|")
-                if len(cols) < 18:
-                    continue
-                if cols[0] != "EN":
-                    continue
-                entity_type = cols[5].strip()
-                if entity_type != "L":    # L = Licensee (skip contacts etc.)
-                    continue
-                call = cols[4].strip().upper()
-                if not call:
-                    continue
-                entity_name = cols[7].strip()
-                first_name  = cols[8].strip()
-                last_name   = cols[10].strip()
-                state       = cols[17].strip() or None
-                if entity_name:
-                    name = entity_name.title()
-                elif first_name or last_name:
-                    name = f"{first_name} {last_name}".strip().title() or None
-                else:
-                    name = None
-                en[call] = {"name": name, "state": (state or "")[:50] or None}
-        _log(f"  {len(en):,} EN records read")
+        if en_name:
+            _log("Parsing EN.dat …")
+            with zf.open(en_name) as f:
+                for raw in f:
+                    line = raw.decode("latin-1").rstrip("\r\n")
+                    cols = line.split("|")
+                    if len(cols) < 18:
+                        continue
+                    if cols[0] != "EN":
+                        continue
+                    entity_type = cols[5].strip()
+                    if entity_type != "L":    # L = Licensee (skip contacts etc.)
+                        continue
+                    call = cols[4].strip().upper()
+                    if not call:
+                        continue
+                    entity_name = cols[7].strip()
+                    first_name  = cols[8].strip()
+                    last_name   = cols[10].strip()
+                    state       = cols[17].strip() or None
+                    if entity_name:
+                        name = entity_name.title()
+                    elif first_name or last_name:
+                        name = f"{first_name} {last_name}".strip().title() or None
+                    else:
+                        name = None
+                    en[call] = {"name": name, "state": (state or "")[:50] or None}
+            _log(f"  {len(en):,} EN records read")
 
-    # ── Join HD + EN ─────────────────────────────────────────────────────────
+    # ── Join HD + EN (EN takes priority; fall back to HD embedded names) ─────
     records: dict[str, dict] = {}
     for call, hd_row in hd.items():
-        en_row  = en.get(call, {})
+        en_row = en.get(call, {})
+        name   = en_row.get("name") or hd_row.get("name_fallback")
         records[call] = {
-            "name":    en_row.get("name"),
+            "name":    name,
             "state":   en_row.get("state"),
             "expires": hd_row["expires"],
             "status":  hd_row["status"],
