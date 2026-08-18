@@ -4,6 +4,18 @@ A web-based net control logging application for amateur radio operators. Designe
 
 ![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)
 
+## Live Demo
+
+A public demo is available at **[nettrackerdemo.meskis.net](https://nettrackerdemo.meskis.net)**. Feel free to explore all features — the database resets automatically every 4 hours.
+
+| Field | Value |
+|-------|-------|
+| URL | https://nettrackerdemo.meskis.net |
+| Callsign | `D3MO` |
+| Password | `Abcd1234` |
+
+> The demo account has full admin access. Any nets, sessions, or check-ins you create will be wiped on the next reset.
+
 ## Features
 
 - **Net & session management** — create nets, start/end sessions, log check-ins with signal reports
