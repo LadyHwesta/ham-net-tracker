@@ -39,11 +39,13 @@ import csv
 import hashlib
 import io
 import logging
+import json
 import logging.handlers
 import os
 import pathlib
 import secrets
 import smtplib
+import time as _time
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
 from email.mime.base import MIMEBase
@@ -2411,11 +2413,40 @@ def upcoming_slots(
 # DMR Integration
 # ---------------------------------------------------------------------------
 
-import httpx as _httpx
-import time as _time
-
 # In-memory cache for relay-pushed DMR data { net_id: {"entries": [...], "pushed_at": float} }
+# This is backed by SystemSetting so it survives server restarts.
 _dmr_push_cache: dict = {}
+
+_DMR_CACHE_TTL = 300  # seconds — matches the stale-data check in dmr_cache()
+
+
+def _dmr_cache_key(net_id: int) -> str:
+    return f"dmr_cache_{net_id}"
+
+
+def _dmr_cache_write(net_id: int, entries: list, db: Session) -> None:
+    """Write relay entries to both the in-memory dict and SystemSetting (survives restarts)."""
+    now = _time.time()
+    _dmr_push_cache[net_id] = {"entries": entries, "pushed_at": now}
+    _set_setting(_dmr_cache_key(net_id), json.dumps({"entries": entries, "pushed_at": now}), db)
+    db.commit()
+
+
+def _dmr_cache_read(net_id: int, db: Session) -> Optional[dict]:
+    """Return the relay cache for net_id, restoring from DB if the in-memory dict was wiped."""
+    cached = _dmr_push_cache.get(net_id)
+    if cached:
+        return cached
+    # Fallback: load from SystemSetting (e.g., after a server restart)
+    raw = _get_setting(_dmr_cache_key(net_id), db)
+    if raw:
+        try:
+            data = json.loads(raw)
+            _dmr_push_cache[net_id] = data  # repopulate in-memory cache
+            return data
+        except Exception:
+            pass
+    return None
 
 
 def _dmr_normalize_wpsd(entry: dict) -> dict:
@@ -2466,7 +2497,7 @@ def _dmr_fetch_proxy(cfg: DmrConfig) -> list[dict]:
         if cfg.source_type == "brandmeister":
             if not cfg.talkgroup_id:
                 return []
-            r = _httpx.get(
+            r = httpx.get(
                 "https://api.brandmeister.network/v2/talkgroup/rx/",
                 params={"talkgroup": cfg.talkgroup_id, "limit": 30},
                 timeout=10,
@@ -2481,7 +2512,7 @@ def _dmr_fetch_proxy(cfg: DmrConfig) -> list[dict]:
             base = cfg.hotspot_url.rstrip("/")
             # Pi-Star endpoint
             url = base if base.endswith("lastheard") else base + "/api/local/lastheard"
-            r = _httpx.get(url, timeout=10)
+            r = httpx.get(url, timeout=10)
             r.raise_for_status()
             raw = r.json() if isinstance(r.json(), list) else []
             return [_dmr_normalize_wpsd(e) for e in raw[:30]]
@@ -2489,14 +2520,14 @@ def _dmr_fetch_proxy(cfg: DmrConfig) -> list[dict]:
         else:  # wpsd (default)
             if not cfg.hotspot_url:
                 return []
-            r = _httpx.get(cfg.hotspot_url, params={"limit": 30, "names": "true", "country": "true"}, timeout=10)
+            r = httpx.get(cfg.hotspot_url, params={"limit": 30, "names": "true", "country": "true"}, timeout=10)
             r.raise_for_status()
             raw = r.json() if isinstance(r.json(), list) else []
             return [_dmr_normalize_wpsd(e) for e in raw]
 
-    except _httpx.ConnectError as exc:
+    except httpx.ConnectError as exc:
         raise HTTPException(502, f"Cannot reach hotspot: {exc}. If your hotspot is on a local network, enable direct mode so the browser fetches it instead.")
-    except _httpx.TimeoutException:
+    except httpx.TimeoutException:
         raise HTTPException(504, "Hotspot request timed out. Check that the URL is correct and the hotspot is online.")
     except Exception as exc:
         _email_log.warning("DMR fetch error: %s", exc)
@@ -2582,7 +2613,7 @@ def dmr_push(
     entries = [e.model_dump() for e in data.entries]
     if skip:
         entries = [e for e in entries if (e.get("callsign") or "").upper() != skip]
-    _dmr_push_cache[net_id] = {"entries": entries, "pushed_at": _time.time()}
+    _dmr_cache_write(net_id, entries, db)
 
 
 @app.get("/nets/{net_id}/dmr/cache")
@@ -2593,11 +2624,11 @@ def dmr_cache(
 ):
     """Return relay-pushed DMR data with freshness info."""
     _get_net_for_user(net_id, current_user, db)
-    cached = _dmr_push_cache.get(net_id)
+    cached = _dmr_cache_read(net_id, db)
     if not cached:
         raise HTTPException(404, "No relay data for this net — is the relay script running?")
     age = int(_time.time() - cached["pushed_at"])
-    if age > 300:
+    if age > _DMR_CACHE_TTL:
         raise HTTPException(
             404,
             f"Relay data is stale ({age}s old). Is the relay script still running?",
