@@ -45,14 +45,10 @@ from datetime import datetime, timezone
 # FCC ULS download URL for GMRS (service code ZA) — weekly full database
 # If the FCC ever changes this URL update it here.
 # ---------------------------------------------------------------------------
-# Primary URL — FCC ULS weekly full download for GMRS (service code ZA).
-# Try these in order if the primary returns 403/404:
-#   https://wireless2.fcc.gov/UlsApp/UlsApi/downloadUlsFile.jsp?filing_key=-1&key=ZA
-#   https://www.fcc.gov/uls/transactions/l_gmrs.zip
-GMRS_ULS_URL = (
-    "https://wireless2.fcc.gov/UlsApp/UlsApi/downloadUlsFile.jsp"
-    "?filing_key=-1&key=ZA"
-)
+# FCC ULS weekly full download for GMRS (General Mobile Radio Service).
+# Source: https://www.fcc.gov/uls/transactions/daily-weekly
+# The Saturday file is the weekly full database rebuild.
+GMRS_ULS_URL = "https://data.fcc.gov/download/pub/uls/daily/l_gm_sat.zip"
 
 # Headers that mimic a browser — the FCC blocks plain requests/curl User-Agents.
 _HEADERS = {
@@ -106,7 +102,6 @@ def download_gmrs_zip() -> bytes:
     """Download the FCC GMRS weekly full database zip and return raw bytes."""
     urls_to_try = [
         GMRS_ULS_URL,
-        "https://www.fcc.gov/uls/transactions/l_gmrs.zip",
     ]
     # Deduplicate while preserving order
     seen: set = set()
