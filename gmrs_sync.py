@@ -202,7 +202,7 @@ def parse_gmrs_zip(zip_bytes: bytes) -> dict:
                     name = f"{first_name} {last_name}".strip().title() or None
                 else:
                     name = None
-                en[call] = {"name": name, "state": state}
+                en[call] = {"name": name, "state": (state or "")[:50] or None}
         _log(f"  {len(en):,} EN records read")
 
     # ── Join HD + EN ─────────────────────────────────────────────────────────

@@ -277,7 +277,7 @@ class GmrsLicense(Base):
 
     callsign = Column(String(16), primary_key=True)
     licensee_name = Column(String(200), nullable=True)   # full name or entity name
-    state = Column(String(10), nullable=True)
+    state = Column(String(50), nullable=True)
     expires = Column(String(20), nullable=True)           # raw date string from FCC (MM/DD/YYYY)
     status = Column(String(4), nullable=True)             # 'A'=Active, 'E'=Expired, etc.
     synced_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)

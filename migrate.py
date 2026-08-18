@@ -194,10 +194,13 @@ MIGRATIONS = [
      """CREATE TABLE IF NOT EXISTS gmrs_licenses (
          callsign VARCHAR(16) PRIMARY KEY,
          licensee_name VARCHAR(200),
-         state VARCHAR(10),
+         state VARCHAR(50),
          expires VARCHAR(20),
          status VARCHAR(4),
          synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW())"""),
+
+    ("gmrs_licenses: widen state column to VARCHAR(50)",
+     "ALTER TABLE gmrs_licenses ALTER COLUMN state TYPE VARCHAR(50)"),
 ]
 
 # ---------------------------------------------------------------------------
