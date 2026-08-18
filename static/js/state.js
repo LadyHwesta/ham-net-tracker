@@ -20,3 +20,4 @@ let editNetId = null;
 let allUsers = [];   // for sharing UI — populated when opening edit form
 let shareState = { share_with_all: false, user_ids: [] };
 let evacZones = {};   // callsign → zone, loaded from /nets/{id}/evac-zones
+let currentNetScript = null;   // raw (unrendered) net.script text for the open net

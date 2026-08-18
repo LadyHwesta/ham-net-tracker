@@ -23,16 +23,9 @@ async function openNet(netId) {
   // Hide DMR panel entirely for GMRS nets
   document.getElementById('dmr-heard-panel').style.display = currentNetIsGmrs ? 'none' : '';
 
-  // Show the net script panel (open by default) when this net has a script attached
-  const scriptPanel = document.getElementById('net-script-panel');
-  if (net && net.script && net.script.trim()) {
-    document.getElementById('net-script-text').textContent = net.script;
-    document.getElementById('net-script-body').style.display = '';
-    document.getElementById('net-script-toggle-icon').textContent = '▼';
-    scriptPanel.style.display = '';
-  } else {
-    scriptPanel.style.display = 'none';
-  }
+  // Stash the raw script text; it's rendered (with variable substitution) per-session
+  // in loadSessionLive, since {{net_control}}/{{broadcaster}} depend on that session's duty.
+  currentNetScript = (net && net.script && net.script.trim()) ? net.script : null;
 
   // Update callsign input placeholder to match net type
   const ciCall = document.getElementById('ci-call');
@@ -62,6 +55,98 @@ function toggleNetScriptPanel() {
   const open = body.style.display === 'none';
   body.style.display = open ? '' : 'none';
   icon.textContent = open ? '▼' : '▶';
+}
+
+// ============================================================
+// NET SCRIPT — {{variable}} substitution + basic markup rendering
+// ============================================================
+// Supported syntax (deliberately small — this is rendered via innerHTML, so every
+// value that reaches the page must go through escapeHtml first):
+//   **bold**   *italic*
+//   # / ## / ###  headings
+//   - item  or  * item   bullet list
+//   ---  or  ===  (3+ chars, alone on a line)   horizontal rule
+//   {{net_control}} {{net_control_callsign}} {{net_control_name}}
+//   {{broadcaster}} {{broadcaster_callsign}} {{broadcaster_name}} {{broadcast_label}}
+//   {{net_name}}
+
+function escapeHtml(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function scriptVarsForSession(s) {
+  const net = nets.find(n => n.id === currentNetId);
+  const ncCombined = s.ncs_callsign ? (s.ncs_name ? `${s.ncs_callsign} — ${s.ncs_name}` : s.ncs_callsign) : '';
+  const bcCombined = s.broadcaster_callsign ? (s.broadcaster_name ? `${s.broadcaster_callsign} — ${s.broadcaster_name}` : s.broadcaster_callsign) : '';
+  return {
+    net_name: net ? net.name : '',
+    net_control: ncCombined,
+    net_control_callsign: s.ncs_callsign || '',
+    net_control_name: s.ncs_name || '',
+    broadcaster: bcCombined,
+    broadcaster_callsign: s.broadcaster_callsign || '',
+    broadcaster_name: s.broadcaster_name || '',
+    broadcast_label: s.broadcast_label || 'Broadcaster',
+  };
+}
+
+// Bold/italic — applied to text that is already HTML-escaped.
+function scriptInlineFormat(s) {
+  return s
+    .replace(/\*\*([^\n*]+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^\n*]+?)\*/g, '<em>$1</em>');
+}
+
+const SCRIPT_HEADING_STYLES = [
+  'font-size:16px;color:var(--lc-orange);font-weight:700;margin:10px 0 4px;letter-spacing:.03em',
+  'font-size:14px;color:var(--lc-orange);font-weight:700;margin:8px 0 4px;letter-spacing:.03em',
+  'font-size:13px;color:var(--lc-blue);font-weight:700;margin:6px 0 2px;letter-spacing:.03em',
+];
+
+// Headings / rules / bullet lists — line-based, applied to already-escaped text.
+function scriptBlockFormat(escapedText) {
+  const lines = escapedText.split('\n');
+  const out = [];
+  let inList = false;
+  const closeList = () => { if (inList) { out.push('</ul>'); inList = false; } };
+
+  for (const line of lines) {
+    const heading = line.match(/^(#{1,3})\s+(.*)$/);
+    const bullet = line.match(/^[-*]\s+(.*)$/);
+    const rule = /^(-{3,}|={3,})\s*$/.test(line);
+
+    if (bullet) {
+      if (!inList) { out.push('<ul style="margin:4px 0 4px 20px;padding:0">'); inList = true; }
+      out.push(`<li style="margin:2px 0">${scriptInlineFormat(bullet[1])}</li>`);
+      continue;
+    }
+    closeList();
+
+    if (heading) {
+      out.push(`<div style="${SCRIPT_HEADING_STYLES[heading[1].length - 1]}">${scriptInlineFormat(heading[2])}</div>`);
+    } else if (rule) {
+      out.push('<hr style="border:none;border-top:1px solid var(--lc-blue);margin:8px 0;opacity:.5">');
+    } else {
+      out.push(scriptInlineFormat(line));
+    }
+  }
+  closeList();
+  return out.join('\n');
+}
+
+function renderNetScript(session) {
+  const panel = document.getElementById('net-script-panel');
+  if (!currentNetScript) { panel.style.display = 'none'; return; }
+
+  const vars = scriptVarsForSession(session);
+  let text = escapeHtml(currentNetScript);
+  // Substitute after escaping so {{...}} values (callsign/name) can't inject markup.
+  text = text.replace(/\{\{\s*(\w+)\s*\}\}/g, (match, key) => (key in vars ? escapeHtml(vars[key]) : match));
+
+  document.getElementById('net-script-text').innerHTML = scriptBlockFormat(text);
+  document.getElementById('net-script-body').style.display = '';
+  document.getElementById('net-script-toggle-icon').textContent = '▼';
+  panel.style.display = '';
 }
 
 function renderDutyBar(s) {
@@ -177,6 +262,7 @@ async function loadSessionLive(sessionId) {
     document.getElementById('end-session-btn').style.display = ended ? 'none' : '';
     document.getElementById('checkin-form-area').style.display = ended ? 'none' : '';
     renderDutyBar(s);
+    renderNetScript(s);
     if (!ended) startClock(s.started_at); else stopClock();
     trafficMessages = [];
     renderTrafficMessages();

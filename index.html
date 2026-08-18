@@ -219,6 +219,16 @@
           <div class="form-group">
             <label>Net Script <span class="text-muted" style="font-size:11px">(shown alongside the check-in screen)</span></label>
             <textarea class="form-control mono" id="net-script" rows="6" placeholder="Optional — paste your net control script here"></textarea>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">
+              Markup: <code style="background:var(--surface);padding:1px 4px;border-radius:3px">**bold**</code>
+              <code style="background:var(--surface);padding:1px 4px;border-radius:3px">*italic*</code>
+              <code style="background:var(--surface);padding:1px 4px;border-radius:3px"># heading</code>
+              <code style="background:var(--surface);padding:1px 4px;border-radius:3px">- list</code>
+              <code style="background:var(--surface);padding:1px 4px;border-radius:3px">---</code> rule.
+              Variables: <code style="background:var(--surface);padding:1px 4px;border-radius:3px">{{net_control}}</code>
+              <code style="background:var(--surface);padding:1px 4px;border-radius:3px">{{broadcaster}}</code>
+              (also <code style="background:var(--surface);padding:1px 4px;border-radius:3px">_callsign</code>/<code style="background:var(--surface);padding:1px 4px;border-radius:3px">_name</code> variants) — see Help for the full list.
+            </div>
           </div>
           <div id="net-ares-section" style="margin-bottom:14px">
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:700">
@@ -389,7 +399,7 @@
                   <span id="net-script-toggle-icon">▼</span>
                 </button>
                 <div id="net-script-body" style="border-top:1px solid var(--lc-blue);padding:12px;max-height:320px;overflow-y:auto">
-                  <pre id="net-script-text" class="mono" style="white-space:pre-wrap;font-size:13px;margin:0"></pre>
+                  <div id="net-script-text" style="white-space:pre-wrap;font-size:13px;line-height:1.5;margin:0"></div>
                 </div>
               </div>
             </div>
@@ -720,20 +730,20 @@
   </main>
 </div><!-- /app -->
 
-  <script src="/static/js/state.js?v=7"></script>
-  <script src="/static/js/utils.js?v=7"></script>
-  <script src="/static/js/auth.js?v=7"></script>
-  <script src="/static/js/views.js?v=7"></script>
-  <script src="/static/js/branding.js?v=7"></script>
-  <script src="/static/js/report.js?v=7"></script>
-  <script src="/static/js/nets.js?v=7"></script>
-  <script src="/static/js/sessions.js?v=7"></script>
-  <script src="/static/js/checkins.js?v=7"></script>
-  <script src="/static/js/history.js?v=7"></script>
-  <script src="/static/js/admin.js?v=7"></script>
-  <script src="/static/js/schedules.js?v=7"></script>
-  <script src="/static/js/tokens.js?v=7"></script>
-  <script src="/static/js/dmr.js?v=7"></script>
-  <script src="/static/js/app.js?v=7"></script>
+  <script src="/static/js/state.js?v=8"></script>
+  <script src="/static/js/utils.js?v=8"></script>
+  <script src="/static/js/auth.js?v=8"></script>
+  <script src="/static/js/views.js?v=8"></script>
+  <script src="/static/js/branding.js?v=8"></script>
+  <script src="/static/js/report.js?v=8"></script>
+  <script src="/static/js/nets.js?v=8"></script>
+  <script src="/static/js/sessions.js?v=8"></script>
+  <script src="/static/js/checkins.js?v=8"></script>
+  <script src="/static/js/history.js?v=8"></script>
+  <script src="/static/js/admin.js?v=8"></script>
+  <script src="/static/js/schedules.js?v=8"></script>
+  <script src="/static/js/tokens.js?v=8"></script>
+  <script src="/static/js/dmr.js?v=8"></script>
+  <script src="/static/js/app.js?v=8"></script>
 </body>
 </html>

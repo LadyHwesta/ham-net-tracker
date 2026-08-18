@@ -19,13 +19,14 @@ A public demo is available at **[nettrackerdemo.meskis.net](https://nettrackerde
 ## Features
 
 - **Net & session management** — create nets, start/end sessions, log check-ins with signal reports
+- **Focused live session view** — sidebar auto-collapses and session navigation hides while a session is live to cut clutter, restoring automatically once it ends
 - **Callsign lookup** — FCC database lookup with local history suffix search
 - **Traffic management** — flag stations with traffic, interactive "called" tracking, formal traffic message log
 - **ARES/ACES mode** — evacuation zone tracking per station, zone roster panel
 - **Expected stations** — pre-built check-in list from historical attendees with pre-flag support
 - **Station remarks** — persistent per-net notes on any callsign
 - **Session summary & ICS-205** — automatic summary card on session end, printable net log export
-- **Net control script** — attach a plain-text script to a net, shown in a collapsible panel alongside the check-in screen so you don't need a second window open
+- **Net control script** — attach a script to a net with basic formatting and live `{{variable}}` substitution (Net Control / Broadcaster callsign and name), pinned to the top of the live check-in screen so you don't need a second window open
 - **Session clock** — live local/UTC time and elapsed session timer
 - **Net sharing** — share nets with individual operators or all registered users
 - **Scheduling** — weekly recurring time slots with sign-ups for Net Control and, on nets with an additional broadcast (e.g. Amateur Radio Newsline), a separate Broadcaster role; confirmation emails include a `.ics` calendar attachment
@@ -178,29 +179,51 @@ A public, unauthenticated page showing all currently active nets is available at
 
 ## Net Control Script
 
-Net owners can attach a script to a net from its **Edit** form — a **Net Script** field below Description. It's shown in a collapsible **📜 NET SCRIPT** panel on the live check-in screen (open by default whenever a script is set), so you don't need a second window or a printed sheet next to the keyboard.
+Net owners can attach a script to a net from its **Edit** form — a **Net Script** field below Description. It's shown in a collapsible **📜 NET SCRIPT** panel pinned to the top of the live check-in screen (open by default whenever a script is set), so you don't need a second window or a printed sheet next to the keyboard.
 
-The field is plain text: line breaks and spacing are preserved exactly as typed, but it is not Markdown or HTML — `**bold**` or `# heading` will show up as literal characters, not formatting. Write it in any external editor and paste it in; use blank lines, indentation, and simple headers (`===`, `---`, ALL CAPS) to add visual structure. For example:
+### Markup
+
+A small, deliberately limited set of formatting is supported — write it in any external editor and paste it in:
+
+| Syntax | Result |
+|--------|--------|
+| `**bold**` | **bold** |
+| `*italic*` | *italic* |
+| `# Heading`, `## Heading`, `### Heading` | three heading sizes |
+| `- item` or `* item` | bullet list |
+| `---` or `===` (alone on a line) | horizontal rule |
+
+Anything else — blank lines, indentation, plain text — renders exactly as typed. This is not full Markdown or HTML; unrecognized syntax (including literal `<` / `>`) is shown as plain text rather than interpreted, so a script can never inject markup or scripts of its own.
+
+### Variables
+
+`{{variable}}` placeholders are substituted with live session info when the script is displayed:
+
+| Variable | Value |
+|----------|-------|
+| `{{net_name}}` | The net's name |
+| `{{net_control}}` | Net Control callsign — name |
+| `{{net_control_callsign}}` / `{{net_control_name}}` | Just the callsign / just the name |
+| `{{broadcaster}}` | Broadcaster callsign — name (only meaningful on nets with [Additional Broadcast](#broadcaster-role-additional-broadcast) enabled) |
+| `{{broadcaster_callsign}}` / `{{broadcaster_name}}` | Just the callsign / just the name |
+| `{{broadcast_label}}` | The net's custom broadcast name (e.g. "Amateur Radio Newsline") |
+
+Net Control falls back to whoever actually started the session if no one signed up on the Schedule tab for that date; Broadcaster is only filled from a Schedule sign-up (there's no session-operator fallback, since a session has one operator but two possible roles). An unrecognized `{{...}}` is left as-is rather than silently dropped, so a typo is easy to spot. For example:
 
 ```
-=== MONDAY NIGHT NET SCRIPT ===
+# Monday Night Net Script
 
-1. OPENING
-   "Good evening, this is [callsign], net control for the Monday
-   Night Net on the [repeater name] repeater."
+Good evening, this is **{{net_control}}**, your net control operator
+for the {{net_name}}.
 
-2. PURPOSE
-   "This net meets every Monday at 7:30 PM local time to handle
-   routine and emergency traffic for [club/group name]."
+Coming up: tonight's {{broadcast_label}} segment, read by {{broadcaster}}.
 
-3. CHECK-INS
-   "If you would like to check in, please call now with your callsign."
+- If you would like to check in, please call now with your callsign.
+- Traffic? Let us know when you check in.
 
-4. TRAFFIC
-   "Does anyone have traffic for the net?"
+---
 
-5. CLOSING
-   "Thank you all for checking in. This net is now closed."
+Thank you all for checking in. This net is now closed.
 ```
 
 Leave the field blank to hide the panel entirely.

@@ -45,6 +45,24 @@
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
 
           <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-18 — Net Script Markup &amp; Variables</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>The Net Script field now supports basic formatting — <strong>**bold**</strong>, <em>*italic*</em>, headings, bullet lists, and horizontal rules. See Help → Net Control Script for the full syntax.</li>
+              <li><strong>{{variable}}</strong> placeholders — <code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{net_control}}</code>, <code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{broadcaster}}</code>, and related callsign/name variants — are filled in with the live session's Net Control and Broadcaster whenever the script is shown.</li>
+              <li>No database changes — this is a display-only change, safe to deploy without a migration.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-18 — Live Session Decluttering</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>The sidebar now auto-collapses when a live session is started or opened, and restores automatically when you view an ended one.</li>
+              <li>The Sessions/Schedule tabs and the Sessions toolbar (Start New Session, Export All CSV, History) are hidden while a session is live, and reappear once it ends — still available when reviewing a closed session.</li>
+              <li>Session info and the Net Script panel are now pinned to the top of the live session card, so they stay visible while scrolling through check-ins or the Expected Stations panel.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-18 — Broadcaster Role &amp; Scheduling</div>
             <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
               <li><strong>Additional Broadcast</strong> — a net can now carry a second segment alongside Net Control (e.g. Amateur Radio Newsline). Enable it and name it in the net's Edit form.</li>
@@ -212,26 +230,39 @@
 
         <div class="card" style="margin-bottom:16px">
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">NET CONTROL SCRIPT</h3>
-          <p style="margin:0 0 8px">Net owners can attach a script to a net from its <strong>Edit</strong> form — the <strong>Net Script</strong> field below Description. When set, a collapsible <strong>📜 NET SCRIPT</strong> panel appears near the top of the live check-in screen, open by default, so you can read from it without a second window or a printed sheet.</p>
-          <p style="margin:0 0 8px">The field is <strong>plain text</strong>, not Markdown or HTML — line breaks and spacing are preserved exactly as typed, but formatting syntax like <code style="background:var(--surface);padding:1px 5px;border-radius:3px">**bold**</code> or <code style="background:var(--surface);padding:1px 5px;border-radius:3px"># heading</code> will show up as literal characters. Write your script in any external editor and paste it straight in — use blank lines, indentation, and simple headers (<code style="background:var(--surface);padding:1px 5px;border-radius:3px">===</code>, <code style="background:var(--surface);padding:1px 5px;border-radius:3px">---</code>, ALL CAPS) to add visual structure. For example:</p>
-          <pre style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:12px;overflow-x:auto;margin:0 0 8px">=== MONDAY NIGHT NET SCRIPT ===
+          <p style="margin:0 0 8px">Net owners can attach a script to a net from its <strong>Edit</strong> form — the <strong>Net Script</strong> field below Description. When set, a collapsible <strong>📜 NET SCRIPT</strong> panel is pinned to the top of the live check-in screen, open by default, so you can read from it without a second window or a printed sheet — even while scrolling through check-ins.</p>
+          <p style="margin:0 0 6px;font-weight:700;color:var(--text-muted);font-size:12px">MARKUP</p>
+          <p style="margin:0 0 8px">A small, deliberately limited set of formatting is supported:
+            <code style="background:var(--surface);padding:1px 5px;border-radius:3px">**bold**</code>,
+            <code style="background:var(--surface);padding:1px 5px;border-radius:3px">*italic*</code>,
+            <code style="background:var(--surface);padding:1px 5px;border-radius:3px"># / ## / ### heading</code>,
+            <code style="background:var(--surface);padding:1px 5px;border-radius:3px">- item</code> bullet lists, and
+            <code style="background:var(--surface);padding:1px 5px;border-radius:3px">---</code> / <code style="background:var(--surface);padding:1px 5px;border-radius:3px">===</code> as a horizontal rule (alone on its own line). Everything else — blank lines, indentation, plain text — renders exactly as typed; this is not full Markdown or HTML, so unrecognized syntax (including literal <code style="background:var(--surface);padding:1px 5px;border-radius:3px">&lt;</code>/<code style="background:var(--surface);padding:1px 5px;border-radius:3px">&gt;</code>) always shows as plain text rather than being interpreted.
+          </p>
+          <p style="margin:0 0 6px;font-weight:700;color:var(--text-muted);font-size:12px">VARIABLES</p>
+          <p style="margin:0 0 8px"><code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{variable}}</code> placeholders are filled in with live session info wherever the script is shown:</p>
+          <table style="width:100%;border-collapse:collapse;font-size:12px;margin:0 0 8px">
+            <tr><td style="padding:3px 8px 3px 0;white-space:nowrap"><code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{net_name}}</code></td><td style="padding:3px 0;color:var(--text-muted)">The net's name</td></tr>
+            <tr><td style="padding:3px 8px 3px 0;white-space:nowrap"><code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{net_control}}</code></td><td style="padding:3px 0;color:var(--text-muted)">Net Control callsign — name</td></tr>
+            <tr><td style="padding:3px 8px 3px 0;white-space:nowrap"><code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{net_control_callsign}}</code> / <code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{net_control_name}}</code></td><td style="padding:3px 0;color:var(--text-muted)">Just the callsign / just the name</td></tr>
+            <tr><td style="padding:3px 8px 3px 0;white-space:nowrap"><code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{broadcaster}}</code></td><td style="padding:3px 0;color:var(--text-muted)">Broadcaster callsign — name (Additional Broadcast nets only)</td></tr>
+            <tr><td style="padding:3px 8px 3px 0;white-space:nowrap"><code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{broadcaster_callsign}}</code> / <code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{broadcaster_name}}</code></td><td style="padding:3px 0;color:var(--text-muted)">Just the callsign / just the name</td></tr>
+            <tr><td style="padding:3px 8px 3px 0;white-space:nowrap"><code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{broadcast_label}}</code></td><td style="padding:3px 0;color:var(--text-muted)">The net's custom broadcast name (e.g. "Amateur Radio Newsline")</td></tr>
+          </table>
+          <p style="margin:0 0 8px">Net Control falls back to whoever started the session if no one signed up on the Schedule tab for that date; Broadcaster only fills in from a Schedule sign-up. An unrecognized <code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{...}}</code> is left as-is rather than silently dropped, so a typo is easy to spot. For example:</p>
+          <pre style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:12px;overflow-x:auto;margin:0 0 8px"># Monday Night Net Script
 
-1. OPENING
-   "Good evening, this is [callsign], net control for the Monday
-   Night Net on the [repeater name] repeater."
+Good evening, this is **{{net_control}}**, your net control operator
+for the {{net_name}}.
 
-2. PURPOSE
-   "This net meets every Monday at 7:30 PM local time to handle
-   routine and emergency traffic for [club/group name]."
+Coming up: tonight's {{broadcast_label}} segment, read by {{broadcaster}}.
 
-3. CHECK-INS
-   "If you would like to check in, please call now with your callsign."
+- If you would like to check in, please call now with your callsign.
+- Traffic? Let us know when you check in.
 
-4. TRAFFIC
-   "Does anyone have traffic for the net?"
+---
 
-5. CLOSING
-   "Thank you all for checking in. This net is now closed."</pre>
+Thank you all for checking in. This net is now closed.</pre>
           <p style="margin:0">Leave the field blank to hide the panel entirely. Click the panel header any time to collapse or reopen it during a session.</p>
         </div>
 
