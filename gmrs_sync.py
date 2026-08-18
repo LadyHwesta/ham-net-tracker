@@ -45,10 +45,26 @@ from datetime import datetime, timezone
 # FCC ULS download URL for GMRS (service code ZA) — weekly full database
 # If the FCC ever changes this URL update it here.
 # ---------------------------------------------------------------------------
+# Primary URL — FCC ULS weekly full download for GMRS (service code ZA).
+# Try these in order if the primary returns 403/404:
+#   https://wireless2.fcc.gov/UlsApp/UlsApi/downloadUlsFile.jsp?filing_key=-1&key=ZA
+#   https://www.fcc.gov/uls/transactions/l_gmrs.zip
 GMRS_ULS_URL = (
     "https://wireless2.fcc.gov/UlsApp/UlsApi/downloadUlsFile.jsp"
     "?filing_key=-1&key=ZA"
 )
+
+# Headers that mimic a browser — the FCC blocks plain requests/curl User-Agents.
+_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/zip,application/octet-stream,*/*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://www.fcc.gov/wireless/data/public-access-files-database-downloads",
+}
 
 # ---------------------------------------------------------------------------
 # Bootstrap dependencies
@@ -88,13 +104,29 @@ def _log(msg: str):
 
 def download_gmrs_zip() -> bytes:
     """Download the FCC GMRS weekly full database zip and return raw bytes."""
-    _log(f"Downloading GMRS database from FCC ULS …")
-    _log(f"  URL: {GMRS_ULS_URL}")
-    r = requests.get(GMRS_ULS_URL, timeout=120, stream=True)
-    r.raise_for_status()
-    data = b"".join(r.iter_content(chunk_size=1 << 20))
-    _log(f"  Downloaded {len(data):,} bytes")
-    return data
+    urls_to_try = [
+        GMRS_ULS_URL,
+        "https://www.fcc.gov/uls/transactions/l_gmrs.zip",
+    ]
+    # Deduplicate while preserving order
+    seen: set = set()
+    candidates = [u for u in urls_to_try if not (u in seen or seen.add(u))]
+
+    last_exc: Exception = RuntimeError("No URLs to try")
+    for url in candidates:
+        _log(f"Downloading GMRS database …")
+        _log(f"  URL: {url}")
+        try:
+            r = requests.get(url, headers=_HEADERS, timeout=120, stream=True)
+            r.raise_for_status()
+            data = b"".join(r.iter_content(chunk_size=1 << 20))
+            _log(f"  Downloaded {len(data):,} bytes")
+            return data
+        except Exception as exc:
+            _log(f"  Failed ({exc}) — trying next URL …")
+            last_exc = exc
+
+    raise last_exc
 
 
 def parse_gmrs_zip(zip_bytes: bytes) -> dict:
