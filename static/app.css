@@ -238,9 +238,75 @@
     #auth-page {
       display: flex; align-items: center; justify-content: center;
       min-height: 100vh; background: var(--bg);
+      padding: 32px 20px;
     }
+    #auth-layout {
+      display: flex; gap: 40px; align-items: flex-start;
+      max-width: 820px; width: 100%;
+    }
+
+    /* ===== WELCOME PANEL ===== */
+    #auth-welcome {
+      flex: 1; min-width: 260px;
+      padding-top: 8px;
+    }
+    .auth-welcome-logo {
+      font-size: 52px; line-height: 1; margin-bottom: 10px;
+    }
+    .auth-welcome-title {
+      font-size: 28px; font-weight: 900; letter-spacing: 3px;
+      text-transform: uppercase; color: var(--lc-orange);
+      margin-bottom: 2px;
+    }
+    .auth-welcome-sub {
+      font-size: 10px; font-weight: 700; letter-spacing: 2px;
+      text-transform: uppercase; color: var(--lc-blue);
+      margin-bottom: 18px;
+    }
+    .auth-welcome-desc {
+      font-size: 13px; color: rgba(255,255,255,.65); line-height: 1.7;
+      margin-bottom: 24px;
+    }
+    .auth-welcome-links {
+      display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 28px;
+    }
+    .auth-ext-btn {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 8px 16px;
+      background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14);
+      color: var(--text); font-size: 11px; font-weight: 700;
+      text-decoration: none; text-transform: uppercase; letter-spacing: 1px;
+      border-radius: 20px; transition: background .15s, border-color .15s;
+    }
+    .auth-ext-btn:hover { background: rgba(255,153,0,.15); border-color: var(--lc-orange); color: var(--lc-orange); }
+
+    /* Donate box */
+    .auth-donate-box {
+      border-top: 1px solid rgba(255,255,255,.1);
+      padding-top: 20px;
+    }
+    .auth-donate-heading {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 2px; color: var(--lc-gold); margin-bottom: 8px;
+    }
+    .auth-donate-desc {
+      font-size: 12px; color: rgba(255,255,255,.5); line-height: 1.6;
+      margin-bottom: 14px;
+    }
+    .auth-donate-btns { display: flex; flex-wrap: wrap; gap: 10px; }
+    .donate-btn {
+      display: inline-block; padding: 8px 18px;
+      font-size: 11px; font-weight: 700; text-decoration: none;
+      border-radius: 20px; text-transform: uppercase; letter-spacing: 1px;
+      transition: opacity .15s;
+    }
+    .donate-btn:hover { opacity: .85; }
+    .donate-venmo  { background: #3D95CE; color: #fff; }
+    .donate-paypal { background: #003087; color: #fff; border: 1px solid #0070BA; }
+
+    /* ===== AUTH FORM BOX ===== */
     #auth-box {
-      width: 380px;
+      width: 360px; flex-shrink: 0;
       background: var(--surface); border: none;
       border-top: 5px solid var(--lc-orange);
       border-left: 4px solid var(--lc-orange);
@@ -380,6 +446,15 @@
     }
     #sidebar-overlay.show { display: block; }
 
+    @media (max-width: 700px) {
+      /* Auth page stacks on mobile */
+      #auth-layout { flex-direction: column; align-items: stretch; gap: 28px; padding: 24px 0; }
+      #auth-box { width: 100%; }
+      #auth-welcome { order: 2; padding-top: 0; border-top: 1px solid rgba(255,255,255,.08); padding-top: 24px; }
+      .auth-welcome-logo { font-size: 36px; }
+      .auth-welcome-title { font-size: 22px; }
+    }
+
     @media (max-width: 768px) {
       /* Sidebar becomes a slide-in drawer */
       #sidebar {
@@ -436,8 +511,7 @@
       /* Toast full-width at bottom */
       #toast { left: 12px; right: 12px; bottom: 12px; max-width: none; }
 
-      /* Auth box */
-      #auth-box { width: calc(100vw - 32px); }
+      /* Auth box (already 100% width from ≤700px rule) */
 
       /* Section titles slightly smaller */
       .section-title { font-size: 15px; }

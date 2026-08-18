@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230a0a1a'/%3E%3C!-- Tower base --%3E%3Crect x='15' y='20' width='2' height='8' fill='%23ff9900'/%3E%3Crect x='11' y='27' width='10' height='2' rx='1' fill='%23ff9900'/%3E%3C!-- Tower mast --%3E%3Crect x='15.5' y='6' width='1' height='14' fill='%23ff9900'/%3E%3C!-- Signal arcs --%3E%3Cpath d='M10 14 A8 8 0 0 1 22 14' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M7 18 A11 11 0 0 1 25 18' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round' opacity='0.6'/%3E%3Cpath d='M4 22 A14 14 0 0 1 28 22' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round' opacity='0.3'/%3E%3C!-- Tip dot --%3E%3Ccircle cx='16' cy='6' r='1.5' fill='%23ff9900'/%3E%3C/svg%3E" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/app.css?v=6">
+  <link rel="stylesheet" href="/static/app.css?v=7">
 </head>
 <body>
 
@@ -15,57 +15,99 @@
 
 <!-- AUTH PAGE -->
 <div id="auth-page">
-  <div id="auth-box">
-    <div class="auth-lcars-bar"><span>📻</span> Ham Radio Net Tracker</div>
-    <h1>📻 Net Tracker</h1>
-    <p class="subtitle">Amateur Radio Net Check-in Logger</p>
-    <div id="auth-tabs">
-      <div class="auth-tab active" onclick="switchAuthTab('login')">Login</div>
-      <div class="auth-tab" onclick="switchAuthTab('register')">Register</div>
-    </div>
-    <div id="auth-error"></div>
+  <div id="auth-layout">
 
-    <!-- Login -->
-    <div id="tab-login">
-      <div class="form-group">
-        <label>Callsign or Email</label>
-        <input class="form-control" id="login-user" placeholder="W1AW" autocomplete="username" />
-      </div>
-      <div class="form-group">
-        <label>Password</label>
-        <input class="form-control" id="login-pass" type="password" autocomplete="current-password" />
-      </div>
-      <button class="btn btn-primary" style="width:100%" onclick="doLogin()">Sign In</button>
-      <p style="margin:14px 0 0;font-size:12px;color:var(--text-muted);text-align:center">
-        New here? Check the <strong>Help → Changelog</strong> after logging in to see what's new.
+    <!-- Left: Welcome panel -->
+    <div id="auth-welcome">
+      <div class="auth-welcome-logo">📻</div>
+      <h1 class="auth-welcome-title">Net Tracker</h1>
+      <p class="auth-welcome-sub">Amateur &amp; GMRS Net Logging</p>
+      <p class="auth-welcome-desc">
+        A free, open-source net check-in logger built for net control operators.
+        Track check-ins, look up callsigns in real time, log traffic, and export
+        session records — all from your browser.
       </p>
+
+      <div class="auth-welcome-links">
+        <a href="https://netcontrol.meskis.net/live" target="_blank" class="auth-ext-btn">
+          <span>📡</span> Live Net Status
+        </a>
+        <a href="https://github.com/LadyHwesta/ham-net-tracker" target="_blank" class="auth-ext-btn">
+          <span>💻</span> GitHub
+        </a>
+      </div>
+
+      <div class="auth-donate-box">
+        <div class="auth-donate-heading">☕ Support Hosting</div>
+        <p class="auth-donate-desc">
+          This app is free to use. If it's been helpful to you,
+          a small contribution helps keep the server running.
+        </p>
+        <div class="auth-donate-btns">
+          <a href="https://venmo.com/TiesaMM" target="_blank" class="donate-btn donate-venmo">
+            Venmo @TiesaMM
+          </a>
+          <a href="https://www.paypal.com/ncp/payment/RJ645T8FJA8KU" target="_blank" class="donate-btn donate-paypal">
+            PayPal
+          </a>
+        </div>
+      </div>
     </div>
 
-    <!-- Register -->
-    <div id="tab-register" style="display:none">
-      <div style="background:rgba(0,153,255,0.1);border:1px solid rgba(0,153,255,0.35);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--lc-blue);line-height:1.5">
-        ℹ️ New accounts require admin approval before you can log in. After registering, keep an eye on your email — you will receive a notification once your account has been reviewed.
+    <!-- Right: Login / Register form -->
+    <div id="auth-box">
+      <div class="auth-lcars-bar"><span>📻</span> Ham Radio Net Tracker</div>
+      <h1>📻 Net Tracker</h1>
+      <p class="subtitle">Amateur Radio Net Check-in Logger</p>
+      <div id="auth-tabs">
+        <div class="auth-tab active" onclick="switchAuthTab('login')">Login</div>
+        <div class="auth-tab" onclick="switchAuthTab('register')">Register</div>
       </div>
-      <div class="form-row">
+      <div id="auth-error"></div>
+
+      <!-- Login -->
+      <div id="tab-login">
         <div class="form-group">
-          <label>Callsign</label>
-          <input class="form-control" id="reg-call" placeholder="W1AW" />
+          <label>Callsign or Email</label>
+          <input class="form-control" id="login-user" placeholder="W1AW" autocomplete="username" />
         </div>
         <div class="form-group">
-          <label>Name</label>
-          <input class="form-control" id="reg-name" placeholder="Your name" />
+          <label>Password</label>
+          <input class="form-control" id="login-pass" type="password" autocomplete="current-password" />
         </div>
+        <button class="btn btn-primary" style="width:100%" onclick="doLogin()">Sign In</button>
+        <p style="margin:14px 0 0;font-size:12px;color:var(--text-muted);text-align:center">
+          New here? Check <strong>Help → Changelog</strong> after logging in to see what's new.
+        </p>
       </div>
-      <div class="form-group">
-        <label>Email</label>
-        <input class="form-control" id="reg-email" type="email" placeholder="you@example.com" />
+
+      <!-- Register -->
+      <div id="tab-register" style="display:none">
+        <div style="background:rgba(0,153,255,0.1);border:1px solid rgba(0,153,255,0.35);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--lc-blue);line-height:1.5">
+          ℹ️ New accounts require admin approval before you can log in. After registering, keep an eye on your email — you will receive a notification once your account has been reviewed.
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Callsign</label>
+            <input class="form-control" id="reg-call" placeholder="W1AW" />
+          </div>
+          <div class="form-group">
+            <label>Name</label>
+            <input class="form-control" id="reg-name" placeholder="Your name" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input class="form-control" id="reg-email" type="email" placeholder="you@example.com" />
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input class="form-control" id="reg-pass" type="password" />
+        </div>
+        <button class="btn btn-primary" style="width:100%" onclick="doRegister()">Create Account</button>
       </div>
-      <div class="form-group">
-        <label>Password</label>
-        <input class="form-control" id="reg-pass" type="password" />
-      </div>
-      <button class="btn btn-primary" style="width:100%" onclick="doRegister()">Create Account</button>
     </div>
+
   </div>
 </div>
 

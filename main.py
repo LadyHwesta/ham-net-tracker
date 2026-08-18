@@ -1320,7 +1320,7 @@ class RejectUserBody(BaseModel):
     message: Optional[str] = None   # optional custom note to include in the rejection email
 
 
-GITHUB_URL = os.getenv("GITHUB_URL", "https://github.com/kf7mxe/ham-net-tracker")
+GITHUB_URL = os.getenv("GITHUB_URL", "https://github.com/LadyHwesta/ham-net-tracker")
 
 
 @app.post("/admin/users/{user_id}/reject", status_code=204)
