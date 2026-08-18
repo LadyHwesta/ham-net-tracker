@@ -23,6 +23,10 @@ async function openNet(netId) {
   // Hide DMR panel entirely for GMRS nets
   document.getElementById('dmr-heard-panel').style.display = currentNetIsGmrs ? 'none' : '';
 
+  // Update callsign input placeholder to match net type
+  const ciCall = document.getElementById('ci-call');
+  if (ciCall) ciCall.placeholder = currentNetIsGmrs ? 'WSMC512' : 'W1AW or suffix';
+
   // Load evac zones for this net
   evacZones = {};
   if (currentNetIsAres) {

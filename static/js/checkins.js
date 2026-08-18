@@ -19,7 +19,10 @@ async function lookupCallsign(callsign) {
 
 function applyLookupResult(result) {
   if (result.status !== 'found') {
-    setLookupInfo('<span class="lookup-notfound">Not found in FCC database</span>');
+    const notFoundMsg = currentNetIsGmrs
+      ? 'Not found in GMRS database'
+      : 'Not found in FCC database';
+    setLookupInfo(`<span class="lookup-notfound">${notFoundMsg}</span>`);
     // Still show remark if one exists for this callsign
     const cs = document.getElementById('ci-call').value.trim().toUpperCase();
     if (cs) loadStationRemarks(cs).then(remark => {
@@ -118,7 +121,7 @@ async function addCheckin() {
 // US amateur pattern: 1-2 prefix letters + digit + 1-3 suffix letters  (e.g. W1AW, KD9XYZ)
 const HAM_CS_RE  = /^[A-Z]{1,2}[0-9][A-Z]{1,3}$/;
 // GMRS pattern: letter + 2-3 letters + 4 digits  (e.g. WQXH7777, KAB1234)
-const GMRS_CS_RE = /^[A-Z][A-Z]{2,3}\d{4}$/;
+const GMRS_CS_RE = /^[A-Z]{3,4}\d{3,4}$/;
 
 function isLikelyFullCallsign(val) {
   if (val.length < 4) return false;
