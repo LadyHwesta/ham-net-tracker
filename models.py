@@ -47,6 +47,7 @@ class Net(Base):
     net_type = Column(String(10), nullable=False, default='ham')  # 'ham' | 'gmrs'
     is_ares = Column(Boolean, default=False, nullable=False)  # ARES/ACES net — enables evac zone tracking (ham only)
     dmr_talkgroup = Column(String(20), nullable=True)  # Default DMR talk group for check-ins (ham only)
+    script = Column(Text, nullable=True)  # Net control script, shown alongside the check-in screen
     owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 

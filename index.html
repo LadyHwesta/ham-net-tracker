@@ -216,6 +216,10 @@
             <label>Description</label>
             <textarea class="form-control" id="net-desc" rows="2" placeholder="Optional notes"></textarea>
           </div>
+          <div class="form-group">
+            <label>Net Script <span class="text-muted" style="font-size:11px">(shown alongside the check-in screen)</span></label>
+            <textarea class="form-control mono" id="net-script" rows="6" placeholder="Optional — paste your net control script here"></textarea>
+          </div>
           <div id="net-ares-section" style="margin-bottom:14px">
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:700">
               <input type="checkbox" id="net-ares" style="accent-color:var(--lc-orange);width:16px;height:16px" />
@@ -356,6 +360,17 @@
             <!-- Traffic banner (shown when any station has traffic) -->
             <div id="traffic-banner" style="display:none;background:var(--lc-red);color:#000;border-radius:8px;padding:8px 14px;margin-bottom:12px;font-size:13px;font-weight:700">
               <span>📢 TRAFFIC: </span><span id="traffic-callsigns" style="display:inline-flex;flex-wrap:wrap;gap:8px;align-items:center;vertical-align:middle"></span>
+            </div>
+
+            <!-- Net script panel (shown when the net has a script attached) -->
+            <div id="net-script-panel" style="display:none;margin-bottom:12px;border:1px solid var(--lc-blue);border-radius:8px;overflow:hidden">
+              <button onclick="toggleNetScriptPanel()" style="width:100%;background:rgba(0,153,255,0.12);border:none;color:var(--lc-blue);padding:10px 14px;text-align:left;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700;letter-spacing:.05em;display:flex;align-items:center;justify-content:space-between">
+                <span>📜 NET SCRIPT</span>
+                <span id="net-script-toggle-icon">▼</span>
+              </button>
+              <div id="net-script-body" style="border-top:1px solid var(--lc-blue);padding:12px;max-height:320px;overflow-y:auto">
+                <pre id="net-script-text" class="mono" style="white-space:pre-wrap;font-size:13px;margin:0"></pre>
+              </div>
             </div>
 
             <!-- Quick checkin form -->

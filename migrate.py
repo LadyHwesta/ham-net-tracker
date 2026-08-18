@@ -201,6 +201,9 @@ MIGRATIONS = [
 
     ("gmrs_licenses: widen state column to VARCHAR(50)",
      "ALTER TABLE gmrs_licenses ALTER COLUMN state TYPE VARCHAR(50)"),
+
+    ("nets: net control script",
+     "ALTER TABLE nets ADD COLUMN IF NOT EXISTS script TEXT"),
 ]
 
 # ---------------------------------------------------------------------------

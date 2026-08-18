@@ -366,6 +366,7 @@ class NetCreate(BaseModel):
     net_type: str = "ham"       # "ham" | "gmrs"
     is_ares: bool = False       # ham only; ignored (forced False) for GMRS nets
     dmr_talkgroup: Optional[str] = None   # ham only
+    script: Optional[str] = None   # net control script, shown alongside the check-in screen
 
 
 class NetOut(BaseModel):
@@ -376,6 +377,7 @@ class NetOut(BaseModel):
     net_type: str
     is_ares: bool
     dmr_talkgroup: Optional[str] = None
+    script: Optional[str] = None
     owner_id: int
     created_at: datetime
     # Sharing fields (populated by helper, not from ORM attributes directly)
@@ -1130,6 +1132,7 @@ def create_net(data: NetCreate, current_user: User = Depends(get_current_user), 
         net_type=net_type,
         is_ares=data.is_ares if net_type == "ham" else False,
         dmr_talkgroup=data.dmr_talkgroup or None if net_type == "ham" else None,
+        script=data.script,
         owner_id=current_user.id,
     )
     db.add(net)
@@ -1154,6 +1157,7 @@ def update_net(net_id: int, data: NetCreate, current_user: User = Depends(get_cu
     net.net_type = net_type
     net.is_ares = data.is_ares if net_type == "ham" else False
     net.dmr_talkgroup = data.dmr_talkgroup or None if net_type == "ham" else None
+    net.script = data.script
     db.commit()
     db.refresh(net)
     return _net_to_out(net, current_user, db)

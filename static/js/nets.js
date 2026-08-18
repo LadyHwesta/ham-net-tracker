@@ -63,6 +63,7 @@ function showNetForm() {
   document.getElementById('net-freq').value = '';
   document.getElementById('net-dmr-tg').value = '';
   document.getElementById('net-desc').value = '';
+  document.getElementById('net-script').value = '';
   document.getElementById('net-ares').checked = false;
   document.querySelector('input[name="net-type"][value="ham"]').checked = true;
   document.getElementById('net-sharing-section').style.display = 'none';
@@ -100,6 +101,7 @@ async function editNet(id) {
   document.getElementById('net-freq').value = n.frequency || '';
   document.getElementById('net-dmr-tg').value = n.dmr_talkgroup || '';
   document.getElementById('net-desc').value = n.description || '';
+  document.getElementById('net-script').value = n.script || '';
   document.getElementById('net-ares').checked = !!n.is_ares;
   const netType = n.net_type || 'ham';
   const typeRadio = document.querySelector(`input[name="net-type"][value="${netType}"]`);
@@ -121,6 +123,7 @@ async function saveNet() {
   const name = document.getElementById('net-name').value.trim();
   const frequency = document.getElementById('net-freq').value.trim() || null;
   const description = document.getElementById('net-desc').value.trim() || null;
+  const script = document.getElementById('net-script').value.trim() || null;
   const net_type = document.querySelector('input[name="net-type"]:checked')?.value || 'ham';
   const is_gmrs = net_type === 'gmrs';
   const is_ares = is_gmrs ? false : document.getElementById('net-ares').checked;
@@ -128,10 +131,10 @@ async function saveNet() {
   if (!name) return toast('Net name is required', 'error');
   try {
     if (editNetId) {
-      await apiFetch(`/nets/${editNetId}`, { method: 'PUT', body: JSON.stringify({ name, frequency, dmr_talkgroup, description, net_type, is_ares }) });
+      await apiFetch(`/nets/${editNetId}`, { method: 'PUT', body: JSON.stringify({ name, frequency, dmr_talkgroup, description, script, net_type, is_ares }) });
       toast('Net updated');
     } else {
-      await apiFetch('/nets', { method: 'POST', body: JSON.stringify({ name, frequency, dmr_talkgroup, description, net_type, is_ares }) });
+      await apiFetch('/nets', { method: 'POST', body: JSON.stringify({ name, frequency, dmr_talkgroup, description, script, net_type, is_ares }) });
       toast('Net created');
     }
     cancelNetForm();

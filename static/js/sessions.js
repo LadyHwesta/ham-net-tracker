@@ -23,6 +23,17 @@ async function openNet(netId) {
   // Hide DMR panel entirely for GMRS nets
   document.getElementById('dmr-heard-panel').style.display = currentNetIsGmrs ? 'none' : '';
 
+  // Show the net script panel (open by default) when this net has a script attached
+  const scriptPanel = document.getElementById('net-script-panel');
+  if (net && net.script && net.script.trim()) {
+    document.getElementById('net-script-text').textContent = net.script;
+    document.getElementById('net-script-body').style.display = '';
+    document.getElementById('net-script-toggle-icon').textContent = '▼';
+    scriptPanel.style.display = '';
+  } else {
+    scriptPanel.style.display = 'none';
+  }
+
   // Update callsign input placeholder to match net type
   const ciCall = document.getElementById('ci-call');
   if (ciCall) ciCall.placeholder = currentNetIsGmrs ? 'WSMC512' : 'W1AW or suffix';
@@ -42,6 +53,14 @@ async function openNet(netId) {
   showView('session');
   switchSubTab('sessions');
   await loadSessions();
+}
+
+function toggleNetScriptPanel() {
+  const body = document.getElementById('net-script-body');
+  const icon = document.getElementById('net-script-toggle-icon');
+  const open = body.style.display === 'none';
+  body.style.display = open ? '' : 'none';
+  icon.textContent = open ? '▼' : '▶';
 }
 
 async function loadSessions() {

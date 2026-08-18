@@ -24,6 +24,20 @@ class TestNetCRUD:
         assert data["frequency"] == "146.520 MHz"
         assert "id" in data
 
+    def test_create_net_with_script(self, client, admin_headers):
+        resp = client.post("/nets", json={
+            "name": "Scripted Net",
+            "is_ares": False,
+            "script": "1. Open with callsign\n2. Ask for check-ins",
+        }, headers=admin_headers)
+        assert resp.status_code == 201
+        assert resp.json()["script"] == "1. Open with callsign\n2. Ask for check-ins"
+
+    def test_create_net_without_script_defaults_to_none(self, client, admin_headers):
+        resp = client.post("/nets", json={"name": "Scriptless Net", "is_ares": False}, headers=admin_headers)
+        assert resp.status_code == 201
+        assert resp.json()["script"] is None
+
     def test_create_ares_net(self, client, admin_headers):
         resp = client.post("/nets", json={
             "name": "ARES Net",
@@ -67,6 +81,25 @@ class TestNetCRUD:
         assert data["name"] == "Updated Name"
         assert data["frequency"] == "147.000 MHz"
         assert data["is_ares"] is True
+
+    def test_update_net_script(self, client, admin_headers, net):
+        resp = client.put(f"/nets/{net['id']}", json={
+            "name": net["name"],
+            "is_ares": False,
+            "script": "Updated script text",
+        }, headers=admin_headers)
+        assert resp.status_code == 200
+        assert resp.json()["script"] == "Updated script text"
+
+    def test_update_net_can_clear_script(self, client, admin_headers, net):
+        client.put(f"/nets/{net['id']}", json={
+            "name": net["name"], "is_ares": False, "script": "Some text",
+        }, headers=admin_headers)
+        resp = client.put(f"/nets/{net['id']}", json={
+            "name": net["name"], "is_ares": False, "script": None,
+        }, headers=admin_headers)
+        assert resp.status_code == 200
+        assert resp.json()["script"] is None
 
     def test_delete_net(self, client, admin_headers, net):
         resp = client.delete(f"/nets/{net['id']}", headers=admin_headers)
