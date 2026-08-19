@@ -238,6 +238,10 @@ MIGRATIONS = [
 
     ("net_control_signups: reminder sent timestamp",
      "ALTER TABLE net_control_signups ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMPTZ"),
+
+    # ── Public net directory ────────────────────────────────────────────────
+    ("nets: public directory opt-in flag",
+     "ALTER TABLE nets ADD COLUMN IF NOT EXISTS public_listed BOOLEAN NOT NULL DEFAULT FALSE"),
 ]
 
 # ---------------------------------------------------------------------------

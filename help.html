@@ -37,12 +37,24 @@
       <a class="sidebar-btn" href="/help">❓ Help</a>
       <a class="sidebar-btn" href="/report">🐛 Report / Request</a>
       <a class="sidebar-btn" href="/live" target="_blank">📡 Live Public Page ↗</a>
+      <a class="sidebar-btn" href="/directory" target="_blank">📖 Net Directory ↗</a>
     </nav>
     <div id="content">
         <h2 class="section-title">Help &amp; Operating Guide</h2>
 
         <div class="card" style="margin-bottom:16px">
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-18 — Public Net Directory</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>New public, unauthenticated page at <strong>/directory</strong> listing nets whose owners have opted in — name, net type, frequency, description, weekly schedule, and host callsign. Separate from the real-time <strong>/live</strong> check-in view.</li>
+              <li>Enable <strong>List in Public Net Directory</strong> in a net's Edit form. Off by default — nothing is listed until an owner opts in.</li>
+              <li>Sidebar link added: <strong>📖 Net Directory ↗</strong>.</li>
+              <li>Fixed a date-matching bug (surfaced while building this): the Schedule tab's upcoming dates were computed from the server's local calendar date, while session/reminder matching used UTC — the two could disagree for a few hours a day in timezones behind UTC, causing Net Control/Broadcaster duty lookups to silently miss a real sign-up and fall back to whoever started the session. Both now consistently use UTC.</li>
+              <li><strong>Upgrading an existing install:</strong> adds a column to <code style="background:var(--surface);padding:1px 5px;border-radius:3px">nets</code> — <code style="background:var(--surface);padding:1px 5px;border-radius:3px">./deploy.sh</code> runs <code style="background:var(--surface);padding:1px 5px;border-radius:3px">migrate.py</code> automatically; run it by hand if upgrading another way.</li>
+            </ul>
+          </div>
 
           <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-18 — Scheduled Net Reminders</div>
@@ -352,6 +364,12 @@ Thank you all for checking in. This net is now closed.</pre>
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">SCHEDULED NET REMINDERS</h3>
           <p style="margin:0 0 8px">Enable <strong>Reminder Emails</strong> in a net's Edit form and set a lead time (in minutes) to have whoever's signed up as <strong>Net Control</strong> or <strong>Broadcaster</strong> on the Schedule tab emailed shortly before their net starts. Each role is reminded independently, at the email address they gave when signing up.</p>
           <p style="margin:0">If nobody has signed up for a date, no reminder goes out — there's no one to email. This depends on the server having SMTP configured and a reminders cron job running; ask your administrator if you enable this and don't receive anything.</p>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">PUBLIC NET DIRECTORY</h3>
+          <p style="margin:0 0 8px">Enable <strong>List in Public Net Directory</strong> in a net's Edit form to show it at <strong>/directory</strong> — a public page, no login required, separate from the real-time <strong>/live</strong> check-in view. Listed nets show their name, net type, frequency, description, weekly schedule, and your callsign as the host.</p>
+          <p style="margin:0">Nets are unlisted by default — opt in per net. There's currently no integration with external ham radio net directories (no such site offers a public API to publish to); this is a self-contained directory within your instance only.</p>
         </div>
 
         <div id="help-admin-section" class="card" style="margin-bottom:16px">

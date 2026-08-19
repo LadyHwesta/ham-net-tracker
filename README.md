@@ -33,6 +33,7 @@ A public demo is available at **[nettrackerdemo.meskis.net](https://nettrackerde
 - **Scheduled reminder emails** — configurable per-net lead time; reminds whoever signed up as Net Control / Broadcaster shortly before their net starts (needs a cron job — see below)
 - **Session history** — attendance statistics, filtering, and CSV export
 - **Public live page** — unauthenticated `/live` page showing active nets and check-in rosters in real time
+- **Public net directory** — opt-in per net; unauthenticated `/directory` page listing name, frequency, description, and weekly schedule for anyone to browse
 - **In-app problem reporting** — users can submit bug reports and enhancement requests directly to the administrator
 - **User management** — registration with admin approval, email notifications, admin panel
 - **Configurable branding** — set organization name, tagline, website URL, and logo from the Admin panel
@@ -189,6 +190,12 @@ The first user to register is automatically granted admin privileges. Subsequent
 ## Public Live Page
 
 A public, unauthenticated page showing all currently active nets is available at `/live`. Share this URL with club members or post it on your club website — it auto-refreshes every 30 seconds and shows the real-time check-in roster for each active net.
+
+## Public Net Directory
+
+A public, unauthenticated directory of nets is available at `/directory` — for browsing what nets exist and when they meet, as opposed to `/live`'s real-time check-in view. Net owners opt in per net from the Edit form (**List in Public Net Directory**); listed nets show their name, net type, frequency, description, weekly schedule, and owner callsign to anyone browsing, no login required. A net stays out of the directory by default.
+
+There's no external directory integration (no ham radio net directory site currently offers a public API to publish to — see the research notes on [issue #8](https://github.com/LadyHwesta/ham-net-tracker/issues/8) if that changes); this is a self-contained, in-app directory only.
 
 ## Net Control Script
 

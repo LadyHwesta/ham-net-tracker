@@ -161,6 +161,7 @@
       <a class="sidebar-btn" href="/help"><span class="sb-icon">❓</span><span class="sb-label">Help</span></a>
       <a class="sidebar-btn" href="/report"><span class="sb-icon">🐛</span><span class="sb-label">Report / Request</span></a>
       <a class="sidebar-btn" href="/live" target="_blank" style="display:block;text-decoration:none"><span class="sb-icon">🔴</span><span class="sb-label">Live Public Page ↗</span></a>
+      <a class="sidebar-btn" href="/directory" target="_blank" style="display:block;text-decoration:none"><span class="sb-icon">📖</span><span class="sb-label">Net Directory ↗</span></a>
 
       <div id="net-sidebar-section" style="display:none">
         <hr style="border-color:var(--border);margin:8px 16px">
@@ -259,6 +260,13 @@
               <input class="form-control" id="net-reminder-minutes" type="number" min="1" max="1440" placeholder="30" style="font-size:13px" />
               <div style="font-size:11px;color:var(--text-muted);margin-top:3px">Sent to whoever's signed up as Net Control / Broadcaster on the Schedule tab for that date. Requires SMTP to be configured and the reminders cron job running — see Help.</div>
             </div>
+          </div>
+          <div id="net-public-listed-section" style="margin-bottom:14px">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:700">
+              <input type="checkbox" id="net-public-listed" style="accent-color:var(--lc-blue);width:16px;height:16px" />
+              List in Public Net Directory — visible at /directory, no login required
+            </label>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:3px">Shows this net's name, frequency, description, and weekly schedule to anyone browsing the directory.</div>
           </div>
           <!-- DMR Integration — only shown when editing an existing net you own -->
           <div id="net-dmr-section" style="display:none;border-top:1px solid var(--lc-border);padding-top:14px;margin-bottom:14px">
@@ -743,20 +751,20 @@
   </main>
 </div><!-- /app -->
 
-  <script src="/static/js/state.js?v=11"></script>
-  <script src="/static/js/utils.js?v=11"></script>
-  <script src="/static/js/auth.js?v=11"></script>
-  <script src="/static/js/views.js?v=11"></script>
-  <script src="/static/js/branding.js?v=11"></script>
-  <script src="/static/js/report.js?v=11"></script>
-  <script src="/static/js/nets.js?v=11"></script>
-  <script src="/static/js/sessions.js?v=11"></script>
-  <script src="/static/js/checkins.js?v=11"></script>
-  <script src="/static/js/history.js?v=11"></script>
-  <script src="/static/js/admin.js?v=11"></script>
-  <script src="/static/js/schedules.js?v=11"></script>
-  <script src="/static/js/tokens.js?v=11"></script>
-  <script src="/static/js/dmr.js?v=11"></script>
-  <script src="/static/js/app.js?v=11"></script>
+  <script src="/static/js/state.js?v=12"></script>
+  <script src="/static/js/utils.js?v=12"></script>
+  <script src="/static/js/auth.js?v=12"></script>
+  <script src="/static/js/views.js?v=12"></script>
+  <script src="/static/js/branding.js?v=12"></script>
+  <script src="/static/js/report.js?v=12"></script>
+  <script src="/static/js/nets.js?v=12"></script>
+  <script src="/static/js/sessions.js?v=12"></script>
+  <script src="/static/js/checkins.js?v=12"></script>
+  <script src="/static/js/history.js?v=12"></script>
+  <script src="/static/js/admin.js?v=12"></script>
+  <script src="/static/js/schedules.js?v=12"></script>
+  <script src="/static/js/tokens.js?v=12"></script>
+  <script src="/static/js/dmr.js?v=12"></script>
+  <script src="/static/js/app.js?v=12"></script>
 </body>
 </html>

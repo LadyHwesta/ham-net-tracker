@@ -371,6 +371,7 @@ class NetCreate(BaseModel):
     broadcast_label: Optional[str] = None   # e.g. "Amateur Radio Newsline"
     reminder_enabled: bool = False   # email signed-up Net Control / Broadcaster before start
     reminder_minutes_before: Optional[int] = None   # lead time, e.g. 30
+    public_listed: bool = False    # shown in the public /directory (no login required)
 
     @field_validator("reminder_minutes_before")
     @classmethod
@@ -391,6 +392,7 @@ class NetOut(BaseModel):
     script: Optional[str] = None
     has_broadcast: bool = False
     broadcast_label: Optional[str] = None
+    public_listed: bool = False
     reminder_enabled: bool = False
     reminder_minutes_before: Optional[int] = None
     owner_id: int
@@ -939,6 +941,45 @@ def public_session_detail(session_id: int, db: Session = Depends(get_db)):
     }
 
 
+@app.get("/directory", response_class=HTMLResponse, include_in_schema=False)
+def public_directory_page():
+    """Serve the public net directory page."""
+    return _serve_html("directory.html")
+
+
+@app.get("/public/directory")
+def public_directory(db: Session = Depends(get_db)):
+    """Return every net whose owner has opted into the public directory — no auth required."""
+    nets = (
+        db.query(Net)
+        .filter(Net.public_listed == True)
+        .order_by(Net.name)
+        .all()
+    )
+    result = []
+    for net in nets:
+        owner = db.query(User).filter(User.id == net.owner_id).first()
+        schedules = (
+            db.query(NetSchedule)
+            .filter(NetSchedule.net_id == net.id)
+            .order_by(NetSchedule.day_of_week)
+            .all()
+        )
+        result.append({
+            "id": net.id,
+            "name": net.name,
+            "net_type": net.net_type,
+            "frequency": net.frequency,
+            "description": net.description,
+            "has_broadcast": net.has_broadcast,
+            "broadcast_label": net.broadcast_label,
+            "owner_callsign": owner.callsign if owner else None,
+            "owner_name": owner.name if owner else None,
+            "schedules": [_schedule_to_out(s) for s in schedules],
+        })
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Branding
 # ---------------------------------------------------------------------------
@@ -1167,6 +1208,7 @@ def create_net(data: NetCreate, current_user: User = Depends(get_current_user), 
         broadcast_label=(data.broadcast_label or None) if data.has_broadcast else None,
         reminder_enabled=data.reminder_enabled,
         reminder_minutes_before=(data.reminder_minutes_before or 30) if data.reminder_enabled else None,
+        public_listed=data.public_listed,
         owner_id=current_user.id,
     )
     db.add(net)
@@ -1196,6 +1238,7 @@ def update_net(net_id: int, data: NetCreate, current_user: User = Depends(get_cu
     net.broadcast_label = (data.broadcast_label or None) if data.has_broadcast else None
     net.reminder_enabled = data.reminder_enabled
     net.reminder_minutes_before = (data.reminder_minutes_before or 30) if data.reminder_enabled else None
+    net.public_listed = data.public_listed
     db.commit()
     db.refresh(net)
     return _net_to_out(net, current_user, db)
@@ -2567,8 +2610,12 @@ class UpcomingSlot(BaseModel):
 
 
 def _next_occurrences(day_of_week: int, weeks: int = 8) -> list[date]:
-    """Return the next `weeks` dates (including today if it matches) for a given weekday."""
-    today = date.today()
+    """Return the next `weeks` dates (including today if it matches) for a given weekday.
+    Uses the UTC calendar date — matching _duty_labels_for_session's use of
+    session.started_at.date() and send_reminders.py's now_utc.date() — so that
+    signup slot_date, session dates, and reminder-window dates never disagree near
+    midnight in timezones behind UTC (server-local date.today() would drift by a day)."""
+    today = datetime.now(timezone.utc).date()
     days_ahead = (day_of_week - today.weekday()) % 7
     first = today + timedelta(days=days_ahead)
     return [first + timedelta(weeks=i) for i in range(weeks)]

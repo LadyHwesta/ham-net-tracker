@@ -71,6 +71,7 @@ function showNetForm() {
   document.getElementById('net-reminder-enabled').checked = false;
   document.getElementById('net-reminder-minutes').value = '';
   onReminderToggle();
+  document.getElementById('net-public-listed').checked = false;
   document.querySelector('input[name="net-type"][value="ham"]').checked = true;
   document.getElementById('net-sharing-section').style.display = 'none';
   document.getElementById('net-dmr-section').style.display = 'none';
@@ -125,6 +126,7 @@ async function editNet(id) {
   document.getElementById('net-reminder-enabled').checked = !!n.reminder_enabled;
   document.getElementById('net-reminder-minutes').value = n.reminder_minutes_before || '';
   onReminderToggle();
+  document.getElementById('net-public-listed').checked = !!n.public_listed;
   const netType = n.net_type || 'ham';
   const typeRadio = document.querySelector(`input[name="net-type"][value="${netType}"]`);
   if (typeRadio) typeRadio.checked = true;
@@ -155,13 +157,14 @@ async function saveNet() {
   const reminder_enabled = document.getElementById('net-reminder-enabled').checked;
   const reminderMinutesRaw = document.getElementById('net-reminder-minutes').value.trim();
   const reminder_minutes_before = reminder_enabled ? (parseInt(reminderMinutesRaw, 10) || 30) : null;
+  const public_listed = document.getElementById('net-public-listed').checked;
   if (!name) return toast('Net name is required', 'error');
   try {
     if (editNetId) {
-      await apiFetch(`/nets/${editNetId}`, { method: 'PUT', body: JSON.stringify({ name, frequency, dmr_talkgroup, description, script, net_type, is_ares, has_broadcast, broadcast_label, reminder_enabled, reminder_minutes_before }) });
+      await apiFetch(`/nets/${editNetId}`, { method: 'PUT', body: JSON.stringify({ name, frequency, dmr_talkgroup, description, script, net_type, is_ares, has_broadcast, broadcast_label, reminder_enabled, reminder_minutes_before, public_listed }) });
       toast('Net updated');
     } else {
-      await apiFetch('/nets', { method: 'POST', body: JSON.stringify({ name, frequency, dmr_talkgroup, description, script, net_type, is_ares, has_broadcast, broadcast_label, reminder_enabled, reminder_minutes_before }) });
+      await apiFetch('/nets', { method: 'POST', body: JSON.stringify({ name, frequency, dmr_talkgroup, description, script, net_type, is_ares, has_broadcast, broadcast_label, reminder_enabled, reminder_minutes_before, public_listed }) });
       toast('Net created');
     }
     cancelNetForm();

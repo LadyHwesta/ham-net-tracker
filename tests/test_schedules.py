@@ -8,12 +8,15 @@ Tests for scheduling and Net Control / Broadcaster sign-ups:
   GET    /public/active          — scheduled duty display (public)
 """
 
-from datetime import date, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 def _schedule_for_today(client, headers, net_id):
-    """Create a weekly schedule matching today's weekday, so `today` is a valid slot_date."""
-    today = date.today()
+    """Create a weekly schedule matching today's weekday, so `today` is a valid slot_date.
+    Uses the UTC calendar date -- matching the app's own date.today() usage for
+    schedule/session matching (see _next_occurrences in main.py) -- so this stays
+    correct regardless of the test runner's local timezone."""
+    today = datetime.now(timezone.utc).date()
     resp = client.post(f"/nets/{net_id}/schedules", json={
         "day_of_week": today.weekday(),
         "start_time": "19:30",

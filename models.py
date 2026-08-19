@@ -52,6 +52,7 @@ class Net(Base):
     broadcast_label = Column(String(100), nullable=True)  # e.g. "Amateur Radio Newsline"
     reminder_enabled = Column(Boolean, default=False, nullable=False)  # email signed-up operators before net start
     reminder_minutes_before = Column(Integer, nullable=True)  # lead time in minutes, e.g. 30
+    public_listed = Column(Boolean, default=False, nullable=False)  # shown in the public /directory (no login)
     owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
