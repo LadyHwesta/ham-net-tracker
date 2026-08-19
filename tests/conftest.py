@@ -22,6 +22,20 @@ os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ.setdefault("SECRET_KEY", "test-secret-key-not-for-production")
 os.environ.setdefault("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
 
+# Force SMTP "not configured" for the whole suite, regardless of what a real
+# .env file in this checkout has set for the live/demo deployment. main.py
+# calls load_dotenv() at import time (below), which does NOT override an
+# already-set env var — so setting these here first wins. Without this, a
+# checkout with real SMTP creds would make the suite try to actually send
+# mail to fake test addresses and fail on the resulting bounce, since
+# behavior now branches on _smtp_configured() (email verification gate,
+# support ticket endpoint). Tests that need SMTP "on" use the smtp_configured
+# fixture below, which monkeypatches these back on for just that test.
+os.environ["SMTP_HOST"] = ""
+os.environ["SMTP_USER"] = ""
+os.environ["SMTP_PASSWORD"] = ""
+os.environ["SUPPORT_EMAIL"] = ""
+
 # ── Patch the database module to use StaticPool ──────────────────────────────
 # SQLite :memory: databases are per-connection; StaticPool forces SQLAlchemy
 # to reuse one connection so all get_db() calls see the same data.
