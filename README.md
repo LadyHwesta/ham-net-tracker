@@ -34,7 +34,7 @@ A public demo is available at **[nettrackerdemo.meskis.net](https://nettrackerde
 - **Session history** — attendance statistics, filtering, and CSV export
 - **Public live page** — unauthenticated `/live` page showing active nets and check-in rosters in real time
 - **Public net directory** — opt-in per net; unauthenticated `/directory` page listing name, frequency, description, and weekly schedule for anyone to browse
-- **Net Repository integration** — optionally push publicly-listed nets to a central, community-run directory ([Net Repository](https://github.com/LadyHwesta/Net-Repository)) so they're discoverable beyond this instance
+- **Net Repository integration** — optionally push publicly-listed nets to a central, community-run directory ([Net Repository](https://github.com/LadyHwesta/Net-Repository)) so they're discoverable beyond this instance; request an API key self-service from Admin, no manual key exchange needed
 - **In-app problem reporting** — users can submit bug reports and enhancement requests directly to the administrator
 - **User management** — registration with admin approval, email verification (when SMTP is configured), email notifications, admin panel
 - **Configurable branding** — set organization name, tagline, website URL, and logo from the Admin panel
@@ -201,7 +201,12 @@ A public, unauthenticated directory of nets is available at `/directory` — for
 
 Nets opted into the Public Net Directory (above) can also be pushed to [Net Repository](https://github.com/LadyHwesta/Net-Repository) — a separate, community-run central directory that multiple Ham Net Tracker instances (and other tools) can publish to and be discovered from.
 
-**Setup** — set `NET_REPOSITORY_URL` and `NET_REPOSITORY_API_KEY` in `.env` (see `.env.example`). The API key is issued by the Net Repository instance's own admin, who also configures that key's `instance_url` on their end — that's what Net Repository uses to tell instances apart and prevent duplicate submissions, not anything sent by this app. Leave either blank to disable the integration entirely; nothing is sent anywhere.
+**Setup** — set `NET_REPOSITORY_URL` in `.env` (see `.env.example`); this app has no way to request or use a key without knowing which instance to talk to. Leave it blank to disable the integration entirely; nothing is sent anywhere. For the API key, two options:
+
+- **Self-service (recommended)** — in **Admin → Net Repository**, fill in a name and submit **Request API Key**. This enters that Net Repository instance's admin review queue; click **Check Status** any time afterward, and once approved, the issued key is stored automatically and pushes start working immediately — no `.env` edit or restart needed. Use **Forget This Key** to clear a self-service key and start over.
+- **Manual** — have the Net Repository instance's admin issue a key directly and set it as `NET_REPOSITORY_API_KEY` in `.env`. This always takes precedence over a self-service key if both are present.
+
+Either way, the key's `instance_url` (configured on Net Repository's side, either by its admin or from what you submitted in the request form) is what Net Repository uses to tell instances apart and prevent duplicate submissions — not anything this app sends per-request.
 
 **Once configured:**
 - Creating a net with **List in Public Net Directory** checked pushes it immediately.

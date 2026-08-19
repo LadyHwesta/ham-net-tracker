@@ -1,21 +1,22 @@
 """
 Push a net listing to the central Net Repository directory
 (https://github.com/LadyHwesta/Net-Repository) — the "discover" side of
-issue #12/#8. Shared by main.py (push on create/update) and the standalone
+issue #12/#8. Shared by main.py (push on create/update, and the Admin >
+Net Repository self-service key request UI) and the standalone
 push_to_net_repository.py backfill script, so the request-building logic
 lives in exactly one place.
 
 Environment variables (read from .env)
 ---------------------------------------
     NET_REPOSITORY_URL        Base URL of the Net Repository instance, e.g.
-                               https://mynetrepo.meskis.net
-    NET_REPOSITORY_API_KEY    nr_-prefixed API key issued by that instance's
-                               admin. The key's configured instance_url is
-                               what Net Repository uses (server-side, not
-                               anything sent here) to deduplicate submissions
-                               by (instance_url, source_net_id) — so a net
-                               already submitted is silently skipped rather
-                               than resubmitted, making pushes safe to repeat.
+                               https://mynetrepo.meskis.net. Required either
+                               way — there's no way to request or use a key
+                               without knowing which instance to talk to.
+    NET_REPOSITORY_API_KEY    nr_-prefixed API key. Optional: takes precedence
+                               if set, but a key obtained via the self-service
+                               "Request API Key" flow in Admin > Net Repository
+                               (stored in the database, not .env) works just
+                               as well — see get_api_key().
 
 Net Repository's submission endpoint has no "update" path — once a net has
 a pending or published entry there, later edits here (schedule changes,
@@ -25,6 +26,7 @@ gets reported back as a no-op duplicate. See README.md for details.
 
 import logging
 import os
+from typing import Optional
 
 import httpx
 
@@ -33,18 +35,75 @@ _log = logging.getLogger("ham_net_tracker.net_repository")
 NET_REPOSITORY_URL = os.getenv("NET_REPOSITORY_URL", "").rstrip("/")
 NET_REPOSITORY_API_KEY = os.getenv("NET_REPOSITORY_API_KEY", "")
 
+_SETTING_API_KEY = "net_repository_api_key"
+_SETTING_CLAIM_TOKEN = "net_repository_claim_token"
+_SETTING_REQUEST_STATUS = "net_repository_key_request_status"
 
-def net_repository_configured() -> bool:
-    return bool(NET_REPOSITORY_URL and NET_REPOSITORY_API_KEY)
+
+# ---------------------------------------------------------------------------
+# SystemSetting helpers (duplicated from main.py's _get_setting/_set_setting —
+# deliberately tiny and self-contained rather than importing from main.py,
+# matching this repo's existing convention of standalone scripts/modules not
+# depending on main.py; see send_reminders.py)
+# ---------------------------------------------------------------------------
+
+def _get_setting(key: str, db) -> Optional[str]:
+    from models import SystemSetting
+    row = db.query(SystemSetting).filter(SystemSetting.key == key).first()
+    return row.value if row else None
 
 
-def push_net(net) -> bool:
+def _set_setting(key: str, value: Optional[str], db) -> None:
+    from models import SystemSetting
+    row = db.query(SystemSetting).filter(SystemSetting.key == key).first()
+    if row:
+        row.value = value
+    else:
+        db.add(SystemSetting(key=key, value=value))
+
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
+def get_api_key(db) -> str:
+    """NET_REPOSITORY_API_KEY env var takes precedence (explicit operator
+    override); otherwise falls back to a key obtained via the self-service
+    request flow (Admin > Net Repository), stored in the database."""
+    if NET_REPOSITORY_API_KEY:
+        return NET_REPOSITORY_API_KEY
+    return _get_setting(_SETTING_API_KEY, db) or ""
+
+
+def net_repository_configured(db) -> bool:
+    return bool(NET_REPOSITORY_URL) and bool(get_api_key(db))
+
+
+def get_key_source(db) -> Optional[str]:
+    """'env' if NET_REPOSITORY_API_KEY is set, 'self-service' if a key was
+    obtained via request_api_key()/check_key_request_status(), else None."""
+    if NET_REPOSITORY_API_KEY:
+        return "env"
+    return "self-service" if _get_setting(_SETTING_API_KEY, db) else None
+
+
+def get_request_status(db) -> str:
+    """Last-known status of a self-service key request: 'none' | 'pending' |
+    'claimed' | 'rejected'."""
+    return _get_setting(_SETTING_REQUEST_STATUS, db) or "none"
+
+
+# ---------------------------------------------------------------------------
+# Push a net
+# ---------------------------------------------------------------------------
+
+def push_net(net, db) -> bool:
     """POST a net to Net Repository's submission queue. Returns True if the
     request was sent and accepted (202 — including the already-submitted/
     duplicate case), False if not configured, the net isn't public, or the
     request failed. Never raises — a Net Repository outage or misconfiguration
     must not block creating or editing a net locally."""
-    if not net_repository_configured():
+    if not net_repository_configured(db):
         return False
     if not net.public_listed:
         return False
@@ -73,7 +132,7 @@ def push_net(net) -> bool:
         resp = httpx.post(
             f"{NET_REPOSITORY_URL}/nets/submit",
             json=payload,
-            headers={"Authorization": f"Bearer {NET_REPOSITORY_API_KEY}"},
+            headers={"Authorization": f"Bearer {get_api_key(db)}"},
             timeout=10,
         )
         resp.raise_for_status()
@@ -83,3 +142,97 @@ def push_net(net) -> bool:
     except Exception as exc:
         _log.warning("Failed to push net %r (id=%s) to Net Repository: %s", net.name, net.id, exc)
         return False
+
+
+# ---------------------------------------------------------------------------
+# Self-service API key requests
+# ---------------------------------------------------------------------------
+
+def request_api_key(name: str, contact_callsign: Optional[str], instance_url: Optional[str],
+                     request_notes: Optional[str], db) -> dict:
+    """POST /keys/request on Net Repository. Stores the returned claim token
+    (needed to poll for approval) in SystemSetting — it's never shown back to
+    the admin, only used internally by check_key_request_status(). Returns
+    {ok, message, request_id} — never raises."""
+    if not NET_REPOSITORY_URL:
+        return {"ok": False, "message": "NET_REPOSITORY_URL is not configured."}
+
+    payload = {"name": name}
+    if contact_callsign:
+        payload["contact_callsign"] = contact_callsign
+    if instance_url:
+        payload["instance_url"] = instance_url
+    if request_notes:
+        payload["request_notes"] = request_notes
+
+    try:
+        resp = httpx.post(f"{NET_REPOSITORY_URL}/keys/request", json=payload, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:
+        _log.warning("Failed to request a Net Repository API key: %s", exc)
+        return {"ok": False, "message": f"Request failed: {exc}"}
+
+    _set_setting(_SETTING_CLAIM_TOKEN, data["claim_token"], db)
+    _set_setting(_SETTING_REQUEST_STATUS, "pending", db)
+    db.commit()
+    _log.info("Requested a Net Repository API key (request_id=%s)", data.get("request_id"))
+    return {
+        "ok": True,
+        "message": data.get("message", "Request submitted for admin review."),
+        "request_id": data.get("request_id"),
+    }
+
+
+def check_key_request_status(db) -> dict:
+    """Polls GET /keys/request/status using the stored claim token. If the
+    request has been approved and claimed, stores the issued API key and
+    clears the claim token (it's single-use on Net Repository's side once
+    claimed, so there's nothing further to do with it). Returns
+    {ok, status, message} — never raises. status is 'none' if there's no
+    request on file (nothing ever requested, or already resolved)."""
+    if not NET_REPOSITORY_URL:
+        return {"ok": False, "status": "none", "message": "NET_REPOSITORY_URL is not configured."}
+
+    claim_token = _get_setting(_SETTING_CLAIM_TOKEN, db)
+    if not claim_token:
+        cached_status = _get_setting(_SETTING_REQUEST_STATUS, db) or "none"
+        return {"ok": True, "status": cached_status, "message": "No pending request."}
+
+    try:
+        resp = httpx.get(
+            f"{NET_REPOSITORY_URL}/keys/request/status",
+            headers={"Authorization": f"Bearer {claim_token}"},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:
+        _log.warning("Failed to check Net Repository key request status: %s", exc)
+        return {"ok": False, "status": "unknown", "message": f"Status check failed: {exc}"}
+
+    status = data.get("status", "unknown")
+    _set_setting(_SETTING_REQUEST_STATUS, status, db)
+
+    if status == "claimed":
+        if data.get("api_key"):
+            _set_setting(_SETTING_API_KEY, data["api_key"], db)
+            _log.info("Net Repository API key request approved — key received and saved.")
+        # Claimed either just now (key present) or by an earlier poll (key
+        # already saved then) — either way the claim token has no further use.
+        _set_setting(_SETTING_CLAIM_TOKEN, None, db)
+    elif status == "rejected":
+        _set_setting(_SETTING_CLAIM_TOKEN, None, db)
+
+    db.commit()
+    return {"ok": True, "status": status, "message": data.get("message", "")}
+
+
+def clear_stored_key(db) -> None:
+    """Admin action: forget the self-service key and any in-flight request,
+    to start over. Does not affect NET_REPOSITORY_API_KEY if set via .env —
+    that always takes precedence over the stored value regardless."""
+    _set_setting(_SETTING_API_KEY, None, db)
+    _set_setting(_SETTING_CLAIM_TOKEN, None, db)
+    _set_setting(_SETTING_REQUEST_STATUS, None, db)
+    db.commit()

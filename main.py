@@ -65,7 +65,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 import jwt
 import bcrypt as _bcrypt
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -74,7 +74,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db, init_db
 from models import ApiToken, CallsignCache, Checkin, DmrConfig, EvacZone, GmrsLicense, Net, NetControlSignup, NetSchedule, NetSession, NetShare, StationRemark, SystemSetting, TrafficMessage, User, utcnow
-from net_repository import push_net as _push_net_to_repository
+import net_repository
 
 load_dotenv()
 
@@ -303,7 +303,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="Ham Radio Net Tracker", version="1.12.0", lifespan=lifespan)
+app = FastAPI(title="Ham Radio Net Tracker", version="1.13.0", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -1306,7 +1306,7 @@ def create_net(data: NetCreate, current_user: User = Depends(get_current_user), 
     db.add(net)
     db.commit()
     db.refresh(net)
-    _push_net_to_repository(net)
+    net_repository.push_net(net, db)
     return net
 
 
@@ -1334,7 +1334,7 @@ def update_net(net_id: int, data: NetCreate, current_user: User = Depends(get_cu
     net.public_listed = data.public_listed
     db.commit()
     db.refresh(net)
-    _push_net_to_repository(net)
+    net_repository.push_net(net, db)
     return _net_to_out(net, current_user, db)
 
 
@@ -1605,6 +1605,74 @@ def admin_email_status(admin: User = Depends(require_admin)):
         "from_address": SMTP_FROM or SMTP_USER or None,
         "host": SMTP_HOST or None,
     }
+
+
+# ---------------------------------------------------------------------------
+# Net Repository — self-service API key requests
+# ---------------------------------------------------------------------------
+
+class NetRepoKeyRequestIn(BaseModel):
+    name: str = Field(..., max_length=100)
+    contact_callsign: Optional[str] = Field(default=None, max_length=12)
+    instance_url: Optional[str] = Field(default=None, max_length=500)
+    request_notes: Optional[str] = Field(default=None, max_length=1000)
+
+
+class NetRepoStatusOut(BaseModel):
+    url_configured: bool
+    has_key: bool
+    key_source: Optional[str] = None       # "env" | "self-service" | None
+    request_status: str                     # "none" | "pending" | "claimed" | "rejected"
+
+
+class NetRepoActionResult(BaseModel):
+    ok: bool
+    status: Optional[str] = None
+    message: str
+    request_id: Optional[int] = None
+
+
+@app.get("/admin/net-repository/status", response_model=NetRepoStatusOut)
+def admin_net_repository_status(admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Current Net Repository integration status. Never exposes the raw API
+    key or claim token — those are internal to net_repository.py."""
+    return NetRepoStatusOut(
+        url_configured=bool(net_repository.NET_REPOSITORY_URL),
+        has_key=bool(net_repository.get_api_key(db)),
+        key_source=net_repository.get_key_source(db),
+        request_status=net_repository.get_request_status(db),
+    )
+
+
+@app.post("/admin/net-repository/request-key", response_model=NetRepoActionResult)
+def admin_request_net_repository_key(
+    data: NetRepoKeyRequestIn,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Request a Net Repository API key on this instance's behalf via its
+    self-service POST /keys/request. Enters that instance's admin review
+    queue; check status with admin_check_net_repository_key below."""
+    result = net_repository.request_api_key(
+        data.name, data.contact_callsign, data.instance_url, data.request_notes, db,
+    )
+    return NetRepoActionResult(**result)
+
+
+@app.post("/admin/net-repository/check-status", response_model=NetRepoActionResult)
+def admin_check_net_repository_key(admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Poll Net Repository for the outcome of a pending key request. Once
+    approved, this stores the issued key so pushes start working immediately
+    — no restart needed."""
+    result = net_repository.check_key_request_status(db)
+    return NetRepoActionResult(**result)
+
+
+@app.delete("/admin/net-repository/key", status_code=204)
+def admin_clear_net_repository_key(admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Forget the self-service key and any in-flight request, to start over.
+    Does not affect NET_REPOSITORY_API_KEY if set via .env."""
+    net_repository.clear_stored_key(db)
 
 
 # ---------------------------------------------------------------------------

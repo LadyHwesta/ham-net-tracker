@@ -144,13 +144,19 @@ def sent_emails(monkeypatch):
 
 @pytest.fixture
 def net_repo_configured(monkeypatch):
-    """Makes net_repository_configured() return True. Pair with pushed_nets so
-    no real network call is attempted. Patches the net_repository module
-    directly -- main.py imports push_net from it as the same function object,
-    so this affects calls made through main._push_net_to_repository too."""
+    """Makes net_repository_configured(db) return True (URL + an env-var key).
+    Pair with pushed_nets so no real network call is attempted."""
     import net_repository
     monkeypatch.setattr(net_repository, "NET_REPOSITORY_URL", "https://netrepo.example.com")
     monkeypatch.setattr(net_repository, "NET_REPOSITORY_API_KEY", "nr_testkey")
+
+
+@pytest.fixture
+def net_repo_url_only(monkeypatch):
+    """Sets NET_REPOSITORY_URL but no key -- the "fresh install, about to
+    request a self-service key" state."""
+    import net_repository
+    monkeypatch.setattr(net_repository, "NET_REPOSITORY_URL", "https://netrepo.example.com")
 
 
 @pytest.fixture

@@ -53,6 +53,16 @@
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
 
           <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-19 — Self-Service Net Repository Keys (v1.13.0)</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>No more manual key exchange to enable the Net Repository push (below) — <strong>Admin → Net Repository</strong> now has a <strong>Request API Key</strong> form that submits directly to that instance's admin review queue.</li>
+              <li>Click <strong>Check Status</strong> any time afterward; once approved, the issued key is stored and pushes start working immediately — no <code style="background:var(--surface);padding:1px 5px;border-radius:3px">.env</code> edit or restart needed.</li>
+              <li><strong>Forget This Key</strong> clears a self-service key to start over. A key set via <code style="background:var(--surface);padding:1px 5px;border-radius:3px">NET_REPOSITORY_API_KEY</code> in <code style="background:var(--surface);padding:1px 5px;border-radius:3px">.env</code> (the previous, still-supported manual path) always takes precedence if present.</li>
+              <li>No database migration needed — the key and any in-flight request are stored the same way other admin-configurable settings (like Branding) already are.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-19 — Net Repository Integration (v1.12.0)</div>
             <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
               <li>Nets opted into the Public Net Directory can now also be pushed to <a href="https://github.com/LadyHwesta/Net-Repository" target="_blank" style="color:var(--lc-orange)">Net Repository</a> — a separate, community-run central directory other tools (and other Ham Net Tracker instances) can discover nets from.</li>

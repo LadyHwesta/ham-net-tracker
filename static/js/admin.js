@@ -209,3 +209,89 @@ async function loadRegisteredUsers() {
   catch { registeredUsers = []; }
 }
 
+// ============================================================
+// NET REPOSITORY
+// ============================================================
+async function loadNetRepoStatus() {
+  const statusEl = document.getElementById('netrepo-status');
+  const noUrlHint = document.getElementById('netrepo-no-url-hint');
+  const requestForm = document.getElementById('netrepo-request-form');
+  const pendingActions = document.getElementById('netrepo-pending-actions');
+  const clearActions = document.getElementById('netrepo-clear-actions');
+
+  let data;
+  try {
+    data = await apiFetch('/admin/net-repository/status');
+  } catch (e) {
+    statusEl.innerHTML = `<span style="color:var(--lc-red)">✗ ${esc(e.message)}</span>`;
+    return;
+  }
+
+  noUrlHint.style.display = data.url_configured ? 'none' : '';
+  requestForm.style.display = 'none';
+  pendingActions.style.display = 'none';
+  clearActions.style.display = 'none';
+
+  if (!data.url_configured) {
+    statusEl.innerHTML = '<span style="color:var(--lc-red)">✗ Not configured</span>';
+    return;
+  }
+
+  if (data.has_key) {
+    const sourceLabel = data.key_source === 'env' ? 'via .env' : 'self-service';
+    statusEl.innerHTML = `<span style="color:var(--lc-green)">✓ Configured</span>
+      <span class="text-muted" style="margin-left:10px;font-size:12px">${esc(sourceLabel)}</span>`;
+    if (data.key_source === 'self-service') clearActions.style.display = '';
+    return;
+  }
+
+  if (data.request_status === 'pending') {
+    statusEl.innerHTML = '<span style="color:var(--lc-gold)">⏳ Key request pending admin review</span>';
+    pendingActions.style.display = '';
+    return;
+  }
+
+  if (data.request_status === 'rejected') {
+    statusEl.innerHTML = '<span style="color:var(--lc-red)">✗ Key request was rejected</span>';
+    requestForm.style.display = '';
+    return;
+  }
+
+  statusEl.innerHTML = '<span class="text-muted">No API key configured yet</span>';
+  requestForm.style.display = '';
+}
+
+async function requestNetRepoKey() {
+  const name = document.getElementById('netrepo-req-name').value.trim();
+  if (!name) return toast('Name is required', 'error');
+  const body = {
+    name,
+    contact_callsign: document.getElementById('netrepo-req-callsign').value.trim() || null,
+    instance_url: document.getElementById('netrepo-req-url').value.trim() || null,
+    request_notes: document.getElementById('netrepo-req-notes').value.trim() || null,
+  };
+  try {
+    const result = await apiFetch('/admin/net-repository/request-key', { method: 'POST', body: JSON.stringify(body) });
+    toast(result.message, result.ok ? 'success' : 'error');
+    if (result.ok) loadNetRepoStatus();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function checkNetRepoKeyStatus() {
+  try {
+    const result = await apiFetch('/admin/net-repository/check-status', { method: 'POST' });
+    const toastType = (result.status === 'rejected' || result.status === 'unknown') ? 'error' : 'success';
+    toast(result.message || result.status, toastType);
+    loadNetRepoStatus();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function clearNetRepoKey() {
+  if (!confirm('Forget the stored Net Repository key? Nets will stop pushing until a new key is configured.')) return;
+  try {
+    await apiFetch('/admin/net-repository/key', { method: 'DELETE' });
+    toast('Key forgotten');
+    loadNetRepoStatus();
+  } catch (e) { toast(e.message, 'error'); }
+}
+

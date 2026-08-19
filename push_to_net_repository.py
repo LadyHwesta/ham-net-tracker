@@ -46,14 +46,15 @@ from net_repository import net_repository_configured, push_net  # noqa: E402
 
 
 def run():
-    if not net_repository_configured():
-        sys.exit(
-            "NET_REPOSITORY_URL and/or NET_REPOSITORY_API_KEY not set in .env "
-            "— nothing to do. See .env.example."
-        )
-
     db = SessionLocal()
     try:
+        if not net_repository_configured(db):
+            sys.exit(
+                "NET_REPOSITORY_URL isn't set, and no API key is available (neither "
+                "NET_REPOSITORY_API_KEY in .env nor a self-service key obtained via "
+                "Admin > Net Repository) — nothing to do. See .env.example."
+            )
+
         nets = db.query(Net).filter(Net.public_listed == True).all()  # noqa: E712
         if not nets:
             print("No public nets found.")
@@ -62,7 +63,7 @@ def run():
         pushed = 0
         for net in nets:
             print(f"Pushing '{net.name}' (id={net.id})... ", end="", flush=True)
-            if push_net(net):
+            if push_net(net, db):
                 print("done")
                 pushed += 1
             else:

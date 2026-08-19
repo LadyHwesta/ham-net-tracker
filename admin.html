@@ -54,6 +54,7 @@
         <button class="tab-btn active" id="admin-tab-operators" onclick="switchAdminTab('operators')">👥 Operators</button>
         <button class="tab-btn" id="admin-tab-branding"   onclick="switchAdminTab('branding')">🎨 Branding</button>
         <button class="tab-btn" id="admin-tab-email"      onclick="switchAdminTab('email')">📧 Email</button>
+        <button class="tab-btn" id="admin-tab-netrepo"    onclick="switchAdminTab('netrepo')">🌐 Net Repository</button>
       </div>
 
       <!-- ── Operators panel ───────────────────────────────────── -->
@@ -134,6 +135,57 @@
         </div>
       </div><!-- /admin-panel-email -->
 
+      <!-- ── Net Repository panel ─────────────────────────────────── -->
+      <div id="admin-panel-netrepo" style="display:none">
+        <div class="card">
+          <h3 style="margin:0 0 10px;font-size:14px;color:var(--text-muted)">NET REPOSITORY</h3>
+          <p class="text-muted" style="font-size:12px;margin:0 0 14px">
+            Pushes nets with <strong>List in Public Net Directory</strong> enabled to
+            <a href="https://github.com/LadyHwesta/Net-Repository" target="_blank" style="color:var(--lc-orange)">Net Repository</a>,
+            a separate, community-run central directory.
+          </p>
+
+          <div id="netrepo-status" style="font-size:13px;margin-bottom:14px">
+            <span class="text-muted">Checking…</span>
+          </div>
+
+          <p id="netrepo-no-url-hint" class="text-muted" style="font-size:11px;display:none;margin-bottom:14px">
+            Set <code style="background:var(--surface2);padding:1px 5px;border-radius:3px">NET_REPOSITORY_URL</code>
+            in your <code style="background:var(--surface2);padding:1px 5px;border-radius:3px">.env</code> file (see <code style="background:var(--surface2);padding:1px 5px;border-radius:3px">.env.example</code>), then restart the service — a key can't be requested until Net Repository's instance URL is known.
+          </p>
+
+          <div id="netrepo-request-form" style="display:none">
+            <div class="form-row">
+              <div class="form-group">
+                <label>Name <span class="text-muted" style="font-size:11px">(shown to the Net Repository admin)</span></label>
+                <input class="form-control" id="netrepo-req-name" placeholder="e.g. King County ARES Net Tracker" />
+              </div>
+              <div class="form-group">
+                <label>Contact Callsign</label>
+                <input class="form-control" id="netrepo-req-callsign" placeholder="W7XYZ" style="text-transform:uppercase" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label>This Instance's URL <span class="text-muted" style="font-size:11px">(optional)</span></label>
+              <input class="form-control" id="netrepo-req-url" placeholder="https://your-instance.example.org" />
+            </div>
+            <div class="form-group">
+              <label>Notes <span class="text-muted" style="font-size:11px">(optional)</span></label>
+              <input class="form-control" id="netrepo-req-notes" placeholder="Anything the reviewer should know" />
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="requestNetRepoKey()">Request API Key</button>
+          </div>
+
+          <div id="netrepo-pending-actions" style="display:none">
+            <button class="btn btn-ghost btn-sm" onclick="checkNetRepoKeyStatus()">🔄 Check Status</button>
+          </div>
+
+          <div id="netrepo-clear-actions" style="display:none;margin-top:8px">
+            <button class="btn btn-danger btn-sm" onclick="clearNetRepoKey()">Forget This Key</button>
+          </div>
+        </div>
+      </div><!-- /admin-panel-netrepo -->
+
     </div><!-- /content -->
   </main>
 </div>
@@ -142,14 +194,15 @@
 <script src="/static/js/auth.js?v=8"></script>
 <script src="/static/js/theme.js?v=1"></script>
 <script src="/static/js/branding.js?v=6"></script>
-<script src="/static/js/admin.js?v=7"></script>
+<script src="/static/js/admin.js?v=8"></script>
 <script>
   function switchAdminTab(tab) {
-    ['operators', 'branding', 'email'].forEach(t => {
+    ['operators', 'branding', 'email', 'netrepo'].forEach(t => {
       document.getElementById('admin-panel-' + t).style.display = t === tab ? '' : 'none';
       document.getElementById('admin-tab-' + t).classList.toggle('active', t === tab);
     });
     if (tab === 'email') loadAdminUsers(); // refreshes email status card
+    if (tab === 'netrepo') loadNetRepoStatus();
   }
 
   async function initPage() {
