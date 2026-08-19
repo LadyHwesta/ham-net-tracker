@@ -30,15 +30,17 @@ async function doLogin() {
   } catch (e) { showAuthError(e.message); }
 }
 
-async function doRegister() {
+async function doRegister(btn) {
   clearAuthError();
   const callsign = document.getElementById('reg-call').value.trim().toUpperCase();
   const name = document.getElementById('reg-name').value.trim();
   const email = document.getElementById('reg-email').value.trim();
   const password = document.getElementById('reg-pass').value;
   if (!callsign || !name || !email || !password) return showAuthError('Fill in all fields');
+  btnLoading(btn, true);
   try {
     const newUser = await apiFetch('/auth/register', { method: 'POST', body: JSON.stringify({ callsign, name, email, password }) });
+    btnLoading(btn, false);
     if (newUser.is_active) {
       // First user auto-approved — go straight to login
       toast('Account created — please log in', 'success');
@@ -58,7 +60,10 @@ async function doRegister() {
           <button class="btn btn-ghost btn-sm" onclick="switchAuthTab('login')">← Back to Login</button>
         </div>`;
     }
-  } catch (e) { showAuthError(e.message); }
+  } catch (e) {
+    showAuthError(e.message);
+    btnLoading(btn, false);
+  }
 }
 
 function showAuthError(msg) {
