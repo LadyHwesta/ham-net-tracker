@@ -4,6 +4,7 @@ Tests for check-in endpoints:
   POST   /sessions/{id}/checkins
   DELETE /checkins/{id}
   PATCH  /checkins/{id}/traffic
+  PATCH  /checkins/{id}/traffic-called
 """
 
 
@@ -143,3 +144,51 @@ class TestTrafficToggle:
         resp = client.patch(f"/checkins/{checkin_id}/traffic", headers=admin_headers)
         assert resp.status_code == 200
         assert resp.json()["has_traffic"] is False
+
+
+class TestTrafficCalledToggle:
+    """issue #15 -- the traffic "called" checkbox must persist server-side so it
+    survives a session close/reopen, unlike the old client-side-only Set."""
+
+    def test_new_checkin_defaults_uncalled(self, client, admin_headers, session):
+        add = client.post(f"/sessions/{session['id']}/checkins", json={
+            "callsign": "W7TRF", "has_traffic": True,
+        }, headers=admin_headers)
+        assert add.json()["traffic_called"] is False
+
+    def test_toggle_called_on(self, client, admin_headers, session):
+        add = client.post(f"/sessions/{session['id']}/checkins", json={
+            "callsign": "W7TRF", "has_traffic": True,
+        }, headers=admin_headers)
+        checkin_id = add.json()["id"]
+
+        resp = client.patch(f"/checkins/{checkin_id}/traffic-called", headers=admin_headers)
+        assert resp.status_code == 200
+        assert resp.json()["traffic_called"] is True
+
+    def test_toggle_called_off(self, client, admin_headers, session):
+        add = client.post(f"/sessions/{session['id']}/checkins", json={
+            "callsign": "W7TRF", "has_traffic": True,
+        }, headers=admin_headers)
+        checkin_id = add.json()["id"]
+        client.patch(f"/checkins/{checkin_id}/traffic-called", headers=admin_headers)
+
+        resp = client.patch(f"/checkins/{checkin_id}/traffic-called", headers=admin_headers)
+        assert resp.status_code == 200
+        assert resp.json()["traffic_called"] is False
+
+    def test_called_state_survives_session_end_and_refetch(self, client, admin_headers, session):
+        """The actual bug in #15: reopening a closed session should still show
+        the checkbox checked."""
+        add = client.post(f"/sessions/{session['id']}/checkins", json={
+            "callsign": "W7TRF", "has_traffic": True,
+        }, headers=admin_headers)
+        checkin_id = add.json()["id"]
+        client.patch(f"/checkins/{checkin_id}/traffic-called", headers=admin_headers)
+
+        client.patch(f"/sessions/{session['id']}/end", json={}, headers=admin_headers)
+
+        resp = client.get(f"/sessions/{session['id']}/checkins", headers=admin_headers)
+        assert resp.status_code == 200
+        checkin = next(c for c in resp.json() if c["id"] == checkin_id)
+        assert checkin["traffic_called"] is True

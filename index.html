@@ -423,10 +423,10 @@
                   <div id="net-script-text" style="white-space:pre-wrap;font-size:13px;line-height:1.5;margin:0"></div>
                 </div>
               </div>
-            </div>
 
-            <!-- Quick checkin form -->
-            <div id="checkin-form-area">
+              <!-- Quick checkin form — kept inside the sticky header so it's reachable
+                   while scrolled down a long check-ins table (issue #13) -->
+              <div id="checkin-form-area">
               <div class="checkin-new-row">
                 <div class="form-group callsign-field" style="position:relative">
                   <label>Callsign *</label>
@@ -468,6 +468,7 @@
                 <button class="btn btn-primary" style="margin-bottom:0;height:33px;margin-top:auto" onclick="addCheckin()">Check In</button>
               </div>
             </div>
+            </div><!-- /session-sticky-header -->
 
             <!-- Expected / Known Stations collapsible panel -->
             <div style="margin-bottom:12px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
@@ -753,20 +754,20 @@
   </main>
 </div><!-- /app -->
 
-  <script src="/static/js/state.js?v=13"></script>
-  <script src="/static/js/utils.js?v=13"></script>
-  <script src="/static/js/auth.js?v=13"></script>
-  <script src="/static/js/views.js?v=13"></script>
-  <script src="/static/js/branding.js?v=13"></script>
-  <script src="/static/js/report.js?v=13"></script>
-  <script src="/static/js/nets.js?v=13"></script>
-  <script src="/static/js/sessions.js?v=13"></script>
-  <script src="/static/js/checkins.js?v=13"></script>
-  <script src="/static/js/history.js?v=13"></script>
-  <script src="/static/js/admin.js?v=13"></script>
-  <script src="/static/js/schedules.js?v=13"></script>
-  <script src="/static/js/tokens.js?v=13"></script>
-  <script src="/static/js/dmr.js?v=13"></script>
-  <script src="/static/js/app.js?v=13"></script>
+  <script src="/static/js/state.js?v=14"></script>
+  <script src="/static/js/utils.js?v=14"></script>
+  <script src="/static/js/auth.js?v=14"></script>
+  <script src="/static/js/views.js?v=14"></script>
+  <script src="/static/js/branding.js?v=14"></script>
+  <script src="/static/js/report.js?v=14"></script>
+  <script src="/static/js/nets.js?v=14"></script>
+  <script src="/static/js/sessions.js?v=14"></script>
+  <script src="/static/js/checkins.js?v=14"></script>
+  <script src="/static/js/history.js?v=14"></script>
+  <script src="/static/js/admin.js?v=14"></script>
+  <script src="/static/js/schedules.js?v=14"></script>
+  <script src="/static/js/tokens.js?v=14"></script>
+  <script src="/static/js/dmr.js?v=14"></script>
+  <script src="/static/js/app.js?v=14"></script>
 </body>
 </html>

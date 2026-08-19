@@ -242,6 +242,17 @@ MIGRATIONS = [
     # ── Public net directory ────────────────────────────────────────────────
     ("nets: public directory opt-in flag",
      "ALTER TABLE nets ADD COLUMN IF NOT EXISTS public_listed BOOLEAN NOT NULL DEFAULT FALSE"),
+
+    # ── Traffic "called" persistence (issue #15) ────────────────────────────
+    ("checkins: traffic called flag",
+     "ALTER TABLE checkins ADD COLUMN IF NOT EXISTS traffic_called BOOLEAN NOT NULL DEFAULT FALSE"),
+
+    # ── Preferred name (issue #14) ──────────────────────────────────────────
+    ("station_remarks: preferred name",
+     "ALTER TABLE station_remarks ADD COLUMN IF NOT EXISTS preferred_name VARCHAR(100)"),
+
+    ("station_remarks: remark is now optional (preferred name can stand alone)",
+     "ALTER TABLE station_remarks ALTER COLUMN remark DROP NOT NULL"),
 ]
 
 # ---------------------------------------------------------------------------

@@ -37,6 +37,7 @@ Callsign Lookup
 
 import csv
 import hashlib
+import html
 import io
 import logging
 import json
@@ -491,6 +492,7 @@ class CheckinOut(BaseModel):
     signal_report: Optional[str]
     comments: Optional[str]
     has_traffic: bool
+    traffic_called: bool = False
     evac_zone: Optional[str]
     dmr_talkgroup: Optional[str] = None
     dmr_region: Optional[str] = None
@@ -593,13 +595,15 @@ class TrafficMessageOut(BaseModel):
 # ── Station remarks ──────────────────────────────────────────────────────────
 
 class StationRemarkUpsert(BaseModel):
-    remark: str
+    remark: Optional[str] = None
+    preferred_name: Optional[str] = None   # overrides FCC name in Expected Stations + reports
 
 
 class StationRemarkOut(BaseModel):
     callsign: str
     net_id: int
-    remark: str
+    remark: Optional[str] = None
+    preferred_name: Optional[str] = None
     updated_at: datetime
 
     model_config = {"from_attributes": True}
@@ -1662,9 +1666,34 @@ def toggle_traffic(checkin_id: int, current_user: User = Depends(get_current_use
     return checkin
 
 
+@app.patch("/checkins/{checkin_id}/traffic-called", response_model=CheckinOut)
+def toggle_traffic_called(checkin_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Toggle traffic_called flag on an existing checkin -- tracks whether the
+    operator has already passed this station's traffic, and persists across
+    session close/reopen (unlike the old client-side-only tracking)."""
+    checkin = db.query(Checkin).filter(Checkin.id == checkin_id).first()
+    if not checkin:
+        raise HTTPException(404, "Checkin not found")
+    _get_session_for_user(checkin.session_id, current_user, db)
+    checkin.traffic_called = not checkin.traffic_called
+    db.commit()
+    db.refresh(checkin)
+    return checkin
+
+
 # ---------------------------------------------------------------------------
 # Expected Stations
 # ---------------------------------------------------------------------------
+
+def _preferred_names_for_net(net_id: int, db: Session) -> dict:
+    """callsign -> preferred_name for every station remark on this net that has one set."""
+    rows = (
+        db.query(StationRemark.callsign, StationRemark.preferred_name)
+        .filter(StationRemark.net_id == net_id, StationRemark.preferred_name.isnot(None))
+        .all()
+    )
+    return {r.callsign: r.preferred_name for r in rows}
+
 
 @app.get("/nets/{net_id}/expected", response_model=list[ExpectedStation])
 def expected_stations(
@@ -1700,10 +1729,11 @@ def expected_stations(
         m = _re.search(r'\d([A-Z]+)$', cs.upper())
         return m.group(1) if m else cs
 
+    preferred_names = _preferred_names_for_net(net_id, db)
     stations = [
         ExpectedStation(
             callsign=r.callsign,
-            name=r.name,
+            name=preferred_names.get(r.callsign, r.name),
             checkin_count=r.cnt,
             last_checkin=r.last_checkin,
         )
@@ -1784,24 +1814,27 @@ def session_ics205(
     ended   = session.ended_at.strftime("%H%MZ") if session.ended_at else "—"
     freq    = net.frequency if net and net.frequency else "—"
 
+    preferred_names = _preferred_names_for_net(session.net_id, db)
+
     checkin_rows = ""
     for i, c in enumerate(checkins, 1):
         traffic_flag = " 📢" if c.has_traffic else ""
-        zone_cell = f"<td>{c.evac_zone or '—'}</td>" if net and net.is_ares else ""
+        display_name = preferred_names.get(c.callsign, c.name)
+        zone_cell = f"<td>{html.escape(c.evac_zone or '—')}</td>" if net and net.is_ares else ""
         checkin_rows += (
             f"<tr><td>{i}</td><td>{c.checked_in_at.strftime('%H%MZ')}</td>"
-            f"<td><strong>{c.callsign}</strong></td><td>{c.name or ''}</td>"
-            f"<td>{c.signal_report or ''}</td><td>{c.comments or ''}{traffic_flag}</td>"
+            f"<td><strong>{html.escape(c.callsign)}</strong></td><td>{html.escape(display_name or '')}</td>"
+            f"<td>{html.escape(c.signal_report or '')}</td><td>{html.escape(c.comments or '')}{traffic_flag}</td>"
             f"{zone_cell}</tr>\n"
         )
 
     traffic_rows = ""
     for i, m in enumerate(traffic_msgs, 1):
         traffic_rows += (
-            f"<tr><td>{i}</td><td>{m.msg_number or '—'}</td>"
-            f"<td>{m.origin_callsign}</td><td>{m.dest_info or '—'}</td>"
-            f"<td>{m.msg_type.replace('_',' ').title()}</td>"
-            f"<td>{m.status.title()}</td><td>{m.notes or ''}</td></tr>\n"
+            f"<tr><td>{i}</td><td>{html.escape(m.msg_number or '—')}</td>"
+            f"<td>{html.escape(m.origin_callsign)}</td><td>{html.escape(m.dest_info or '—')}</td>"
+            f"<td>{html.escape(m.msg_type.replace('_',' ').title())}</td>"
+            f"<td>{html.escape(m.status.title())}</td><td>{html.escape(m.notes or '')}</td></tr>\n"
         )
 
     zone_th = "<th>Zone</th>" if net and net.is_ares else ""
@@ -1813,9 +1846,13 @@ def session_ics205(
         <th>Type</th><th>Status</th><th>Notes</th></tr></thead>
         <tbody>{traffic_rows}</tbody></table>"""
 
-    html = f"""<!DOCTYPE html>
+    net_name_esc = html.escape(net.name) if net else 'Net'
+    op_callsign_esc = html.escape(op_callsign)
+    freq_esc = html.escape(freq)
+
+    page_html = f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"/>
-<title>ICS-205 Net Log — {net.name if net else 'Net'}</title>
+<title>ICS-205 Net Log — {net_name_esc}</title>
 <style>
   body {{ font-family: Arial, sans-serif; font-size: 11pt; margin: 20mm; color: #000; }}
   h1 {{ font-size: 16pt; margin-bottom: 4px; }}
@@ -1835,11 +1872,11 @@ def session_ics205(
 <div class="header-grid">
   <div>
     <div class="field"><span class="label">Net Name / Incident</span>
-      <span class="value">{net.name if net else ''}</span></div>
+      <span class="value">{net_name_esc if net else ''}</span></div>
     <div class="field"><span class="label">Frequency / Mode</span>
-      <span class="value">{freq}</span></div>
+      <span class="value">{freq_esc}</span></div>
     <div class="field"><span class="label">Net Control Station</span>
-      <span class="value">{op_callsign}</span></div>
+      <span class="value">{op_callsign_esc}</span></div>
   </div>
   <div>
     <div class="field"><span class="label">Session Start (UTC)</span>
@@ -1860,13 +1897,13 @@ def session_ics205(
 {traffic_section}
 
 <p style="margin-top:24px;font-size:9pt;color:#555">
-  Prepared by: {op_callsign} &nbsp;|&nbsp; Printed: <span id="print-ts"></span>
+  Prepared by: {op_callsign_esc} &nbsp;|&nbsp; Printed: <span id="print-ts"></span>
 </p>
 <script>document.getElementById('print-ts').textContent = new Date().toUTCString();</script>
 </body></html>"""
 
     from fastapi.responses import HTMLResponse
-    return HTMLResponse(content=html)
+    return HTMLResponse(content=page_html)
 
 
 # ---------------------------------------------------------------------------
@@ -1957,7 +1994,7 @@ def get_station_remark(
     return remark  # None returns as null → 200 with null body; frontend handles
 
 
-@app.put("/nets/{net_id}/stations/{callsign}/remark", response_model=StationRemarkOut)
+@app.put("/nets/{net_id}/stations/{callsign}/remark", response_model=Optional[StationRemarkOut])
 def upsert_station_remark(
     net_id: int,
     callsign: str,
@@ -1967,19 +2004,33 @@ def upsert_station_remark(
 ):
     _get_owned_net(net_id, current_user, db)
     cs = callsign.upper().strip()
-    remark = db.query(StationRemark).filter(
+    remark_text = (body.remark or "").strip() or None
+    preferred_name = (body.preferred_name or "").strip() or None
+
+    existing = db.query(StationRemark).filter(
         StationRemark.net_id == net_id,
         StationRemark.callsign == cs,
     ).first()
-    if remark:
-        remark.remark = body.remark
-        remark.updated_by = current_user.id
-        remark.updated_at = datetime.now(timezone.utc)
+
+    if not remark_text and not preferred_name:
+        # Nothing left to store -- clear the row rather than leaving an empty one.
+        if existing:
+            db.delete(existing)
+            db.commit()
+        return None
+
+    if existing:
+        existing.remark = remark_text
+        existing.preferred_name = preferred_name
+        existing.updated_by = current_user.id
+        existing.updated_at = datetime.now(timezone.utc)
+        remark = existing
     else:
         remark = StationRemark(
             net_id=net_id,
             callsign=cs,
-            remark=body.remark,
+            remark=remark_text,
+            preferred_name=preferred_name,
             updated_by=current_user.id,
         )
         db.add(remark)
@@ -2095,12 +2146,14 @@ def export_session_csv(session_id: int, current_user: User = Depends(get_current
     session = _get_session_for_user(session_id, current_user, db)
     checkins = db.query(Checkin).filter(Checkin.session_id == session_id).order_by(Checkin.checked_in_at).all()
     net = db.query(Net).filter(Net.id == session.net_id).first()
+    preferred_names = _preferred_names_for_net(session.net_id, db)
 
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(["#", "Callsign", "Name", "Signal Report", "Comments", "Checked In At"])
     for i, c in enumerate(checkins, start=1):
-        writer.writerow([i, c.callsign, c.name or "", c.signal_report or "", c.comments or "", c.checked_in_at.isoformat()])
+        display_name = preferred_names.get(c.callsign, c.name)
+        writer.writerow([i, c.callsign, display_name or "", c.signal_report or "", c.comments or "", c.checked_in_at.isoformat()])
 
     filename = f"session_{session_id}_{net.name.replace(' ', '_')}.csv"
     output.seek(0)
@@ -2114,6 +2167,7 @@ def export_session_csv(session_id: int, current_user: User = Depends(get_current
 @app.get("/nets/{net_id}/export")
 def export_net_csv(net_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     net = _get_net_for_user(net_id, current_user, db)
+    preferred_names = _preferred_names_for_net(net_id, db)
 
     rows = (
         db.query(Checkin, NetSession)
@@ -2127,11 +2181,12 @@ def export_net_csv(net_id: int, current_user: User = Depends(get_current_user), 
     writer = csv.writer(output)
     writer.writerow(["Session ID", "Session Started", "Callsign", "Name", "Signal Report", "Comments", "Checked In At"])
     for checkin, session in rows:
+        display_name = preferred_names.get(checkin.callsign, checkin.name)
         writer.writerow([
             session.id,
             session.started_at.isoformat(),
             checkin.callsign,
-            checkin.name or "",
+            display_name or "",
             checkin.signal_report or "",
             checkin.comments or "",
             checkin.checked_in_at.isoformat(),

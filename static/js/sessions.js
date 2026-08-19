@@ -245,7 +245,6 @@ async function loadSessionLive(sessionId) {
   expectedStations = [];
   lastKnownCheckins = [];
   pendingTrafficCallsigns.clear();
-  calledTrafficCallsigns.clear();
   document.getElementById('expected-list').innerHTML = '<p class="text-muted" style="font-size:12px;margin:0">Set filter and click Load List to see previously active stations.</p>';
   document.getElementById('expected-panel-body').style.display = 'none';
   document.getElementById('expected-toggle-icon').textContent = '▶';

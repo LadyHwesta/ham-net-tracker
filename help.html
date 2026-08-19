@@ -46,6 +46,16 @@
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
 
           <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-18 — Sticky Check-in, Preferred Names &amp; Traffic Fix</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>The manual check-in form now stays pinned at the top of the screen alongside the session info bar, so it stays reachable while scrolling down a long check-ins table on a busy net — no more scrolling back up to acknowledge each station.</li>
+              <li>Added a <strong>preferred name</strong> — click the "+ Name/Remark" pill next to the Callsign field to set a name (and an optional note) that overrides the FCC/GMRS-looked-up name on the Expected Stations list and in net reports (ICS-205, CSV exports). The live check-in itself still records whatever name was entered at check-in time.</li>
+              <li>Fixed: the traffic "called" checkbox in the Traffic banner is now saved to the check-in record as it's ticked, so it correctly stays checked after closing a net and reopening it to review — previously it was tracked only in the browser and reset on reload.</li>
+              <li><strong>Upgrading an existing install:</strong> adds columns to <code style="background:var(--surface);padding:1px 5px;border-radius:3px">checkins</code> and <code style="background:var(--surface);padding:1px 5px;border-radius:3px">station_remarks</code> — <code style="background:var(--surface);padding:1px 5px;border-radius:3px">./deploy.sh</code> runs <code style="background:var(--surface);padding:1px 5px;border-radius:3px">migrate.py</code> automatically; run it by hand if upgrading another way.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-18 — Schedule Timezone Localization</div>
             <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
               <li>Adding a weekly schedule now auto-fills <strong>Timezone</strong> to your browser's detected zone, with autocomplete across the full IANA timezone list — no more typing an unfamiliar name from scratch or accidentally leaving it blank (which previously silently defaulted to UTC).</li>

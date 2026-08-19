@@ -17,29 +17,44 @@ async function lookupCallsign(callsign) {
   }
 }
 
+function remarkPillText(data) {
+  const parts = [];
+  if (data && data.preferred_name) parts.push('👤 ' + data.preferred_name);
+  if (data && data.remark) parts.push('📝 ' + data.remark);
+  return parts.length ? parts.join('   ') : '+ Name/Remark';
+}
+
+function renderRemarkPill(callsign, data) {
+  const info = document.getElementById('ci-lookup-info');
+  if (!info) return;
+  const existing = document.getElementById('remark-pill');
+  if (existing) existing.remove();
+  const pill = document.createElement('span');
+  pill.id = 'remark-pill';
+  pill.style.cssText = 'display:inline-flex;align-items:center;gap:5px;margin-left:6px;font-size:11px;cursor:pointer;background:rgba(255,204,0,0.15);border:1px solid rgba(255,204,0,0.4);border-radius:4px;padding:1px 7px;color:var(--lc-orange)';
+  pill.title = 'Click to set a preferred name and/or remark for this station';
+  pill.innerHTML = `<span>${esc(remarkPillText(data))}</span>`;
+  pill.onclick = () => showRemarkEditor(callsign, data);
+  info.appendChild(pill);
+}
+
 function applyLookupResult(result) {
   if (result.status !== 'found') {
     const notFoundMsg = currentNetIsGmrs
       ? 'Not found in GMRS database'
       : 'Not found in FCC database';
     setLookupInfo(`<span class="lookup-notfound">${notFoundMsg}</span>`);
-    // Still show remark if one exists for this callsign
+    // Still show a pill if a preferred name/remark exists for this callsign
     const cs = document.getElementById('ci-call').value.trim().toUpperCase();
-    if (cs) loadStationRemarks(cs).then(remark => {
-      if (!remark) return;
-      const info = document.getElementById('ci-lookup-info');
-      const pill = document.createElement('span');
-      pill.id = 'remark-pill';
-      pill.style.cssText = 'display:inline-flex;align-items:center;gap:5px;margin-left:6px;font-size:11px;cursor:pointer;background:rgba(255,204,0,0.15);border:1px solid rgba(255,204,0,0.4);border-radius:4px;padding:1px 7px;color:var(--lc-orange)';
-      pill.title = 'Click to edit station remark';
-      pill.innerHTML = `<span>📝 ${esc(remark)}</span>`;
-      pill.onclick = () => showRemarkEditor(cs, remark);
-      info.appendChild(pill);
+    if (cs) loadStationRemarks(cs).then(data => {
+      if (!data) return;
+      renderRemarkPill(cs, data);
     });
     return;
   }
 
-  // Auto-fill name if empty
+  // Auto-fill name if empty (from the FCC/GMRS lookup — preferred name doesn't
+  // override this; it only overrides Expected Stations and reports)
   const nameEl = document.getElementById('ci-name');
   const noteEl = document.getElementById('ci-name-autofill-note');
   if (result.name && !nameEl.value.trim()) {
@@ -54,21 +69,9 @@ function applyLookupResult(result) {
   if (result.state)         parts.push(`<span class="lookup-pill lookup-pill-state">${esc(result.state)}</span>`);
   if (result.grid)          parts.push(`<span class="lookup-pill lookup-pill-grid">${esc(result.grid)}</span>`);
   setLookupInfo(parts.join(' '));
-  // Load and display station remark
+  // Load and display station remark / preferred name
   const callsign = result.callsign || document.getElementById('ci-call').value.trim().toUpperCase();
-  loadStationRemarks(callsign).then(remark => {
-    const info = document.getElementById('ci-lookup-info');
-    if (!info) return;
-    const existing = document.getElementById('remark-pill');
-    if (existing) existing.remove();
-    const pill = document.createElement('span');
-    pill.id = 'remark-pill';
-    pill.style.cssText = 'display:inline-flex;align-items:center;gap:5px;margin-left:6px;font-size:11px;cursor:pointer;background:rgba(255,204,0,0.15);border:1px solid rgba(255,204,0,0.4);border-radius:4px;padding:1px 7px;color:var(--lc-orange)';
-    pill.title = 'Click to edit station remark';
-    pill.innerHTML = `<span>${remark ? '📝 ' + esc(remark) : '+ Remark'}</span>`;
-    pill.onclick = () => showRemarkEditor(callsign, remark || '');
-    info.appendChild(pill);
-  });
+  loadStationRemarks(callsign).then(data => renderRemarkPill(callsign, data));
 }
 
 function setLookupInfo(html) {
@@ -227,10 +230,14 @@ async function loadCheckins() {
   renderCheckins(checkins);
 }
 
-function markTrafficCalled(callsign, checked) {
-  if (checked) calledTrafficCallsigns.add(callsign);
-  else calledTrafficCallsigns.delete(callsign);
-  updateTrafficBanner(lastKnownCheckins);
+async function markTrafficCalled(checkinId) {
+  if (checkinId == null) return; // pending (not checked in yet) — nothing to persist
+  try {
+    const updated = await apiFetch(`/checkins/${checkinId}/traffic-called`, { method: 'PATCH' });
+    const idx = lastKnownCheckins.findIndex(c => c.id === checkinId);
+    if (idx !== -1) lastKnownCheckins[idx] = updated;
+    updateTrafficBanner(lastKnownCheckins);
+  } catch (e) { toast(e.message, 'error'); }
 }
 
 function updateTrafficBanner(checkins) {
@@ -245,20 +252,21 @@ function updateTrafficBanner(checkins) {
   }
   banner.style.display = '';
 
+  // called is persisted server-side (Checkin.traffic_called) so it survives a
+  // session close/reopen; pending stations have no checkin row yet so there's
+  // nothing to persist for them.
   const chips = [
-    ...confirmedTraffic.map(c => ({ cs: c.callsign, label: c.callsign + (c.name ? ` (${c.name})` : ''), pending: false })),
-    ...pendingTraffic.map(cs => ({ cs, label: `${cs} ⏳`, pending: true })),
+    ...confirmedTraffic.map(c => ({ id: c.id, label: c.callsign + (c.name ? ` (${c.name})` : ''), pending: false, called: !!c.traffic_called })),
+    ...pendingTraffic.map(cs => ({ id: null, label: `${cs} ⏳`, pending: true, called: false })),
   ];
 
-  document.getElementById('traffic-callsigns').innerHTML = chips.map(({ cs, label, pending }) => {
-    const called = calledTrafficCallsigns.has(cs);
+  document.getElementById('traffic-callsigns').innerHTML = chips.map(({ id, label, pending, called }) => {
     return `<label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;
                 background:rgba(0,0,0,0.18);border-radius:5px;padding:2px 8px;
                 ${called ? 'opacity:0.45;text-decoration:line-through;' : ''}
                 font-weight:700;white-space:nowrap">
       <input type="checkbox" ${called ? 'checked' : ''} ${pending ? 'disabled title="Not checked in yet"' : ''}
-        data-cs="${esc(cs)}"
-        onchange="markTrafficCalled(this.dataset.cs, this.checked)"
+        onchange="markTrafficCalled(${id})"
         style="accent-color:#000;width:13px;height:13px;cursor:pointer" />
       ${esc(label)}
     </label>`;
@@ -331,7 +339,6 @@ async function toggleTraffic(checkinId) {
 let expectedStations = [];        // loaded from /nets/{id}/expected
 let lastKnownCheckins = [];       // most recent checkin list for banner refresh
 const pendingTrafficCallsigns = new Set();  // traffic flagged in expected list before check-in
-const calledTrafficCallsigns = new Set();   // stations that have already given their traffic
 
 function toggleExpectedPanel() {
   const body = document.getElementById('expected-panel-body');
@@ -588,58 +595,59 @@ async function deleteTrafficMessage(msgId) {
 }
 
 // ============================================================
-// STATION REMARKS
+// STATION REMARKS & PREFERRED NAME
 // ============================================================
-let stationRemarks = {};   // callsign → remark string, loaded per net
+// A preferred name overrides the FCC/GMRS-looked-up name in the Expected
+// Stations list and net reports (ICS-205, CSV exports) — not the live
+// check-in form or the stored check-in record itself.
 
 async function loadStationRemarks(callsign) {
   if (!currentNetId || !callsign) return null;
   try {
-    const r = await apiFetch(`/nets/${currentNetId}/stations/${encodeURIComponent(callsign)}/remark`);
-    return r ? r.remark : null;
+    return await apiFetch(`/nets/${currentNetId}/stations/${encodeURIComponent(callsign)}/remark`);
   } catch { return null; }
 }
 
-async function saveStationRemark(callsign, remark) {
-  if (!currentNetId) return;
-  if (!remark.trim()) {
-    await apiFetch(`/nets/${currentNetId}/stations/${encodeURIComponent(callsign)}/remark`, { method: 'DELETE' });
-    delete stationRemarks[callsign];
-  } else {
-    await apiFetch(`/nets/${currentNetId}/stations/${encodeURIComponent(callsign)}/remark`, {
-      method: 'PUT', body: JSON.stringify({ remark: remark.trim() })
-    });
-    stationRemarks[callsign] = remark.trim();
-  }
+async function saveStationRemark(callsign, remark, preferredName) {
+  if (!currentNetId) return null;
+  return await apiFetch(`/nets/${currentNetId}/stations/${encodeURIComponent(callsign)}/remark`, {
+    method: 'PUT', body: JSON.stringify({ remark: remark.trim() || null, preferred_name: preferredName.trim() || null }),
+  });
 }
 
-function showRemarkEditor(callsign, currentRemark) {
+function showRemarkEditor(callsign, current) {
   const existing = document.getElementById('remark-editor');
   if (existing) existing.remove();
   const div = document.createElement('div');
   div.id = 'remark-editor';
-  div.style.cssText = 'margin-top:6px;display:flex;gap:6px;align-items:center';
+  div.style.cssText = 'margin-top:6px;display:flex;flex-direction:column;gap:6px';
   div.innerHTML = `
-    <input id="remark-input" class="form-control" style="flex:1;font-size:12px"
-      placeholder="Notes about this station…" value="${esc(currentRemark || '')}" />
-    <button class="btn btn-primary btn-sm" onclick="submitRemark('${esc(callsign)}')">Save</button>
-    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('remark-editor').remove()">✕</button>`;
+    <div style="display:flex;gap:6px;align-items:center">
+      <input id="remark-preferred-name-input" class="form-control" style="flex:1;font-size:12px"
+        placeholder="Preferred name (e.g. “Bob” instead of “Robert”)" value="${esc((current && current.preferred_name) || '')}" />
+    </div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <input id="remark-input" class="form-control" style="flex:1;font-size:12px"
+        placeholder="Notes about this station…" value="${esc((current && current.remark) || '')}" />
+      <button class="btn btn-primary btn-sm" onclick="submitRemark('${esc(callsign)}')">Save</button>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('remark-editor').remove()">✕</button>
+    </div>`;
   const lookupInfo = document.getElementById('ci-lookup-info');
   lookupInfo.appendChild(div);
-  div.querySelector('#remark-input').focus();
+  div.querySelector('#remark-preferred-name-input').focus();
 }
 
 async function submitRemark(callsign) {
-  const val = document.getElementById('remark-input')?.value || '';
+  const remarkVal = document.getElementById('remark-input')?.value || '';
+  const preferredNameVal = document.getElementById('remark-preferred-name-input')?.value || '';
   try {
-    await saveStationRemark(callsign, val);
-    stationRemarks[callsign] = val.trim();
-    toast(val.trim() ? 'Remark saved' : 'Remark cleared', 'success');
+    const saved = await saveStationRemark(callsign, remarkVal, preferredNameVal);
+    toast(saved ? 'Saved' : 'Cleared', 'success');
     document.getElementById('remark-editor')?.remove();
     // Refresh the remark pill in lookup info
     const pill = document.getElementById('remark-pill');
     if (pill) {
-      if (val.trim()) { pill.querySelector('span').textContent = '📝 ' + val.trim(); }
+      if (saved) { pill.querySelector('span').textContent = remarkPillText(saved); }
       else { pill.remove(); }
     }
   } catch (e) { toast(e.message, 'error'); }

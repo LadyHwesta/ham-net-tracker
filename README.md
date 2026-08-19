@@ -19,12 +19,12 @@ A public demo is available at **[nettrackerdemo.meskis.net](https://nettrackerde
 ## Features
 
 - **Net & session management** — create nets, start/end sessions, log check-ins with signal reports
-- **Focused live session view** — sidebar auto-collapses and session navigation hides while a session is live to cut clutter, restoring automatically once it ends
+- **Focused live session view** — sidebar auto-collapses and session navigation hides while a session is live to cut clutter, restoring automatically once it ends; the manual check-in form stays pinned to the top of the screen so it's reachable while scrolling down a long check-ins table
 - **Callsign lookup** — FCC database lookup with local history suffix search
-- **Traffic management** — flag stations with traffic, interactive "called" tracking, formal traffic message log
+- **Traffic management** — flag stations with traffic, interactive "called" tracking (persists across a session close/reopen), formal traffic message log
 - **ARES/ACES mode** — evacuation zone tracking per station, zone roster panel
 - **Expected stations** — pre-built check-in list from historical attendees with pre-flag support
-- **Station remarks** — persistent per-net notes on any callsign
+- **Station remarks & preferred names** — persistent per-net notes on any callsign, plus a preferred name that overrides the FCC/GMRS-looked-up name on the Expected Stations list and in net reports
 - **Session summary & ICS-205** — automatic summary card on session end, printable net log export
 - **Net control script** — attach a script to a net with basic formatting and live `{{variable}}` substitution (Net Control / Broadcaster callsign and name), pinned to the top of the live check-in screen so you don't need a second window open
 - **Session clock** — live local/UTC time and elapsed session timer

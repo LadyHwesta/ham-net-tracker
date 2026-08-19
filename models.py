@@ -103,6 +103,7 @@ class Checkin(Base):
     signal_report = Column(String(20), nullable=True)  # e.g. "59", "57"
     comments = Column(Text, nullable=True)
     has_traffic = Column(Boolean, default=False, nullable=False)
+    traffic_called = Column(Boolean, default=False, nullable=False)  # operator has passed this station's traffic
     evac_zone = Column(String(100), nullable=True)   # ARES/ACES evacuation zone
     dmr_talkgroup = Column(String(20), nullable=True)  # DMR talk group, e.g. "3100"
     dmr_region = Column(String(100), nullable=True)    # Region/state/area for DMR nets
@@ -159,13 +160,16 @@ class TrafficMessage(Base):
 
 
 class StationRemark(Base):
-    """Persistent operator notes about a callsign, scoped to a net."""
+    """Persistent operator notes (and preferred name) about a callsign, scoped to a net."""
     __tablename__ = "station_remarks"
 
     id = Column(Integer, primary_key=True, index=True)
     callsign = Column(String(12), nullable=False, index=True)
     net_id = Column(Integer, ForeignKey("nets.id", ondelete="CASCADE"), nullable=False)
-    remark = Column(Text, nullable=False)
+    remark = Column(Text, nullable=True)
+    # Overrides the FCC/callsign-lookup name in the Expected Stations list and net
+    # reports (ICS-205, CSV exports) — not the check-in record itself.
+    preferred_name = Column(String(100), nullable=True)
     updated_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     updated_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
