@@ -27,6 +27,7 @@ class User(Base):
     is_active = Column(Boolean, default=False, nullable=False)  # False until admin approves
     is_admin = Column(Boolean, default=False, nullable=False)
     notify_new_registrations = Column(Boolean, default=False, nullable=False)  # email opt-in for new signups
+    theme = Column(String(20), default="lcars", nullable=False)  # lcars | dark | light | high-contrast | system
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
     nets = relationship("Net", back_populates="owner", cascade="all, delete-orphan")

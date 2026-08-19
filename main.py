@@ -53,7 +53,7 @@ from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Literal
 
 import httpx
 
@@ -271,7 +271,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="Ham Radio Net Tracker", version="1.9.0", lifespan=lifespan)
+app = FastAPI(title="Ham Radio Net Tracker", version="1.10.0", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -349,9 +349,14 @@ class UserOut(BaseModel):
     is_active: bool
     is_admin: bool
     notify_new_registrations: bool
+    theme: str
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class ThemeUpdate(BaseModel):
+    theme: Literal["lcars", "dark", "light", "high-contrast", "system"]
 
 
 class Token(BaseModel):
@@ -789,6 +794,18 @@ def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db
 
 @app.get("/auth/me", response_model=UserOut)
 def me(current_user: User = Depends(get_current_user)):
+    return current_user
+
+
+@app.patch("/auth/theme", response_model=UserOut)
+def update_theme(
+    data: ThemeUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    current_user.theme = data.theme
+    db.commit()
+    db.refresh(current_user)
     return current_user
 
 

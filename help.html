@@ -7,8 +7,8 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230a0a1a'/%3E%3C!-- Tower base --%3E%3Crect x='15' y='20' width='2' height='8' fill='%23ff9900'/%3E%3Crect x='11' y='27' width='10' height='2' rx='1' fill='%23ff9900'/%3E%3C!-- Tower mast --%3E%3Crect x='15.5' y='6' width='1' height='14' fill='%23ff9900'/%3E%3C!-- Signal arcs --%3E%3Cpath d='M10 14 A8 8 0 0 1 22 14' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M7 18 A11 11 0 0 1 25 18' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round' opacity='0.6'/%3E%3Cpath d='M4 22 A14 14 0 0 1 28 22' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round' opacity='0.3'/%3E%3C!-- Tip dot --%3E%3Ccircle cx='16' cy='6' r='1.5' fill='%23ff9900'/%3E%3C/svg%3E" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/app.css?v=6">
-
+  <link rel="stylesheet" href="/static/app.css?v=7">
+  <script>(function(){var t=localStorage.getItem('nt_theme');if(t)document.documentElement.dataset.theme=t;})();</script>
 </head>
 <body>
 <div id="toast"></div>
@@ -25,6 +25,13 @@
     </div>
     <div id="header-user">
       <strong id="header-callsign-short"></strong>
+      <select id="theme-select" class="btn btn-ghost btn-sm" onchange="saveTheme(this.value)" title="Theme">
+        <option value="lcars">LCARS</option>
+        <option value="dark">Dark</option>
+        <option value="light">Light</option>
+        <option value="high-contrast">High Contrast</option>
+        <option value="system">System</option>
+      </select>
       <button class="btn btn-ghost btn-sm" onclick="logout()">Logout</button>
     </div>
   </header>
@@ -44,6 +51,16 @@
 
         <div class="card" style="margin-bottom:16px">
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-18 — Theme Engine (v1.10.0)</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>Not everyone wants a Star Trek console for their net log — added a per-account <strong>theme</strong> picker in the header, next to Logout: <strong>LCARS</strong> (the original look), <strong>Dark</strong>, <strong>Light</strong>, <strong>High Contrast</strong> (for accessibility), or <strong>System</strong> (follows your OS light/dark setting automatically, including live updates if you change it while the app is open).</li>
+              <li>Your choice is saved to your account, so it follows you to any browser or device you log in from — not just the one you picked it on.</li>
+              <li>Along the way, fixed a few text/border colors that had been silently falling back to unstyled defaults ever since some earlier styling work.</li>
+              <li><strong>Upgrading an existing install:</strong> adds a <code style="background:var(--surface);padding:1px 5px;border-radius:3px">theme</code> column to <code style="background:var(--surface);padding:1px 5px;border-radius:3px">users</code> — <code style="background:var(--surface);padding:1px 5px;border-radius:3px">./deploy.sh</code> runs <code style="background:var(--surface);padding:1px 5px;border-radius:3px">migrate.py</code> automatically; run it by hand if upgrading another way.</li>
+            </ul>
+          </div>
 
           <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-18 — Sticky Check-in, Preferred Names &amp; Traffic Fix</div>
@@ -428,10 +445,11 @@ python3 /opt/netcontrol/gmrs_sync.py --mode update</pre>
     </div>
   </main>
 </div>
-  <script src="/static/js/state.js?v=5"></script>
-  <script src="/static/js/utils.js?v=5"></script>
-  <script src="/static/js/auth.js?v=5"></script>
-  <script src="/static/js/branding.js?v=5"></script>
+  <script src="/static/js/state.js?v=6"></script>
+  <script src="/static/js/utils.js?v=6"></script>
+  <script src="/static/js/auth.js?v=6"></script>
+  <script src="/static/js/theme.js?v=1"></script>
+  <script src="/static/js/branding.js?v=6"></script>
 
   <script>
     async function initPage() {
@@ -439,6 +457,7 @@ python3 /opt/netcontrol/gmrs_sync.py --mode update</pre>
       try { currentUser = await apiFetch('/auth/me'); }
       catch { window.location.href = '/'; return; }
 
+      syncThemeFromUser(currentUser);
       const cs = document.getElementById('header-callsign-short');
       if (cs) cs.textContent = currentUser.callsign;
       if (currentUser.is_admin) {

@@ -37,6 +37,7 @@ A public demo is available at **[nettrackerdemo.meskis.net](https://nettrackerde
 - **In-app problem reporting** — users can submit bug reports and enhancement requests directly to the administrator
 - **User management** — registration with admin approval, email notifications, admin panel
 - **Configurable branding** — set organization name, tagline, website URL, and logo from the Admin panel
+- **Theme engine** — per-account color theme (LCARS, Dark, Light, High Contrast, or System/OS-matched), persisted server-side so it follows you across devices
 - **DMR hotspot integration** — connect a net to a WPSD, Pi-Star, or BrandMeister talk group; see a live "last heard" panel during the session, quick-check-in heard stations, and log Talk Group + Region per check-in
 
 ## Tech Stack

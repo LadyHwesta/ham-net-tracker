@@ -253,6 +253,10 @@ MIGRATIONS = [
 
     ("station_remarks: remark is now optional (preferred name can stand alone)",
      "ALTER TABLE station_remarks ALTER COLUMN remark DROP NOT NULL"),
+
+    # ── Theme engine (issue #2) ─────────────────────────────────────────────
+    ("users: theme preference",
+     "ALTER TABLE users ADD COLUMN IF NOT EXISTS theme VARCHAR(20) NOT NULL DEFAULT 'lcars'"),
 ]
 
 # ---------------------------------------------------------------------------

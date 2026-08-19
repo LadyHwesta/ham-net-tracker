@@ -79,6 +79,7 @@ async function enterApp() {
   if (!currentUser) {
     try { currentUser = await apiFetch('/auth/me'); } catch { logout(); return; }
   }
+  syncThemeFromUser(currentUser);
   document.getElementById('auth-page').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   document.getElementById('header-callsign').textContent = currentUser.callsign;
