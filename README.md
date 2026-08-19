@@ -366,3 +366,10 @@ See the [LICENSE](LICENSE) file for the full license text.
 ## 73
 
 Built for the ham radio community. If you deploy this for your club, we'd love to hear about it — open an issue and tell us where it's running!
+
+## ☕ Support Hosting
+
+This app is free to use. If it's been helpful to you, a small contribution helps keep the demo and hosting running:
+
+- **Venmo**: [@TiesaMM](https://venmo.com/TiesaMM)
+- **PayPal**: [paypal.com/ncp/payment/RJ645T8FJA8KU](https://www.paypal.com/ncp/payment/RJ645T8FJA8KU)
