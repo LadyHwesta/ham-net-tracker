@@ -612,14 +612,16 @@
                   </select>
                 </div>
                 <div class="form-group">
-                  <label>Start Time (local)</label>
+                  <label>Start Time</label>
                   <input class="form-control" id="sched-time" type="time" value="19:30" />
                 </div>
                 <div class="form-group">
                   <label>Timezone</label>
-                  <input class="form-control" id="sched-tz" placeholder="America/Los_Angeles" />
+                  <input class="form-control" id="sched-tz" list="sched-tz-list" placeholder="America/Los_Angeles" />
+                  <datalist id="sched-tz-list"></datalist>
                 </div>
               </div>
+              <div style="font-size:11px;color:var(--text-muted);margin:-8px 0 12px">Time and timezone are entered together — auto-filled to your browser's detected timezone; change it if this net runs somewhere else.</div>
               <div class="form-group">
                 <label>Notes</label>
                 <input class="form-control" id="sched-notes" placeholder="Optional (e.g. 2m simplex)" />
@@ -751,20 +753,20 @@
   </main>
 </div><!-- /app -->
 
-  <script src="/static/js/state.js?v=12"></script>
-  <script src="/static/js/utils.js?v=12"></script>
-  <script src="/static/js/auth.js?v=12"></script>
-  <script src="/static/js/views.js?v=12"></script>
-  <script src="/static/js/branding.js?v=12"></script>
-  <script src="/static/js/report.js?v=12"></script>
-  <script src="/static/js/nets.js?v=12"></script>
-  <script src="/static/js/sessions.js?v=12"></script>
-  <script src="/static/js/checkins.js?v=12"></script>
-  <script src="/static/js/history.js?v=12"></script>
-  <script src="/static/js/admin.js?v=12"></script>
-  <script src="/static/js/schedules.js?v=12"></script>
-  <script src="/static/js/tokens.js?v=12"></script>
-  <script src="/static/js/dmr.js?v=12"></script>
-  <script src="/static/js/app.js?v=12"></script>
+  <script src="/static/js/state.js?v=13"></script>
+  <script src="/static/js/utils.js?v=13"></script>
+  <script src="/static/js/auth.js?v=13"></script>
+  <script src="/static/js/views.js?v=13"></script>
+  <script src="/static/js/branding.js?v=13"></script>
+  <script src="/static/js/report.js?v=13"></script>
+  <script src="/static/js/nets.js?v=13"></script>
+  <script src="/static/js/sessions.js?v=13"></script>
+  <script src="/static/js/checkins.js?v=13"></script>
+  <script src="/static/js/history.js?v=13"></script>
+  <script src="/static/js/admin.js?v=13"></script>
+  <script src="/static/js/schedules.js?v=13"></script>
+  <script src="/static/js/tokens.js?v=13"></script>
+  <script src="/static/js/dmr.js?v=13"></script>
+  <script src="/static/js/app.js?v=13"></script>
 </body>
 </html>

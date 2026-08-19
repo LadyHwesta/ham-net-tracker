@@ -29,7 +29,7 @@ A public demo is available at **[nettrackerdemo.meskis.net](https://nettrackerde
 - **Net control script** — attach a script to a net with basic formatting and live `{{variable}}` substitution (Net Control / Broadcaster callsign and name), pinned to the top of the live check-in screen so you don't need a second window open
 - **Session clock** — live local/UTC time and elapsed session timer
 - **Net sharing** — share nets with individual operators or all registered users
-- **Scheduling** — weekly recurring time slots with sign-ups for Net Control and, on nets with an additional broadcast (e.g. Amateur Radio Newsline), a separate Broadcaster role; confirmation emails include a `.ics` calendar attachment
+- **Scheduling** — weekly recurring time slots with sign-ups for Net Control and, on nets with an additional broadcast (e.g. Amateur Radio Newsline), a separate Broadcaster role; confirmation emails include a `.ics` calendar attachment. Timezone auto-detects to the browser's own when adding a schedule, and every displayed time shows a "(your time)" conversion for anyone viewing from a different zone
 - **Scheduled reminder emails** — configurable per-net lead time; reminds whoever signed up as Net Control / Broadcaster shortly before their net starts (needs a cron job — see below)
 - **Session history** — attendance statistics, filtering, and CSV export
 - **Public live page** — unauthenticated `/live` page showing active nets and check-in rosters in real time

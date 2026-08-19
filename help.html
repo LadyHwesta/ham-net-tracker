@@ -46,6 +46,15 @@
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
 
           <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-18 — Schedule Timezone Localization</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>Adding a weekly schedule now auto-fills <strong>Timezone</strong> to your browser's detected zone, with autocomplete across the full IANA timezone list — no more typing an unfamiliar name from scratch or accidentally leaving it blank (which previously silently defaulted to UTC).</li>
+              <li>Every displayed schedule time — Schedule tab, Upcoming list, and the public <strong>/directory</strong> page — now shows a <strong>(H:MM your time)</strong> conversion whenever your browser's timezone differs from the schedule's declared one.</li>
+              <li>No database changes — this is a display-only change, safe to deploy without a migration.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-18 — Public Net Directory</div>
             <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
               <li>New public, unauthenticated page at <strong>/directory</strong> listing nets whose owners have opted in — name, net type, frequency, description, weekly schedule, and host callsign. Separate from the real-time <strong>/live</strong> check-in view.</li>
@@ -356,6 +365,8 @@ Thank you all for checking in. This net is now closed.</pre>
         <div class="card" style="margin-bottom:16px">
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">SCHEDULING</h3>
           <p style="margin:0 0 8px">In the <strong>Schedule</strong> tab of a net, add weekly repeating time slots (day, time, timezone). These appear as a calendar of upcoming dates.</p>
+          <p style="margin:0 0 8px">The <strong>Timezone</strong> field auto-fills to your browser's detected timezone when you open the form, and autocompletes from the full IANA timezone list — you're rarely typing it from scratch. It only affects entry, though: change it if the net actually runs somewhere else.</p>
+          <p style="margin:0 0 8px">Every schedule time shown anywhere — the Schedule tab, the Upcoming list, and the public <strong>/directory</strong> page — includes a <strong>(H:MM your time)</strong> conversion whenever your browser's timezone differs from the one the schedule was declared in, so you don't have to do the math yourself.</p>
           <p style="margin:0 0 8px">Operators can click <strong>Sign Up</strong> next to any future date to claim the Net Control slot. The net owner can instead click <strong>👤 Assign</strong> to put a registered operator on the schedule.</p>
           <p style="margin:0">If the net has <strong>Additional Broadcast</strong> enabled in its Edit form (e.g. for a segment like Amateur Radio Newsline), each date also shows a separate <strong>Broadcaster</strong> sign-up slot — a different operator can claim it, or one operator can click <strong>+ Cover Both Roles</strong> to take both for that date. Whoever is signed up is shown, callsign and name, on the live check-in screen and the public <strong>/live</strong> page.</p>
         </div>

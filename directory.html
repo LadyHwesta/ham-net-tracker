@@ -198,6 +198,49 @@
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  function detectedTimezone() {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return null; }
+  }
+
+  // Convert a "HH:MM" wall-clock time declared in `tz` on `dateStr` (YYYY-MM-DD)
+  // into a formatted time string in the viewer's own local timezone. DST-aware
+  // since it's anchored to a real calendar date, not just a fixed offset.
+  // Uses formatToParts rather than round-tripping through Date-string parsing,
+  // since the latter silently depends on the *calling* environment's own local
+  // timezone and gives wrong answers whenever the viewer isn't in UTC.
+  function zonedTimeToLocalStr(dateStr, timeStr, tz) {
+    try {
+      const [year, month, day] = dateStr.split('-').map(Number);
+      const [hour, minute] = timeStr.split(':').map(Number);
+      const guessUtcMs = Date.UTC(year, month - 1, day, hour, minute);
+
+      const parts = Object.fromEntries(
+        new Intl.DateTimeFormat('en-US', {
+          timeZone: tz, hourCycle: 'h23',
+          year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
+        }).formatToParts(new Date(guessUtcMs)).map(p => [p.type, p.value])
+      );
+      const asUtcMs = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute, +parts.second);
+      const offsetMs = asUtcMs - guessUtcMs;
+      const actualUtcMs = guessUtcMs - offsetMs;
+
+      return new Date(actualUtcMs).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    } catch {
+      return null;
+    }
+  }
+
+  // Next upcoming date (YYYY-MM-DD) for a given weekday (0=Monday..6=Sunday),
+  // used to anchor a *recurring* schedule's local-time conversion to a real date.
+  function nextDateForWeekday(dayOfWeek) {
+    const today = new Date();
+    const todayDow = (today.getDay() + 6) % 7; // JS Sunday=0 -> Monday=0 convention
+    const daysAhead = (dayOfWeek - todayDow + 7) % 7;
+    const d = new Date(today);
+    d.setDate(d.getDate() + daysAhead);
+    return d.toISOString().slice(0, 10);
+  }
+
   async function loadDirectory() {
     try {
       allNets = await fetch(API + '/public/directory').then(r => r.json());
@@ -240,14 +283,20 @@
         ? `<span class="badge badge-broadcast" style="margin-left:6px">📻 ${esc(n.broadcast_label || 'Broadcast')}</span>`
         : '';
       const schedules = (n.schedules || []).slice().sort((a, b) => dayOrder.indexOf(a.day_name) - dayOrder.indexOf(b.day_name));
+      const viewerTz = detectedTimezone();
       const scheduleHtml = schedules.length ? `
         <div class="schedule-list">
-          ${schedules.map(s => `
+          ${schedules.map(s => {
+            const showLocal = viewerTz && viewerTz !== s.timezone;
+            const localStr = showLocal ? zonedTimeToLocalStr(nextDateForWeekday(dayOrder.indexOf(s.day_name)), s.start_time, s.timezone) : null;
+            return `
             <div class="schedule-row">
               <span class="day">${esc(s.day_name)}s</span> at ${esc(s.start_time)} ${esc(s.timezone)}
+              ${localStr ? `<span class="schedule-notes"> (${esc(localStr)} your time)</span>` : ''}
               ${s.notes ? `<span class="schedule-notes"> — ${esc(s.notes)}</span>` : ''}
             </div>
-          `).join('')}
+          `;
+          }).join('')}
         </div>` : '';
 
       return `

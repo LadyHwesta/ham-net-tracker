@@ -3,6 +3,60 @@
 // ============================================================
 let schedules = [];
 
+// Convert a "HH:MM" wall-clock time declared in `tz` on `dateStr` (YYYY-MM-DD)
+// into a formatted time string in the viewer's own local timezone. Returns
+// null if `tz` isn't a recognized IANA zone. DST-aware since it's anchored to
+// a real calendar date, not just a fixed offset. Uses formatToParts rather
+// than round-tripping through Date-string parsing, since the latter silently
+// depends on the *calling* environment's own local timezone and gives wrong
+// answers whenever the viewer isn't in UTC.
+function zonedTimeToLocalStr(dateStr, timeStr, tz) {
+  try {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const [hour, minute] = timeStr.split(':').map(Number);
+    const guessUtcMs = Date.UTC(year, month - 1, day, hour, minute);
+
+    const parts = Object.fromEntries(
+      new Intl.DateTimeFormat('en-US', {
+        timeZone: tz, hourCycle: 'h23',
+        year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
+      }).formatToParts(new Date(guessUtcMs)).map(p => [p.type, p.value])
+    );
+    const asUtcMs = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute, +parts.second);
+    const offsetMs = asUtcMs - guessUtcMs;   // tz's UTC offset at that instant
+    const actualUtcMs = guessUtcMs - offsetMs;
+
+    return new Date(actualUtcMs).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  } catch {
+    return null;
+  }
+}
+
+// Next upcoming date (YYYY-MM-DD) for a given weekday (0=Monday..6=Sunday),
+// used to anchor a *recurring* schedule's local-time conversion to a real date.
+function nextDateForWeekday(dayOfWeek) {
+  const today = new Date();
+  const todayDow = (today.getDay() + 6) % 7; // JS Sunday=0 -> Monday=0 convention
+  const daysAhead = (dayOfWeek - todayDow + 7) % 7;
+  const d = new Date(today);
+  d.setDate(d.getDate() + daysAhead);
+  return d.toISOString().slice(0, 10);
+}
+
+function detectedTimezone() {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return null; }
+}
+
+// Populate the timezone <datalist> for autocomplete, if the browser supports
+// Intl.supportedValuesOf (most do; harmless no-op where it isn't available).
+function populateTimezoneList() {
+  const list = document.getElementById('sched-tz-list');
+  if (!list || list.childElementCount || typeof Intl.supportedValuesOf !== 'function') return;
+  try {
+    list.innerHTML = Intl.supportedValuesOf('timeZone').map(tz => `<option value="${tz}">`).join('');
+  } catch { /* unsupported — free-text input still works */ }
+}
+
 async function loadScheduleView() {
   await Promise.all([loadSchedules(), loadRegisteredUsers()]);
   await loadUpcoming();
@@ -17,20 +71,35 @@ async function loadSchedules() {
 function renderSchedules() {
   const el = document.getElementById('schedules-list');
   if (schedules.length === 0) { el.innerHTML = '<p class="text-muted" style="font-size:13px">No schedules yet.</p>'; return; }
-  el.innerHTML = schedules.map(s => `
+  const viewerTz = detectedTimezone();
+  el.innerHTML = schedules.map(s => {
+    const showLocal = viewerTz && viewerTz !== s.timezone;
+    const localStr = showLocal ? zonedTimeToLocalStr(nextDateForWeekday(s.day_of_week), s.start_time, s.timezone) : null;
+    return `
     <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--border)">
       <span style="font-size:13px"><strong>${esc(s.day_name)}s</strong> at ${esc(s.start_time)} ${esc(s.timezone)}</span>
+      ${localStr ? `<span class="text-muted" style="font-size:12px">(${esc(localStr)} your time)</span>` : ''}
       ${s.notes ? `<span class="text-muted" style="font-size:12px">— ${esc(s.notes)}</span>` : ''}
       <button class="btn btn-danger btn-sm" style="margin-left:auto" onclick="deleteSchedule(${s.id})">Delete</button>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
 function toggleScheduleForm() {
   const f = document.getElementById('schedule-form');
-  f.style.display = f.style.display === 'none' ? '' : 'none';
+  const opening = f.style.display === 'none';
+  f.style.display = opening ? '' : 'none';
   // Pre-fill callsign from current user
   if (currentUser) document.getElementById('signup-callsign').value = currentUser.callsign;
+  if (opening) {
+    populateTimezoneList();
+    const tzField = document.getElementById('sched-tz');
+    if (!tzField.value) {
+      const detected = detectedTimezone();
+      if (detected) tzField.value = detected;
+    }
+  }
 }
 
 async function saveSchedule() {
@@ -107,11 +176,15 @@ async function loadUpcoming() {
     </div>`;
   }
 
+  const viewerTz = detectedTimezone();
+
   grid.innerHTML = slots.map(slot => {
     const sched = schedMap[slot.schedule_id] || {};
     const dateObj = new Date(slot.slot_date + 'T00:00:00');
     const dateStr = dateObj.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
     const isPast  = slot.slot_date < new Date().toISOString().slice(0, 10);
+    const showLocal = viewerTz && sched.timezone && viewerTz !== sched.timezone;
+    const localStr = showLocal ? zonedTimeToLocalStr(slot.slot_date, sched.start_time, sched.timezone) : null;
 
     const ncSignup = slot.signups.find(s => s.role === 'net_control' || s.role === 'both');
     const bcSignup = slot.signups.find(s => s.role === 'broadcaster' || s.role === 'both');
@@ -126,7 +199,7 @@ async function loadUpcoming() {
 
     return `<div class="slot-row${isPast ? '" style="opacity:.5' : ''}">
       <span class="slot-date">${dateStr}</span>
-      <span class="slot-time text-muted">${esc(sched.start_time || '')} ${esc(sched.timezone || '')}</span>
+      <span class="slot-time text-muted">${esc(sched.start_time || '')} ${esc(sched.timezone || '')}${localStr ? ` (${esc(localStr)} your time)` : ''}</span>
       <span class="slot-status" style="display:flex;flex-direction:column;gap:5px">${statusHtml}</span>
     </div>`;
   }).join('');
