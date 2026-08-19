@@ -36,6 +36,12 @@ os.environ["SMTP_USER"] = ""
 os.environ["SMTP_PASSWORD"] = ""
 os.environ["SUPPORT_EMAIL"] = ""
 
+# Same reasoning, same fix, for Net Repository: without this, a checkout with
+# a real NET_REPOSITORY_URL/API_KEY in .env would make create_net/update_net
+# tests actually POST test fixtures to the live public directory.
+os.environ["NET_REPOSITORY_URL"] = ""
+os.environ["NET_REPOSITORY_API_KEY"] = ""
+
 # ── Patch the database module to use StaticPool ──────────────────────────────
 # SQLite :memory: databases are per-connection; StaticPool forces SQLAlchemy
 # to reuse one connection so all get_db() calls see the same data.
@@ -131,6 +137,41 @@ def sent_emails(monkeypatch):
         return True
 
     monkeypatch.setattr(main, "send_email", fake_send_email)
+    return calls
+
+
+# ── Net Repository ───────────────────────────────────────────────────────────
+
+@pytest.fixture
+def net_repo_configured(monkeypatch):
+    """Makes net_repository_configured() return True. Pair with pushed_nets so
+    no real network call is attempted. Patches the net_repository module
+    directly -- main.py imports push_net from it as the same function object,
+    so this affects calls made through main._push_net_to_repository too."""
+    import net_repository
+    monkeypatch.setattr(net_repository, "NET_REPOSITORY_URL", "https://netrepo.example.com")
+    monkeypatch.setattr(net_repository, "NET_REPOSITORY_API_KEY", "nr_testkey")
+
+
+@pytest.fixture
+def pushed_nets(monkeypatch):
+    """Intercepts httpx.post inside net_repository and records each call's
+    JSON payload instead of hitting the network."""
+    import httpx
+    calls = []
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"submission_id": 1, "message": "Submission received and queued for moderation."}
+
+    def fake_post(url, json=None, headers=None, timeout=None):
+        calls.append({"url": url, "json": json, "headers": headers})
+        return FakeResponse()
+
+    monkeypatch.setattr(httpx, "post", fake_post)
     return calls
 
 

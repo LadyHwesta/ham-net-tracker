@@ -34,6 +34,7 @@ A public demo is available at **[nettrackerdemo.meskis.net](https://nettrackerde
 - **Session history** — attendance statistics, filtering, and CSV export
 - **Public live page** — unauthenticated `/live` page showing active nets and check-in rosters in real time
 - **Public net directory** — opt-in per net; unauthenticated `/directory` page listing name, frequency, description, and weekly schedule for anyone to browse
+- **Net Repository integration** — optionally push publicly-listed nets to a central, community-run directory ([Net Repository](https://github.com/LadyHwesta/Net-Repository)) so they're discoverable beyond this instance
 - **In-app problem reporting** — users can submit bug reports and enhancement requests directly to the administrator
 - **User management** — registration with admin approval, email verification (when SMTP is configured), email notifications, admin panel
 - **Configurable branding** — set organization name, tagline, website URL, and logo from the Admin panel
@@ -196,7 +197,26 @@ A public, unauthenticated page showing all currently active nets is available at
 
 A public, unauthenticated directory of nets is available at `/directory` — for browsing what nets exist and when they meet, as opposed to `/live`'s real-time check-in view. Net owners opt in per net from the Edit form (**List in Public Net Directory**); listed nets show their name, net type, frequency, description, weekly schedule, and owner callsign to anyone browsing, no login required. A net stays out of the directory by default.
 
-There's no external directory integration (no ham radio net directory site currently offers a public API to publish to — see the research notes on [issue #8](https://github.com/LadyHwesta/ham-net-tracker/issues/8) if that changes); this is a self-contained, in-app directory only.
+## Net Repository Integration
+
+Nets opted into the Public Net Directory (above) can also be pushed to [Net Repository](https://github.com/LadyHwesta/Net-Repository) — a separate, community-run central directory that multiple Ham Net Tracker instances (and other tools) can publish to and be discovered from.
+
+**Setup** — set `NET_REPOSITORY_URL` and `NET_REPOSITORY_API_KEY` in `.env` (see `.env.example`). The API key is issued by the Net Repository instance's own admin, who also configures that key's `instance_url` on their end — that's what Net Repository uses to tell instances apart and prevent duplicate submissions, not anything sent by this app. Leave either blank to disable the integration entirely; nothing is sent anywhere.
+
+**Once configured:**
+- Creating a net with **List in Public Net Directory** checked pushes it immediately.
+- Toggling an existing net's directory listing on pushes it at that point.
+- The push is fire-and-forget — a Net Repository outage or misconfiguration never blocks creating or editing a net locally; failures are logged, not surfaced to the user.
+
+**Limitation:** Net Repository's submission API has no "update" path — once a net has a pending or published entry there (keyed on this instance + the net's local ID), later edits here (schedule changes, a new description, etc.) won't propagate automatically; re-pushing just gets reported back as an already-exists no-op. Significant changes to an already-listed net need a manual update on the Net Repository side.
+
+**Backfilling nets that existed before this integration:**
+
+```bash
+python3 push_to_net_repository.py
+```
+
+Pushes every currently-public net once. Safe to re-run — already-submitted nets are silently skipped rather than duplicated.
 
 ## Net Control Script
 

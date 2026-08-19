@@ -74,6 +74,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db, init_db
 from models import ApiToken, CallsignCache, Checkin, DmrConfig, EvacZone, GmrsLicense, Net, NetControlSignup, NetSchedule, NetSession, NetShare, StationRemark, SystemSetting, TrafficMessage, User, utcnow
+from net_repository import push_net as _push_net_to_repository
 
 load_dotenv()
 
@@ -286,7 +287,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="Ham Radio Net Tracker", version="1.11.0", lifespan=lifespan)
+app = FastAPI(title="Ham Radio Net Tracker", version="1.12.0", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -1289,6 +1290,7 @@ def create_net(data: NetCreate, current_user: User = Depends(get_current_user), 
     db.add(net)
     db.commit()
     db.refresh(net)
+    _push_net_to_repository(net)
     return net
 
 
@@ -1316,6 +1318,7 @@ def update_net(net_id: int, data: NetCreate, current_user: User = Depends(get_cu
     net.public_listed = data.public_listed
     db.commit()
     db.refresh(net)
+    _push_net_to_repository(net)
     return _net_to_out(net, current_user, db)
 
 

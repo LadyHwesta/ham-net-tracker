@@ -53,6 +53,17 @@
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
 
           <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-19 — Net Repository Integration (v1.12.0)</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>Nets opted into the Public Net Directory can now also be pushed to <a href="https://github.com/LadyHwesta/Net-Repository" target="_blank" style="color:var(--lc-orange)">Net Repository</a> — a separate, community-run central directory other tools (and other Ham Net Tracker instances) can discover nets from.</li>
+              <li>Off by default — set <code style="background:var(--surface);padding:1px 5px;border-radius:3px">NET_REPOSITORY_URL</code> and <code style="background:var(--surface);padding:1px 5px;border-radius:3px">NET_REPOSITORY_API_KEY</code> in <code style="background:var(--surface);padding:1px 5px;border-radius:3px">.env</code> to enable it. A net pushes the moment it's created or edited with the directory listing turned on.</li>
+              <li>Run <code style="background:var(--surface);padding:1px 5px;border-radius:3px">python3 push_to_net_repository.py</code> once after enabling this to backfill nets that were already public before the integration existed — safe to re-run, already-submitted nets are skipped rather than duplicated.</li>
+              <li>A Net Repository outage or misconfiguration never blocks creating or editing a net here — pushes are fire-and-forget; failures are logged, not shown to the user.</li>
+              <li>No database changes — this is a display/integration-only change, safe to deploy without a migration.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-19 — Email Verification</div>
             <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
               <li>New accounts (other than the very first/admin account) now get a <strong>verify your email</strong> link when SMTP is configured — you'll need to click it before an administrator's approval lets you log in. Protects against an admin approving a typo'd email address that would never receive notifications.</li>
