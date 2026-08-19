@@ -27,18 +27,24 @@ async function loadAdminUsers() {
   if (pending.length === 0) {
     pendingEl.innerHTML = '<p class="text-muted" style="font-size:13px">No pending registrations.</p>';
   } else {
-    pendingEl.innerHTML = pending.map(u => `
+    pendingEl.innerHTML = pending.map(u => {
+      const verifiedBadge = u.email_verified
+        ? '<span class="badge badge-green" title="Email address confirmed by the user">✓ Verified</span>'
+        : '<span class="badge badge-gray" title="User has not yet clicked the verification link in their email">Unverified</span>';
+      return `
       <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">
         <span class="callsign">${esc(u.callsign)}</span>
         <span>${esc(u.name)}</span>
         <span class="text-muted" style="font-size:12px">${esc(u.email)}</span>
+        ${verifiedBadge}
         <span class="text-muted" style="font-size:11px">Registered ${fmt(u.created_at)}</span>
         <div style="margin-left:auto;display:flex;gap:6px">
           <button class="btn btn-primary btn-sm" onclick="adminApprove(${u.id}, this)">✓ Approve</button>
           <button class="btn btn-danger btn-sm" onclick="adminReject(${u.id}, '${esc(u.callsign)}')">✕ Reject</button>
         </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
   }
 
   const tbody = document.getElementById('admin-users-tbody');

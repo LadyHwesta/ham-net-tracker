@@ -85,6 +85,33 @@ def client():
         yield c
 
 
+# ── Email ────────────────────────────────────────────────────────────────────
+
+@pytest.fixture
+def smtp_configured(monkeypatch):
+    """Makes _smtp_configured() return True, for tests exercising SMTP-gated code
+    paths (email verification, support tickets). Pair with sent_emails so no real
+    network call is attempted."""
+    import main
+    monkeypatch.setattr(main, "SMTP_HOST", "smtp.example.com")
+    monkeypatch.setattr(main, "SMTP_USER", "bot@example.com")
+    monkeypatch.setattr(main, "SMTP_PASSWORD", "secret")
+
+
+@pytest.fixture
+def sent_emails(monkeypatch):
+    """Intercepts main.send_email() and records each call instead of hitting the network."""
+    import main
+    calls = []
+
+    def fake_send_email(**kwargs):
+        calls.append(kwargs)
+        return True
+
+    monkeypatch.setattr(main, "send_email", fake_send_email)
+    return calls
+
+
 # ── Composite fixtures ───────────────────────────────────────────────────────
 
 @pytest.fixture

@@ -58,3 +58,22 @@ document.addEventListener('keydown', e => {
   ciCall.focus();
 });
 
+// ============================================================
+// EMAIL VERIFICATION REDIRECT
+// Landed here from the link in a verification email (?verified=1/0) --
+// show a toast and strip the param so a page reload doesn't repeat it.
+// ============================================================
+(function showVerifiedToast() {
+  const params = new URLSearchParams(window.location.search);
+  const v = params.get('verified');
+  if (v === null) return;
+  if (v === '1') {
+    toast('Email verified! You can log in once your account has been approved.', 'success');
+  } else {
+    toast('That verification link is invalid or has already been used.', 'error');
+  }
+  params.delete('verified');
+  const rest = params.toString();
+  window.history.replaceState({}, '', window.location.pathname + (rest ? '?' + rest : '') + window.location.hash);
+})();
+

@@ -25,8 +25,7 @@ Known issues, shortcuts, and areas for future improvement. Not bugs — the app 
 
 ## Low Priority
 
-### No email verification on registration
-New accounts require admin approval but no email verification step. An admin could approve a typo'd email address, and the user would never receive notifications. Adding a verification token sent on registration (before the approval step) would close this gap.
+~~No email verification on registration~~ — resolved; see Resolved section.
 
 ~~FCC callsign lookup depends on an external service~~ — resolved; see Resolved section.
 
@@ -51,3 +50,5 @@ All database calls use synchronous SQLAlchemy with a thread-per-request model. T
 - ~~`httpx` imported twice under different names~~ — duplicate `import httpx as _httpx` removed; all DMR proxy calls use the top-level `httpx` import (2026-08-16)
 - ~~FCC callsign lookup depends on an external service~~ — `CallsignCache` table added; results cached for 30 days (found) or 7 days (not_found); `_callsign_cache_read/write` helpers wrap all four return paths in `lookup_callsign`; 4 cache-hit tests added (2026-08-17)
 - ~~Relay script normalizes WPSD data differently from the backend~~ — new `POST /nets/{id}/dmr/push/raw` endpoint accepts raw hotspot JSON + `source` tag and normalizes server-side using existing `_dmr_normalize_wpsd/brandmeister()` functions; `dmr_relay.py` added to repo as a thin fetch-and-forward proxy; old `/push` endpoint kept for backward compat; 5 tests added (2026-08-17)
+- ~~No email verification on registration~~ — `users.email_verified`/`verification_token`/`verification_sent_at` added; registration sends a verify-your-email link (skipped for the bootstrap first/admin user, and silently skipped like all other email if SMTP isn't configured); `GET /auth/verify-email` consumes the token; login now rejects unverified accounts before checking approval status; pending-approval list in Admin shows a Verified/Unverified badge so an admin can see at a glance. 16 tests added (2026-08-19)
+- ~~`create_support_ticket` duplicated `send_email`'s entire SMTP-sending logic~~ (found while working the item above) — just to set a `Reply-To` header `send_email()` didn't support; added a `reply_to` param to `send_email()` instead and removed the ~30-line duplicate implementation (2026-08-19)

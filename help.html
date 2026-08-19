@@ -53,6 +53,17 @@
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
 
           <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-19 — Email Verification</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>New accounts (other than the very first/admin account) now get a <strong>verify your email</strong> link when SMTP is configured — you'll need to click it before an administrator's approval lets you log in. Protects against an admin approving a typo'd email address that would never receive notifications.</li>
+              <li>The Admin panel's pending-approval list now shows a <strong>Verified</strong> / <strong>Unverified</strong> badge next to each request.</li>
+              <li>The account-approved email now includes a direct link back to the login page (requires <code style="background:var(--surface);padding:1px 5px;border-radius:3px">APP_BASE_URL</code> to be set in <code style="background:var(--surface);padding:1px 5px;border-radius:3px">.env</code> — see <code style="background:var(--surface);padding:1px 5px;border-radius:3px">.env.example</code>).</li>
+              <li>If SMTP isn't configured on your instance, nothing changes — accounts are auto-verified exactly like before.</li>
+              <li><strong>Upgrading an existing install:</strong> adds <code style="background:var(--surface);padding:1px 5px;border-radius:3px">email_verified</code>, <code style="background:var(--surface);padding:1px 5px;border-radius:3px">verification_token</code>, and <code style="background:var(--surface);padding:1px 5px;border-radius:3px">verification_sent_at</code> columns to <code style="background:var(--surface);padding:1px 5px;border-radius:3px">users</code> — <code style="background:var(--surface);padding:1px 5px;border-radius:3px">./deploy.sh</code> runs <code style="background:var(--surface);padding:1px 5px;border-radius:3px">migrate.py</code> automatically; run it by hand if upgrading another way. Existing accounts are backfilled as already-verified, so nobody gets locked out.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-18 — Theme Engine (v1.10.0)</div>
             <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
               <li>Not everyone wants a Star Trek console for their net log — added a per-account <strong>theme</strong> picker in the header, next to Logout: <strong>LCARS</strong> (the original look), <strong>Dark</strong>, <strong>Light</strong>, <strong>High Contrast</strong> (for accessibility), or <strong>System</strong> (follows your OS light/dark setting automatically, including live updates if you change it while the app is open).</li>

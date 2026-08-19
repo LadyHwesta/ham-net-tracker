@@ -257,6 +257,16 @@ MIGRATIONS = [
     # ── Theme engine (issue #2) ─────────────────────────────────────────────
     ("users: theme preference",
      "ALTER TABLE users ADD COLUMN IF NOT EXISTS theme VARCHAR(20) NOT NULL DEFAULT 'lcars'"),
+
+    # ── Email verification (tech debt) ──────────────────────────────────────
+    # DEFAULT TRUE backfills existing accounts as verified — this closes a gap
+    # for new registrations, it doesn't retroactively lock anyone out.
+    ("users: email verified flag",
+     "ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT TRUE"),
+    ("users: verification token",
+     "ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token VARCHAR(64)"),
+    ("users: verification sent timestamp",
+     "ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_sent_at TIMESTAMPTZ"),
 ]
 
 # ---------------------------------------------------------------------------

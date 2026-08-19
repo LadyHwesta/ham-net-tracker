@@ -60,7 +60,7 @@ import httpx
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, HTTPException, Query, Request, Response, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 import jwt
@@ -95,12 +95,18 @@ SMTP_FROM     = os.getenv("SMTP_FROM", "")        # e.g. "Ham Net Tracker <norep
 SMTP_USE_TLS  = os.getenv("SMTP_USE_TLS", "true").lower() == "true"   # STARTTLS (port 587)
 SMTP_USE_SSL  = os.getenv("SMTP_USE_SSL", "false").lower() == "true"  # SSL/TLS (port 465)
 ADMIN_CONTACT_EMAIL = os.getenv("ADMIN_CONTACT_EMAIL", "")  # shown in approval emails as human contact
+APP_BASE_URL = os.getenv("APP_BASE_URL", "").rstrip("/")    # e.g. https://netcontrol.example.org — used for links in emails
 
 _email_log = logging.getLogger("ham_net_tracker.email")
 
 
 def _smtp_configured() -> bool:
     return bool(SMTP_HOST and SMTP_USER and SMTP_PASSWORD)
+
+
+def _app_url(path: str = "") -> Optional[str]:
+    """Absolute link back to this app for use in emails. None if APP_BASE_URL isn't configured."""
+    return f"{APP_BASE_URL}{path}" if APP_BASE_URL else None
 
 
 def send_email(
@@ -110,14 +116,17 @@ def send_email(
     body_text: str = "",
     ics_content: str | None = None,
     ics_filename: str = "netcontrol.ics",
-) -> None:
+    reply_to: str | None = None,
+) -> bool:
     """Send an HTML email, optionally with an ICS calendar attachment.
-    Silently skips (logs warning) if SMTP is not configured."""
+    Silently skips (logs warning) if SMTP is not configured. Returns whether
+    the email was actually sent — most callers are fire-and-forget and ignore
+    this, but it lets a caller like create_support_ticket report a real failure."""
     if not _smtp_configured():
         _email_log.debug("SMTP not configured — skipping email: %s", subject)
-        return
+        return False
     if not to:
-        return
+        return False
 
     from_addr = SMTP_FROM or SMTP_USER
 
@@ -148,6 +157,9 @@ def send_email(
             msg.attach(MIMEText(body_text, "plain"))
         msg.attach(MIMEText(body_html, "html"))
 
+    if reply_to:
+        msg["Reply-To"] = reply_to
+
     try:
         if SMTP_USE_SSL:
             with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT) as srv:
@@ -160,8 +172,10 @@ def send_email(
                 srv.login(SMTP_USER, SMTP_PASSWORD)
                 srv.sendmail(from_addr, to, msg.as_string())
         _email_log.info("Email sent to %s — %s", to, subject)
+        return True
     except Exception as exc:
         _email_log.warning("Failed to send email to %s: %s", to, exc)
+        return False
 
 
 def _build_ics(net: "Net", schedule: "NetSchedule", signup: "NetControlSignup", role_label: str = "Net Control") -> str:
@@ -271,7 +285,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="Ham Radio Net Tracker", version="1.10.0", lifespan=lifespan)
+app = FastAPI(title="Ham Radio Net Tracker", version="1.11.0", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -350,6 +364,7 @@ class UserOut(BaseModel):
     is_admin: bool
     notify_new_registrations: bool
     theme: str
+    email_verified: bool
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -724,6 +739,10 @@ def register(request: Request, data: UserCreate, db: Session = Depends(get_db)):
 
     # First registered user becomes admin and is immediately active
     is_first_user = db.query(User).count() == 0
+    # The bootstrap admin is trusted implicitly (they had server access to deploy this at
+    # all) and skips verification so a first-run SMTP misconfiguration can't lock them out.
+    needs_verification = _smtp_configured() and not is_first_user
+    verification_token = secrets.token_urlsafe(32) if needs_verification else None
     user = User(
         callsign=data.callsign,
         name=data.name,
@@ -731,10 +750,34 @@ def register(request: Request, data: UserCreate, db: Session = Depends(get_db)):
         hashed_password=hash_password(data.password),
         is_active=is_first_user,
         is_admin=is_first_user,
+        email_verified=not needs_verification,
+        verification_token=verification_token,
+        verification_sent_at=datetime.now(timezone.utc) if needs_verification else None,
     )
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    if needs_verification:
+        verify_link = _app_url(f"/auth/verify-email?token={verification_token}")
+        send_email(
+            to=[user.email],
+            subject="[Ham Net Tracker] Verify Your Email",
+            body_html=f"""<div style="font-family:sans-serif;max-width:520px">
+  <h2 style="color:#FF9900">Verify Your Email</h2>
+  <p>Hello <strong>{user.name}</strong> ({user.callsign}),</p>
+  <p>Thanks for registering with Ham Net Tracker. Please confirm this is your email address before an administrator can approve your account.</p>
+  {f'<p style="margin-top:16px"><a href="{verify_link}" style="background:#FF9900;color:#000;padding:10px 20px;text-decoration:none;border-radius:20px;font-weight:bold;display:inline-block">Verify Email</a></p>' if verify_link else '<p>Contact your administrator to have your account verified.</p>'}
+  <p style="color:#888;font-size:12px">If you did not request this account, please disregard this message.</p>
+</div>""",
+            body_text=(
+                f"Hello {user.name} ({user.callsign}),\n\n"
+                f"Thanks for registering with Ham Net Tracker. Please confirm this is your email "
+                f"address before an administrator can approve your account.\n\n"
+                + (f"Verify here: {verify_link}\n\n" if verify_link else "Contact your administrator to have your account verified.\n\n")
+                + "If you did not request this account, please disregard this message."
+            ),
+        )
 
     # Notify opted-in admins about the new registration (skip for the first/admin user)
     if not is_first_user:
@@ -770,6 +813,19 @@ def register(request: Request, data: UserCreate, db: Session = Depends(get_db)):
     return user
 
 
+@app.get("/auth/verify-email", include_in_schema=False)
+def verify_email(token: str, db: Session = Depends(get_db)):
+    """Public link clicked from the verification email. Redirects back to the
+    login page with a query param the frontend uses to show a result toast."""
+    user = db.query(User).filter(User.verification_token == token).first() if token else None
+    if not user:
+        return RedirectResponse(url="/?verified=0")
+    user.email_verified = True
+    user.verification_token = None
+    db.commit()
+    return RedirectResponse(url="/?verified=1")
+
+
 @app.post("/auth/login", response_model=Token)
 @limiter.limit("10/minute")
 def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
@@ -781,6 +837,9 @@ def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db
     if not user or not verify_password(form_data.password, user.hashed_password):
         _log_auth_fail(request, f"bad_credentials username={form_data.username!r}")
         raise HTTPException(status_code=401, detail="Incorrect callsign/email or password")
+    if not user.email_verified:
+        _log_auth_fail(request, f"unverified_email username={form_data.username!r}")
+        raise HTTPException(status_code=403, detail="Please verify your email before logging in — check your inbox for the verification link.")
     if not user.is_active:
         _log_auth_fail(request, f"inactive_account username={form_data.username!r}")
         raise HTTPException(status_code=403, detail="Account pending approval. Please contact the net administrator.")
@@ -1146,35 +1205,16 @@ def create_support_ticket(
         f"---\nReply to: {current_user.email}"
     )
 
-    from email.mime.multipart import MIMEMultipart as _MM
-    from email.mime.text import MIMEText as _MT
-    import smtplib as _smtp
-
-    from_addr = SMTP_FROM or SMTP_USER
-    msg = _MM("alternative")
-    msg["Subject"] = subject
-    msg["From"]    = from_addr
-    msg["To"]      = SUPPORT_EMAIL
-    msg["Reply-To"] = f"{current_user.name} <{current_user.email}>"
-    if body_text:
-        msg.attach(_MT(body_text, "plain"))
-    msg.attach(_MT(body_html, "html"))
-
-    try:
-        if SMTP_USE_SSL:
-            with _smtp.SMTP_SSL(SMTP_HOST, SMTP_PORT) as srv:
-                srv.login(SMTP_USER, SMTP_PASSWORD)
-                srv.sendmail(from_addr, [SUPPORT_EMAIL], msg.as_string())
-        else:
-            with _smtp.SMTP(SMTP_HOST, SMTP_PORT) as srv:
-                if SMTP_USE_TLS:
-                    srv.starttls()
-                srv.login(SMTP_USER, SMTP_PASSWORD)
-                srv.sendmail(from_addr, [SUPPORT_EMAIL], msg.as_string())
-        _email_log.info("Support ticket sent from %s — %s", current_user.callsign, subject)
-    except Exception as exc:
-        _email_log.warning("Failed to send support ticket: %s", exc)
+    sent = send_email(
+        to=[SUPPORT_EMAIL],
+        subject=subject,
+        body_html=body_html,
+        body_text=body_text,
+        reply_to=f"{current_user.name} <{current_user.email}>",
+    )
+    if not sent:
         raise HTTPException(500, "Failed to send email — please try again later")
+    _email_log.info("Support ticket sent from %s — %s", current_user.callsign, subject)
 
 
 # ---------------------------------------------------------------------------
@@ -1405,6 +1445,7 @@ def admin_approve_user(user_id: int, admin: User = Depends(require_admin), db: S
     db.commit()
     db.refresh(user)
 
+    login_link = _app_url("/")
     send_email(
         to=[user.email],
         subject="[Ham Net Tracker] Your Account Has Been Approved",
@@ -1412,12 +1453,14 @@ def admin_approve_user(user_id: int, admin: User = Depends(require_admin), db: S
   <h2 style="color:#FF9900">Account Approved!</h2>
   <p>Hello <strong>{user.name}</strong> ({user.callsign}),</p>
   <p>Your Ham Net Tracker account has been reviewed and approved. You can now log in and start using the system.</p>
+  {f'<p style="margin-top:16px"><a href="{login_link}" style="background:#FF9900;color:#000;padding:10px 20px;text-decoration:none;border-radius:20px;font-weight:bold;display:inline-block">Log In Now</a></p>' if login_link else ''}
   {f'<p style="color:#888;font-size:12px">This email box is not monitored. If you have any questions please email <a href="mailto:{ADMIN_CONTACT_EMAIL}" style="color:#FF9900">{ADMIN_CONTACT_EMAIL}</a>.</p>' if ADMIN_CONTACT_EMAIL else ''}
   <p style="color:#888;font-size:12px">If you did not request this account, please disregard this message.</p>
 </div>""",
         body_text=(
             f"Hello {user.name} ({user.callsign}),\n\n"
             f"Your Ham Net Tracker account has been approved. You can now log in.\n\n"
+            + (f"Log in here: {login_link}\n\n" if login_link else "")
             + (f"This email box is not monitored. If you have any questions please email {ADMIN_CONTACT_EMAIL}.\n\n" if ADMIN_CONTACT_EMAIL else "")
             + "If you did not request this account, please disregard this message."
         ),
