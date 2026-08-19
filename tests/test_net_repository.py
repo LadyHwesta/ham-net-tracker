@@ -152,7 +152,9 @@ class TestCheckStatusEndpoint:
     def test_no_pending_request(self, client, admin_headers, net_repo_url_only):
         resp = client.post("/admin/net-repository/check-status", headers=admin_headers)
         data = resp.json()
-        assert data == {"ok": True, "status": "none", "message": "No pending request.", "request_id": None}
+        assert data == {
+            "ok": True, "status": "none", "message": "No pending request.", "request_id": None, "api_key": None,
+        }
 
     def test_still_pending(self, client, admin_headers, net_repo_url_only, monkeypatch, db):
         net_repository._set_setting(net_repository._SETTING_CLAIM_TOKEN, "nrc_abc123", db)
@@ -193,6 +195,16 @@ class TestCheckStatusEndpoint:
         resp = client.post("/admin/net-repository/check-status", headers=admin_headers)
         data = resp.json()
         assert data["status"] == "claimed"
+        # The whole point of the fix: the admin needs a chance to see/copy the
+        # key, exactly like any other API key/token in this app -- it's only
+        # ever handed back on this one response, the poll that claims it fresh.
+        assert data["api_key"] == "nr_freshlyissuedkey"
+
+        # A second check-status call (as if the admin clicked the button again)
+        # must not still be handing out the key -- Net Repository itself only
+        # returns it once, and there's nothing left locally to re-reveal either.
+        resp2 = client.post("/admin/net-repository/check-status", headers=admin_headers)
+        assert resp2.json().get("api_key") is None
 
         status_resp = client.get("/admin/net-repository/status", headers=admin_headers)
         status_data = status_resp.json()
@@ -200,7 +212,8 @@ class TestCheckStatusEndpoint:
         assert status_data["key_source"] == "self-service"
         assert status_data["request_status"] == "claimed"
 
-        # The API key itself is never exposed back through the status endpoint.
+        # The general status endpoint never exposes the key, unlike the
+        # one-time check-status response above.
         assert "api_key" not in status_data
         assert "nr_freshlyissuedkey" not in str(status_data)
 

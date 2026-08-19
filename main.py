@@ -1630,6 +1630,7 @@ class NetRepoActionResult(BaseModel):
     status: Optional[str] = None
     message: str
     request_id: Optional[int] = None
+    api_key: Optional[str] = None   # present exactly once, on the poll that claims a newly-approved key
 
 
 @app.get("/admin/net-repository/status", response_model=NetRepoStatusOut)

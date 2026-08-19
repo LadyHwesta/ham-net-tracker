@@ -212,12 +212,17 @@ async function loadRegisteredUsers() {
 // ============================================================
 // NET REPOSITORY
 // ============================================================
+let _lastNetRepoKey = null;
+
 async function loadNetRepoStatus() {
   const statusEl = document.getElementById('netrepo-status');
   const noUrlHint = document.getElementById('netrepo-no-url-hint');
   const requestForm = document.getElementById('netrepo-request-form');
   const pendingActions = document.getElementById('netrepo-pending-actions');
   const clearActions = document.getElementById('netrepo-clear-actions');
+  // The raw key is only ever known right after check-status claims it fresh
+  // (see checkNetRepoKeyStatus) -- any other status refresh hides it again.
+  document.getElementById('netrepo-key-reveal').style.display = 'none';
 
   let data;
   try {
@@ -282,14 +287,27 @@ async function checkNetRepoKeyStatus() {
     const result = await apiFetch('/admin/net-repository/check-status', { method: 'POST' });
     const toastType = (result.status === 'rejected' || result.status === 'unknown') ? 'error' : 'success';
     toast(result.message || result.status, toastType);
-    loadNetRepoStatus();
+    await loadNetRepoStatus();
+    // Present only on the one poll that freshly claims an approved key --
+    // show it now, since this is the only chance to copy it.
+    if (result.api_key) {
+      _lastNetRepoKey = result.api_key;
+      document.getElementById('netrepo-key-value').textContent = result.api_key;
+      document.getElementById('netrepo-key-reveal').style.display = '';
+    }
   } catch (e) { toast(e.message, 'error'); }
+}
+
+function copyNetRepoKey() {
+  if (!_lastNetRepoKey) return;
+  navigator.clipboard.writeText(_lastNetRepoKey).then(() => toast('Key copied to clipboard'));
 }
 
 async function clearNetRepoKey() {
   if (!confirm('Forget the stored Net Repository key? Nets will stop pushing until a new key is configured.')) return;
   try {
     await apiFetch('/admin/net-repository/key', { method: 'DELETE' });
+    _lastNetRepoKey = null;
     toast('Key forgotten');
     loadNetRepoStatus();
   } catch (e) { toast(e.message, 'error'); }

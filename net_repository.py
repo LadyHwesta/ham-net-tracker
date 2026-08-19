@@ -214,10 +214,19 @@ def check_key_request_status(db) -> dict:
     status = data.get("status", "unknown")
     _set_setting(_SETTING_REQUEST_STATUS, status, db)
 
+    result = {"ok": True, "status": status, "message": data.get("message", "")}
+
     if status == "claimed":
         if data.get("api_key"):
             _set_setting(_SETTING_API_KEY, data["api_key"], db)
             _log.info("Net Repository API key request approved — key received and saved.")
+            # Net Repository only ever returns the raw key on the ONE poll that
+            # claims it (like this one) — later polls report "claimed" with no
+            # key. Hand it back to the caller this one time too, so the admin
+            # gets a chance to see/copy it, same as any other API key/token in
+            # this app. It is never stored anywhere in plaintext by this
+            # function's caller beyond that single response.
+            result["api_key"] = data["api_key"]
         # Claimed either just now (key present) or by an earlier poll (key
         # already saved then) — either way the claim token has no further use.
         _set_setting(_SETTING_CLAIM_TOKEN, None, db)
@@ -225,7 +234,7 @@ def check_key_request_status(db) -> dict:
         _set_setting(_SETTING_CLAIM_TOKEN, None, db)
 
     db.commit()
-    return {"ok": True, "status": status, "message": data.get("message", "")}
+    return result
 
 
 def clear_stored_key(db) -> None:

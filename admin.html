@@ -180,6 +180,14 @@
             <button class="btn btn-ghost btn-sm" onclick="checkNetRepoKeyStatus()">🔄 Check Status</button>
           </div>
 
+          <div id="netrepo-key-reveal" style="display:none;margin-top:14px;background:var(--surface);border:1px solid var(--lc-orange);border-radius:6px;padding:12px">
+            <div style="font-size:12px;color:var(--lc-orange);font-weight:700;margin-bottom:6px">⚠ Copy this key now — it will not be shown again</div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <code id="netrepo-key-value" style="flex:1;word-break:break-all;font-size:12px;color:var(--text)"></code>
+              <button class="btn btn-ghost btn-sm" onclick="copyNetRepoKey()">📋 Copy</button>
+            </div>
+          </div>
+
           <div id="netrepo-clear-actions" style="display:none;margin-top:8px">
             <button class="btn btn-danger btn-sm" onclick="clearNetRepoKey()">Forget This Key</button>
           </div>
