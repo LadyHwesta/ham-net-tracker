@@ -113,6 +113,14 @@ def smtp_configured(monkeypatch):
 
 
 @pytest.fixture
+def app_base_url(monkeypatch):
+    """Sets APP_BASE_URL so emails (verify-your-email, account-approved) include
+    a clickable link — without it those links are omitted (main.py's _app_url())."""
+    import main
+    monkeypatch.setattr(main, "APP_BASE_URL", "http://testserver")
+
+
+@pytest.fixture
 def sent_emails(monkeypatch):
     """Intercepts main.send_email() and records each call instead of hitting the network."""
     import main

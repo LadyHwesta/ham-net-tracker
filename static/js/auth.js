@@ -59,6 +59,9 @@ async function doRegister(btn) {
           </p>
           <button class="btn btn-ghost btn-sm" onclick="switchAuthTab('login')">← Back to Login</button>
         </div>`;
+      if (newUser.email_verified === false) {
+        toast('Check your inbox for a verification email — look in spam/junk if it doesn\'t show up in a few minutes.', 'success');
+      }
     }
   } catch (e) {
     showAuthError(e.message);

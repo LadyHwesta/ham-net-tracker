@@ -96,6 +96,7 @@ SMTP_USE_TLS  = os.getenv("SMTP_USE_TLS", "true").lower() == "true"   # STARTTLS
 SMTP_USE_SSL  = os.getenv("SMTP_USE_SSL", "false").lower() == "true"  # SSL/TLS (port 465)
 ADMIN_CONTACT_EMAIL = os.getenv("ADMIN_CONTACT_EMAIL", "")  # shown in approval emails as human contact
 APP_BASE_URL = os.getenv("APP_BASE_URL", "").rstrip("/")    # e.g. https://netcontrol.example.org — used for links in emails
+VERIFICATION_TOKEN_TTL_DAYS = 7
 
 _email_log = logging.getLogger("ham_net_tracker.email")
 
@@ -742,7 +743,10 @@ def register(request: Request, data: UserCreate, db: Session = Depends(get_db)):
     # The bootstrap admin is trusted implicitly (they had server access to deploy this at
     # all) and skips verification so a first-run SMTP misconfiguration can't lock them out.
     needs_verification = _smtp_configured() and not is_first_user
+    # The raw token goes in the email link; only its hash is stored, same pattern
+    # as api_tokens, so a DB leak alone can't be used to verify arbitrary accounts.
     verification_token = secrets.token_urlsafe(32) if needs_verification else None
+    verification_token_hash = hashlib.sha256(verification_token.encode()).hexdigest() if verification_token else None
     user = User(
         callsign=data.callsign,
         name=data.name,
@@ -751,7 +755,7 @@ def register(request: Request, data: UserCreate, db: Session = Depends(get_db)):
         is_active=is_first_user,
         is_admin=is_first_user,
         email_verified=not needs_verification,
-        verification_token=verification_token,
+        verification_token=verification_token_hash,
         verification_sent_at=datetime.now(timezone.utc) if needs_verification else None,
     )
     db.add(user)
@@ -817,9 +821,19 @@ def register(request: Request, data: UserCreate, db: Session = Depends(get_db)):
 def verify_email(token: str, db: Session = Depends(get_db)):
     """Public link clicked from the verification email. Redirects back to the
     login page with a query param the frontend uses to show a result toast."""
-    user = db.query(User).filter(User.verification_token == token).first() if token else None
+    if not token:
+        return RedirectResponse(url="/?verified=0")
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    user = db.query(User).filter(User.verification_token == token_hash).first()
     if not user:
         return RedirectResponse(url="/?verified=0")
+    if user.verification_sent_at:
+        # SQLite returns tz-naive datetimes; PostgreSQL returns tz-aware — normalize to UTC.
+        sent_at = user.verification_sent_at
+        if sent_at.tzinfo is None:
+            sent_at = sent_at.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) - sent_at > timedelta(days=VERIFICATION_TOKEN_TTL_DAYS):
+            return RedirectResponse(url="/?verified=0")
     user.email_verified = True
     user.verification_token = None
     db.commit()
@@ -1393,29 +1407,6 @@ def delete_session(session_id: int, current_user: User = Depends(get_current_use
 
 
 # ---------------------------------------------------------------------------
-# Users (public directory for assignment dropdowns)
-# ---------------------------------------------------------------------------
-
-class UserSummary(BaseModel):
-    id: int
-    callsign: str
-    name: str
-
-    model_config = {"from_attributes": True}
-
-
-@app.get("/users", response_model=list[UserSummary])
-def list_users(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Return all active registered operators (callsign + name only, no emails)."""
-    return (
-        db.query(User)
-        .filter(User.is_active == True)
-        .order_by(User.callsign)
-        .all()
-    )
-
-
-# ---------------------------------------------------------------------------
 # Admin helpers
 # ---------------------------------------------------------------------------
 
@@ -1437,11 +1428,19 @@ def admin_list_users(admin: User = Depends(require_admin), db: Session = Depends
 
 @app.patch("/admin/users/{user_id}/approve", response_model=UserOut)
 def admin_approve_user(user_id: int, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
-    """Activate a pending user account and notify them by email."""
+    """Activate a pending user account and notify them by email.
+
+    Also marks the account email-verified: an admin manually approving someone
+    is a stronger trust signal than the automated link-click, and it's the only
+    way to unblock a user whose verification email never arrived or whose link
+    can't work because APP_BASE_URL isn't configured on this instance.
+    """
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(404, "User not found")
     user.is_active = True
+    user.email_verified = True
+    user.verification_token = None
     db.commit()
     db.refresh(user)
 
