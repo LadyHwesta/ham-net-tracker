@@ -2,9 +2,11 @@
 // CALLSIGN LOOKUP
 // ============================================================
 const lookupCache = {};  // callsign → result, avoids repeat API calls per session
+let lastLookedUpCallsign = null;  // guards against a redundant re-lookup wiping an open remark editor
 
 async function lookupCallsign(callsign) {
   if (!callsign || callsign.length < 3) { clearLookupInfo(); return; }
+  lastLookedUpCallsign = callsign;
   if (lookupCache[callsign]) { applyLookupResult(lookupCache[callsign]); return; }
 
   setLookupInfo('<span class="lookup-spinner"></span><span class="text-muted" style="font-size:11px">Looking up…</span>');
@@ -44,12 +46,10 @@ function applyLookupResult(result) {
       ? 'Not found in GMRS database'
       : 'Not found in FCC database';
     setLookupInfo(`<span class="lookup-notfound">${notFoundMsg}</span>`);
-    // Still show a pill if a preferred name/remark exists for this callsign
+    // Preferred name/remark isn't tied to a successful FCC/GMRS lookup — always
+    // offer the pill so a station missing from the database can still get one.
     const cs = document.getElementById('ci-call').value.trim().toUpperCase();
-    if (cs) loadStationRemarks(cs).then(data => {
-      if (!data) return;
-      renderRemarkPill(cs, data);
-    });
+    if (cs) loadStationRemarks(cs).then(data => renderRemarkPill(cs, data));
     return;
   }
 
@@ -81,6 +81,7 @@ function setLookupInfo(html) {
 function clearLookupInfo() {
   document.getElementById('ci-lookup-info').innerHTML = '';
   document.getElementById('ci-name-autofill-note').style.display = 'none';
+  lastLookedUpCallsign = null;
 }
 
 // ============================================================
@@ -184,7 +185,10 @@ document.getElementById('ci-call').addEventListener('blur', e => {
   setTimeout(() => {
     const cs = e.target.value.trim().toUpperCase();
     clearCallsignDropdown();
-    if (cs && isLikelyFullCallsign(cs)) lookupCallsign(cs);
+    // Skip re-looking-up a callsign already displayed — this field loses focus
+    // whenever the remark pill/editor is clicked, and a redundant lookup here
+    // would wipe out the just-opened editor via setLookupInfo()'s innerHTML reset.
+    if (cs && isLikelyFullCallsign(cs) && cs !== lastLookedUpCallsign) lookupCallsign(cs);
   }, 150);
 });
 document.getElementById('ci-call').addEventListener('input', e => {
@@ -401,10 +405,15 @@ function renderExpectedList() {
       ? `<span style="font-size:11px;color:var(--lc-blue);white-space:nowrap;min-width:60px;text-align:right"
               title="Last known zone">${knownZone ? '📍 ' + esc(knownZone) : ''}</span>`
       : '';
-    return `<div style="display:flex;align-items:center;gap:12px;padding:6px 0;border-bottom:1px solid var(--border);${checked ? 'opacity:.45' : ''}">
+    return `<div class="exp-row" style="display:flex;align-items:center;gap:12px;padding:6px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;${checked ? 'opacity:.45' : ''}">
       ${checkboxGroup}
       <span class="callsign" style="min-width:80px">${esc(st.callsign)}</span>
-      <span style="flex:1;color:var(--text-muted);font-size:12px">${esc(st.name || '')}</span>
+      <span style="flex:1;display:flex;align-items:center;gap:6px;min-width:120px">
+        <span class="exp-name-display" style="color:var(--text-muted);font-size:12px">${esc(st.name || '')}</span>
+        <button type="button" title="Set preferred name / remark for this station"
+          onclick="toggleExpectedRemarkEditor(this, '${esc(st.callsign)}')"
+          style="background:none;border:none;color:var(--lc-orange);cursor:pointer;font-size:11px;padding:0 2px;opacity:0.7">✏️</button>
+      </span>
       ${zoneBadge}
       <span style="font-size:11px;color:var(--lc-blue);white-space:nowrap" title="Check-ins in window">${st.checkin_count}✓</span>
     </div>`;
@@ -651,5 +660,39 @@ async function submitRemark(callsign) {
       else { pill.remove(); }
     }
   } catch (e) { toast(e.message, 'error'); }
+}
+
+// Inline preferred name / remark editor for a row in the Expected Stations
+// list — the check-in form's pill only appears once a callsign is typed
+// there, so this gives a second, more discoverable entry point.
+async function toggleExpectedRemarkEditor(btn, callsign) {
+  const row = btn.closest('.exp-row');
+  const existing = row.querySelector('.exp-remark-editor');
+  if (existing) { existing.remove(); return; }
+
+  const current = await loadStationRemarks(callsign);
+  const editor = document.createElement('div');
+  editor.className = 'exp-remark-editor';
+  editor.style.cssText = 'display:flex;gap:6px;align-items:center;flex-wrap:wrap';
+  editor.innerHTML = `
+    <input class="form-control exp-pref-input" style="width:120px;font-size:12px"
+      placeholder="Preferred name" value="${esc((current && current.preferred_name) || '')}" />
+    <input class="form-control exp-remark-input" style="width:140px;font-size:12px"
+      placeholder="Notes" value="${esc((current && current.remark) || '')}" />
+    <button class="btn btn-primary btn-sm" type="button">Save</button>
+    <button class="btn btn-ghost btn-sm" type="button">✕</button>`;
+  const prefInput = editor.querySelector('.exp-pref-input');
+  const remarkInput = editor.querySelector('.exp-remark-input');
+  const [saveBtn, cancelBtn] = editor.querySelectorAll('button');
+  saveBtn.onclick = async () => {
+    try {
+      await saveStationRemark(callsign, remarkInput.value, prefInput.value);
+      toast('Saved', 'success');
+      await loadExpectedStations();
+    } catch (e) { toast(e.message, 'error'); }
+  };
+  cancelBtn.onclick = () => editor.remove();
+  row.appendChild(editor);
+  prefInput.focus();
 }
 
