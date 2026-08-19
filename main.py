@@ -79,6 +79,22 @@ from net_repository import push_net as _push_net_to_repository
 load_dotenv()
 
 # ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+# Without this, only loggers with their own explicit handler (AUTH_LOG_FILE
+# below) produce visible output. Everything else falls back to Python's
+# WARNING-level "handler of last resort", so INFO messages — a successful
+# Net Repository push, a sent email — never appear anywhere, not even in the
+# systemd journal, even though the equivalent failures (logged at WARNING)
+# already do.
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(
+    level=LOG_LEVEL,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    datefmt="%Y-%m-%dT%H:%M:%S",
+)
+
+# ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production-use-a-long-random-string")
