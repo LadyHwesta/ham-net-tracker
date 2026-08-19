@@ -49,7 +49,12 @@ function renderHistory(rows) {
       : `<span class="text-muted" style="font-size:11px">—</span>`;
     return `<tr id="hist-row-${esc(r.callsign)}">
       <td><span class="callsign">${esc(r.callsign)}</span></td>
-      <td id="hist-name-${esc(r.callsign)}">${esc(r.name || '—')}</td>
+      <td id="hist-name-${esc(r.callsign)}">
+        <span class="hist-name-display">${esc(r.name || '—')}</span>
+        <button type="button" title="Set preferred name / remark for this station"
+          onclick="toggleHistoryRemarkEditor(this, '${esc(r.callsign)}')"
+          style="background:none;border:none;color:var(--lc-orange);cursor:pointer;font-size:11px;padding:0 2px;opacity:0.7">✏️</button>
+      </td>
       <td id="hist-lic-${esc(r.callsign)}">${licenseCell}</td>
       <td style="text-align:center">${lastNetBadge}</td>
       <td style="text-align:center">${recent2wBadge}</td>
@@ -71,7 +76,7 @@ function buildLicensePills(result) {
 
 async function lookupHistoryRow(callsign) {
   const licEl = document.getElementById(`hist-lic-${callsign}`);
-  const nameEl = document.getElementById(`hist-name-${callsign}`);
+  const nameEl = document.getElementById(`hist-name-${callsign}`)?.querySelector('.hist-name-display');
   if (!licEl) return;
   licEl.innerHTML = '<span class="lookup-spinner"></span>';
   try {
@@ -84,6 +89,41 @@ async function lookupHistoryRow(callsign) {
   } catch {
     licEl.innerHTML = '<span class="lookup-notfound" style="font-size:11px">Error</span>';
   }
+}
+
+// Inline preferred name / remark editor for a History row — lets an operator
+// set a preferred name after the net has closed, not just live during check-in.
+async function toggleHistoryRemarkEditor(btn, callsign) {
+  const cell = document.getElementById(`hist-name-${callsign}`);
+  const existing = cell.querySelector('.hist-remark-editor');
+  if (existing) { existing.remove(); return; }
+
+  const current = await loadStationRemarks(callsign);
+  const editor = document.createElement('div');
+  editor.className = 'hist-remark-editor';
+  editor.style.cssText = 'display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap';
+  editor.innerHTML = `
+    <input class="form-control hist-pref-input" style="width:120px;font-size:12px"
+      placeholder="Preferred name" value="${esc((current && current.preferred_name) || '')}" />
+    <input class="form-control hist-remark-input" style="width:140px;font-size:12px"
+      placeholder="Notes" value="${esc((current && current.remark) || '')}" />
+    <button class="btn btn-primary btn-sm" type="button">Save</button>
+    <button class="btn btn-ghost btn-sm" type="button">✕</button>`;
+  const prefInput = editor.querySelector('.hist-pref-input');
+  const remarkInput = editor.querySelector('.hist-remark-input');
+  const [saveBtn, cancelBtn] = editor.querySelectorAll('button');
+  saveBtn.onclick = async () => {
+    try {
+      await saveStationRemark(callsign, remarkInput.value, prefInput.value);
+      toast('Saved', 'success');
+      // Refresh the underlying data without resetting the active search/filter.
+      historyData = await apiFetch(`/nets/${currentNetId}/history?limit=1000`).catch(() => historyData);
+      filterHistory();
+    } catch (e) { toast(e.message, 'error'); }
+  };
+  cancelBtn.onclick = () => editor.remove();
+  cell.appendChild(editor);
+  prefInput.focus();
 }
 
 async function lookupAllHistory() {

@@ -24,7 +24,7 @@ A public demo is available at **[nettrackerdemo.meskis.net](https://nettrackerde
 - **Traffic management** — flag stations with traffic, interactive "called" tracking (persists across a session close/reopen), formal traffic message log
 - **ARES/ACES mode** — evacuation zone tracking per station, zone roster panel
 - **Expected stations** — pre-built check-in list from historical attendees with pre-flag support
-- **Station remarks & preferred names** — persistent per-net notes on any callsign, plus a preferred name that overrides the FCC/GMRS-looked-up name on the Expected Stations list and in net reports
+- **Station remarks & preferred names** — persistent per-net notes on any callsign, plus a preferred name that overrides the FCC/GMRS-looked-up name on the Expected Stations list, Checkin History, and net reports; editable from the check-in form, Expected Stations, or Checkin History (including after a net has closed)
 - **Session summary & ICS-205** — automatic summary card on session end, printable net log export
 - **Net control script** — attach a script to a net with basic formatting and live `{{variable}}` substitution (Net Control / Broadcaster callsign and name), pinned to the top of the live check-in screen so you don't need a second window open
 - **Session clock** — live local/UTC time and elapsed session timer

@@ -144,3 +144,47 @@ class TestPreferredNameOverride:
             "callsign": "W7ABC", "name": "Robert Smith", "has_traffic": False,
         }, headers=admin_headers)
         assert add.json()["name"] == "Robert Smith"
+
+
+class TestHistoryPreferredNameOverride:
+    """issue #14 follow-up: preferred name can be set/edited from the History
+    view after a net has closed, and should override the name shown there too."""
+
+    def test_history_uses_fcc_name_by_default(self, client, admin_headers, net, session):
+        client.post(f"/sessions/{session['id']}/checkins", json={
+            "callsign": "W7ABC", "name": "Robert Smith", "has_traffic": False,
+        }, headers=admin_headers)
+
+        resp = client.get(f"/nets/{net['id']}/history", headers=admin_headers)
+        assert resp.status_code == 200
+        station = next(s for s in resp.json() if s["callsign"] == "W7ABC")
+        assert station["name"] == "Robert Smith"
+
+    def test_history_uses_preferred_name_when_set(self, client, admin_headers, net, session):
+        client.post(f"/sessions/{session['id']}/checkins", json={
+            "callsign": "W7ABC", "name": "Robert Smith", "has_traffic": False,
+        }, headers=admin_headers)
+        client.put(f"/nets/{net['id']}/stations/W7ABC/remark", json={
+            "preferred_name": "Bob",
+        }, headers=admin_headers)
+
+        resp = client.get(f"/nets/{net['id']}/history", headers=admin_headers)
+        assert resp.status_code == 200
+        station = next(s for s in resp.json() if s["callsign"] == "W7ABC")
+        assert station["name"] == "Bob"
+
+    def test_history_preferred_name_settable_after_session_ends(self, client, admin_headers, net, session):
+        """The whole point of this feature: editing works after the net has closed."""
+        client.post(f"/sessions/{session['id']}/checkins", json={
+            "callsign": "W7ABC", "name": "Robert Smith", "has_traffic": False,
+        }, headers=admin_headers)
+        client.patch(f"/sessions/{session['id']}/end", headers=admin_headers)
+
+        put_resp = client.put(f"/nets/{net['id']}/stations/W7ABC/remark", json={
+            "preferred_name": "Bob",
+        }, headers=admin_headers)
+        assert put_resp.status_code == 200
+
+        resp = client.get(f"/nets/{net['id']}/history", headers=admin_headers)
+        station = next(s for s in resp.json() if s["callsign"] == "W7ABC")
+        assert station["name"] == "Bob"

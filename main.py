@@ -2123,10 +2123,11 @@ def net_history(
             db.query(Checkin).filter(Checkin.session_id == last_session.id).all()
         }
 
+    preferred_names = _preferred_names_for_net(net_id, db)
     return [
         CallsignHistoryItem(
             callsign=r.callsign,
-            name=r.name,
+            name=preferred_names.get(r.callsign, r.name),
             total_checkins=r.total_checkins,
             recent_checkins=recent_2w.get(r.callsign, 0),
             recent_4w_checkins=recent_4w.get(r.callsign, 0),
