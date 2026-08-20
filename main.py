@@ -303,7 +303,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="Ham Radio Net Tracker", version="1.14.0", lifespan=lifespan)
+app = FastAPI(title="Ham Radio Net Tracker", version="1.15.0", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -411,6 +411,13 @@ class NetCreate(BaseModel):
     reminder_enabled: bool = False   # email signed-up Net Control / Broadcaster before start
     reminder_minutes_before: Optional[int] = None   # lead time, e.g. 30
     public_listed: bool = False    # shown in the public /directory (no login required)
+    # Optional directory metadata — not used locally, only forwarded to Net Repository
+    band: Optional[str] = None
+    mode: Optional[str] = None
+    ctcss_tone: Optional[str] = None
+    region: Optional[str] = None
+    state: Optional[str] = None
+    website: Optional[str] = None
 
     @field_validator("reminder_minutes_before")
     @classmethod
@@ -434,6 +441,12 @@ class NetOut(BaseModel):
     public_listed: bool = False
     reminder_enabled: bool = False
     reminder_minutes_before: Optional[int] = None
+    band: Optional[str] = None
+    mode: Optional[str] = None
+    ctcss_tone: Optional[str] = None
+    region: Optional[str] = None
+    state: Optional[str] = None
+    website: Optional[str] = None
     owner_id: int
     created_at: datetime
     # Sharing fields (populated by helper, not from ORM attributes directly)
@@ -1301,6 +1314,12 @@ def create_net(data: NetCreate, current_user: User = Depends(get_current_user), 
         reminder_enabled=data.reminder_enabled,
         reminder_minutes_before=(data.reminder_minutes_before or 30) if data.reminder_enabled else None,
         public_listed=data.public_listed,
+        band=data.band or None,
+        mode=data.mode or None,
+        ctcss_tone=data.ctcss_tone or None,
+        region=data.region or None,
+        state=data.state or None,
+        website=data.website or None,
         owner_id=current_user.id,
     )
     db.add(net)
@@ -1332,6 +1351,12 @@ def update_net(net_id: int, data: NetCreate, current_user: User = Depends(get_cu
     net.reminder_enabled = data.reminder_enabled
     net.reminder_minutes_before = (data.reminder_minutes_before or 30) if data.reminder_enabled else None
     net.public_listed = data.public_listed
+    net.band = data.band or None
+    net.mode = data.mode or None
+    net.ctcss_tone = data.ctcss_tone or None
+    net.region = data.region or None
+    net.state = data.state or None
+    net.website = data.website or None
     db.commit()
     db.refresh(net)
     net_repository.push_net(net, db)

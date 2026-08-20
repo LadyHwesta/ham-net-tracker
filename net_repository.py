@@ -18,10 +18,11 @@ Environment variables (read from .env)
                                (stored in the database, not .env) works just
                                as well — see get_api_key().
 
-Net Repository's submission endpoint has no "update" path — once a net has
-a pending or published entry there, later edits here (schedule changes,
-description tweaks, etc.) won't propagate automatically. Pushing again just
-gets reported back as a no-op duplicate. See README.md for details.
+Re-submitting the same net (matched by source_net_id) updates the existing
+entry on Net Repository's side — in place if it's still pending review, or
+directly (no new moderation) if it was already published. So every local
+edit to a public-listed net just needs another POST /nets/submit; there's
+nothing extra to do here to keep the two in sync.
 """
 
 import logging
@@ -113,7 +114,14 @@ def push_net(net, db) -> bool:
         "name": net.name,
         "net_type": net.net_type,
         "frequency": net.frequency,
+        "band": net.band,
+        "mode": net.mode,
+        "ctcss_tone": net.ctcss_tone,
         "description": net.description,
+        "region": net.region,
+        "state": net.state,
+        "country": "US",
+        "website": net.website or _get_setting("website_url", db),
         "dmr_talkgroup": net.dmr_talkgroup,
         "is_ares": net.is_ares,
         "contact_callsign": owner_callsign,

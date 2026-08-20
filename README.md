@@ -210,11 +210,11 @@ Nets opted into the Public Net Directory (above) can also be pushed to [Net Repo
 Either way, the key's `instance_url` (configured on Net Repository's side, either by its admin or from what you submitted in the request form) is what Net Repository uses to tell instances apart and prevent duplicate submissions — not anything this app sends per-request.
 
 **Once configured:**
-- Creating a net with **List in Public Net Directory** checked pushes it immediately.
-- Toggling an existing net's directory listing on pushes it at that point.
+- Creating or editing a net with **List in Public Net Directory** checked pushes it — every save, not just the first one, so schedule changes, a new description, and the fields below all stay in sync with the directory automatically.
+- Re-pushing a net Net Repository already knows about (matched by this instance + the net's local ID) updates that entry in place — directly if it's already published, or in the moderation queue if it's still pending review.
 - The push is fire-and-forget — a Net Repository outage or misconfiguration never blocks creating or editing a net locally; failures are logged, not surfaced to the user.
 
-**Limitation:** Net Repository's submission API has no "update" path — once a net has a pending or published entry there (keyed on this instance + the net's local ID), later edits here (schedule changes, a new description, etc.) won't propagate automatically; re-pushing just gets reported back as an already-exists no-op. Significant changes to an already-listed net need a manual update on the Net Repository side.
+**Optional directory metadata** — all preferred, none required, available on the Edit form: **Band** (e.g. "2m"), **Mode** (e.g. "FM"), **CTCSS Tone**, **Region** (e.g. a county or metro area), **State**, and a **Website**. Leaving Website blank falls back to the org-wide website set in Admin → Branding.
 
 **Backfilling nets that existed before this integration:**
 
@@ -222,7 +222,7 @@ Either way, the key's `instance_url` (configured on Net Repository's side, eithe
 python3 push_to_net_repository.py
 ```
 
-Pushes every currently-public net once. Safe to re-run — already-submitted nets are silently skipped rather than duplicated.
+Pushes every currently-public net. Safe to re-run — nets already on Net Repository get their listing refreshed rather than duplicated.
 
 ## Net Control Script
 

@@ -57,6 +57,14 @@ class Net(Base):
     reminder_enabled = Column(Boolean, default=False, nullable=False)  # email signed-up operators before net start
     reminder_minutes_before = Column(Integer, nullable=True)  # lead time in minutes, e.g. 30
     public_listed = Column(Boolean, default=False, nullable=False)  # shown in the public /directory (no login)
+    # Optional metadata — not used locally, only forwarded to Net Repository
+    # (net_repository.py) to make the public directory listing more useful/searchable.
+    band = Column(String(10), nullable=True)         # e.g. "2m", "70cm"
+    mode = Column(String(20), nullable=True)          # e.g. "FM", "DMR"
+    ctcss_tone = Column(String(10), nullable=True)     # e.g. "100.0"
+    region = Column(String(100), nullable=True)        # e.g. "Snohomish County"
+    state = Column(String(50), nullable=True)          # US state
+    website = Column(String(300), nullable=True)       # falls back to org-wide branding website if unset
     owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 

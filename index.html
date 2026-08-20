@@ -271,10 +271,43 @@
           </div>
           <div id="net-public-listed-section" style="margin-bottom:14px">
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:700">
-              <input type="checkbox" id="net-public-listed" style="accent-color:var(--lc-blue);width:16px;height:16px" />
+              <input type="checkbox" id="net-public-listed" onchange="onPublicListedToggle()" style="accent-color:var(--lc-blue);width:16px;height:16px" />
               List in Public Net Directory — visible at /directory, no login required
             </label>
             <div style="font-size:11px;color:var(--text-muted);margin-top:3px">Shows this net's name, frequency, description, and weekly schedule to anyone browsing the directory.</div>
+          </div>
+          <!-- Net Repository directory metadata — optional, only relevant once Public Directory is on -->
+          <div id="net-repo-metadata-section" style="display:none;border-top:1px solid var(--lc-border);padding-top:14px;margin-bottom:14px">
+            <div style="font-size:13px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">🌐 Net Repository Details</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px">All optional — helps other operators find this net on the central Net Repository directory. Leave any of these blank if they don't apply.</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Band</label>
+                <input class="form-control" id="net-band" placeholder="2m" style="font-size:13px" />
+              </div>
+              <div class="form-group">
+                <label>Mode</label>
+                <input class="form-control" id="net-mode" placeholder="FM" style="font-size:13px" />
+              </div>
+              <div class="form-group">
+                <label>CTCSS Tone</label>
+                <input class="form-control" id="net-ctcss-tone" placeholder="100.0" style="font-size:13px" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Region</label>
+                <input class="form-control" id="net-region" placeholder="Snohomish County" style="font-size:13px" />
+              </div>
+              <div class="form-group">
+                <label>State</label>
+                <input class="form-control" id="net-state" placeholder="WA" style="font-size:13px" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Website <span class="text-muted" style="font-size:11px">(falls back to Admin → Branding's website if left blank)</span></label>
+              <input class="form-control" id="net-website" placeholder="https://your-club-website.org" style="font-size:13px" />
+            </div>
           </div>
           <!-- DMR Integration — only shown when editing an existing net you own -->
           <div id="net-dmr-section" style="display:none;border-top:1px solid var(--lc-border);padding-top:14px;margin-bottom:14px">

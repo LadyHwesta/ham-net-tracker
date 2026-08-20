@@ -44,6 +44,48 @@ class TestCreateNetPush:
         assert payload["submitted_by_callsign"] == "W1ADMIN"
         assert payload["schedules"] == []
 
+    def test_pushes_optional_directory_metadata(self, client, admin_headers, net_repo_configured, pushed_nets):
+        client.post("/nets", json={
+            "name": "Metadata Net", "public_listed": True,
+            "band": "2m", "mode": "FM", "ctcss_tone": "100.0",
+            "region": "Snohomish County", "state": "WA", "website": "https://net.example.org",
+        }, headers=admin_headers)
+
+        payload = pushed_nets[0]["json"]
+        assert payload["band"] == "2m"
+        assert payload["mode"] == "FM"
+        assert payload["ctcss_tone"] == "100.0"
+        assert payload["region"] == "Snohomish County"
+        assert payload["state"] == "WA"
+        assert payload["website"] == "https://net.example.org"
+        assert payload["country"] == "US"
+
+    def test_directory_metadata_defaults_to_none(self, client, admin_headers, net_repo_configured, pushed_nets):
+        """None of the new fields are required — a net that doesn't set them still pushes fine."""
+        client.post("/nets", json={"name": "Bare Net", "public_listed": True}, headers=admin_headers)
+
+        payload = pushed_nets[0]["json"]
+        assert payload["band"] is None
+        assert payload["mode"] is None
+        assert payload["ctcss_tone"] is None
+        assert payload["region"] is None
+        assert payload["state"] is None
+        assert payload["country"] == "US"
+
+    def test_website_falls_back_to_branding(self, client, admin_headers, net_repo_configured, pushed_nets):
+        client.put("/admin/branding", json={"website_url": "https://club.example.org"}, headers=admin_headers)
+        client.post("/nets", json={"name": "No Website Net", "public_listed": True}, headers=admin_headers)
+
+        assert pushed_nets[0]["json"]["website"] == "https://club.example.org"
+
+    def test_net_website_takes_precedence_over_branding(self, client, admin_headers, net_repo_configured, pushed_nets):
+        client.put("/admin/branding", json={"website_url": "https://club.example.org"}, headers=admin_headers)
+        client.post("/nets", json={
+            "name": "Own Website Net", "public_listed": True, "website": "https://net-specific.example.org",
+        }, headers=admin_headers)
+
+        assert pushed_nets[0]["json"]["website"] == "https://net-specific.example.org"
+
 
 class TestUpdateNetPush:
     def test_pushes_when_toggled_public(self, client, admin_headers, net_repo_configured, pushed_nets):
@@ -61,6 +103,23 @@ class TestUpdateNetPush:
 
         client.put(f"/nets/{net_id}", json={"name": "Renamed Net", "public_listed": False}, headers=admin_headers)
         assert pushed_nets == []
+
+    def test_edit_while_staying_public_pushes_again(self, client, admin_headers, net_repo_configured, pushed_nets):
+        """Net Repository now applies a re-submission as an update to the existing
+        listing, so every edit to an already-public net should push again — not
+        just the initial create or the moment public_listed flips on."""
+        resp = client.post("/nets", json={
+            "name": "Test Net", "description": "Original", "public_listed": True,
+        }, headers=admin_headers)
+        net_id = resp.json()["id"]
+        assert len(pushed_nets) == 1
+
+        client.put(f"/nets/{net_id}", json={
+            "name": "Test Net", "description": "Updated", "public_listed": True,
+        }, headers=admin_headers)
+        assert len(pushed_nets) == 2
+        assert pushed_nets[1]["json"]["description"] == "Updated"
+        assert pushed_nets[1]["json"]["source_net_id"] == net_id
 
 
 class TestPushNetFunction:

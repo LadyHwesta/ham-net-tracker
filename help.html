@@ -53,6 +53,15 @@
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
 
           <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-19 — Richer Net Repository Listings + Live Updates (v1.15.0)</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>The Edit form now has an optional <strong>Net Repository Details</strong> section (shown once <strong>List in Public Net Directory</strong> is checked): <strong>Band</strong>, <strong>Mode</strong>, <strong>CTCSS Tone</strong>, <strong>Region</strong>, <strong>State</strong>, and <strong>Website</strong> — all preferred, none required. Website falls back to the org-wide website set in Admin → Branding when left blank.</li>
+              <li>Net Repository's submission API now supports updating an existing listing, so every save of a public-listed net pushes again and keeps the directory entry current — not just the first push or the moment the directory checkbox is toggled on.</li>
+              <li>No database migration risk — new <code style="background:var(--surface);padding:1px 5px;border-radius:3px">nets</code> columns, all nullable.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-19 — Enter to Submit (v1.14.0)</div>
             <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
               <li>Pressing <strong>Enter</strong> in any text field on a save/submit form now triggers that form's primary action, so most of the app can be driven without reaching for the mouse — registration, login, net create/edit, check-in and traffic message logging, remark editors, schedule sign-ups, branding, API tokens, report/request, and Net Repository key requests.</li>

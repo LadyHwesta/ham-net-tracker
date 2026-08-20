@@ -267,6 +267,20 @@ MIGRATIONS = [
      "ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token VARCHAR(64)"),
     ("users: verification sent timestamp",
      "ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_sent_at TIMESTAMPTZ"),
+
+    # ── Net Repository directory metadata (issue #12 follow-up) ─────────────
+    ("nets: band",
+     "ALTER TABLE nets ADD COLUMN IF NOT EXISTS band VARCHAR(10)"),
+    ("nets: mode",
+     "ALTER TABLE nets ADD COLUMN IF NOT EXISTS mode VARCHAR(20)"),
+    ("nets: CTCSS tone",
+     "ALTER TABLE nets ADD COLUMN IF NOT EXISTS ctcss_tone VARCHAR(10)"),
+    ("nets: region",
+     "ALTER TABLE nets ADD COLUMN IF NOT EXISTS region VARCHAR(100)"),
+    ("nets: state",
+     "ALTER TABLE nets ADD COLUMN IF NOT EXISTS state VARCHAR(50)"),
+    ("nets: website",
+     "ALTER TABLE nets ADD COLUMN IF NOT EXISTS website VARCHAR(300)"),
 ]
 
 # ---------------------------------------------------------------------------

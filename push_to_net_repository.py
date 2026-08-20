@@ -8,9 +8,10 @@ NET_REPOSITORY_URL/NET_REPOSITORY_API_KEY are configured, to submit nets that
 were already public before the integration existed — new nets push
 automatically going forward (see net_repository.py).
 
-Safe to re-run: Net Repository deduplicates submissions by
-(API key's instance_url, source_net_id), so nets already submitted are
-reported back as a no-op duplicate rather than resubmitted.
+Safe to re-run: Net Repository matches submissions by (API key's
+instance_url, source_net_id), so a net already submitted there just gets its
+existing entry updated in place rather than duplicated — handy for pushing
+local edits, not only for the original backfill.
 
 Usage
 -----
@@ -69,7 +70,7 @@ def run():
             else:
                 print("FAILED (see log)")
 
-        print(f"\n{pushed}/{len(nets)} nets pushed (or already present) at Net Repository.")
+        print(f"\n{pushed}/{len(nets)} nets pushed (or updated) at Net Repository.")
     finally:
         db.close()
 
