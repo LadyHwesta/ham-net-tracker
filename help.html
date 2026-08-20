@@ -53,8 +53,23 @@
     <div id="content">
         <h2 class="section-title">Help &amp; Operating Guide</h2>
 
+        <div class="tab-bar">
+          <button class="tab-btn active" id="help-tab-guide" onclick="switchHelpTab('guide')">📖 Guide</button>
+          <button class="tab-btn" id="help-tab-changelog" onclick="switchHelpTab('changelog')">📋 Changelog</button>
+        </div>
+
+        <div id="help-panel-changelog" style="display:none">
         <div class="card" style="margin-bottom:16px">
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-20 — Roster Polish + Changelog Tab (v1.18.0)</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>The checked-in stations roster now sorts newest-first, and gained column headers (Callsign / Name / Tfc).</li>
+              <li>Fixed the recent-checkin highlight not applying to stations checked in via the Expected Stations panel — every check-in path highlights consistently now.</li>
+              <li>This page split into <strong>Guide</strong> and <strong>Changelog</strong> tabs — the changelog was getting long enough to bury the operating guide below it.</li>
+            </ul>
+          </div>
 
           <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-19 — Checked-In Stations Roster Moved to the Side (v1.17.0)</div>
@@ -328,7 +343,9 @@
             </ul>
           </div>
         </div>
+        </div><!-- /help-panel-changelog -->
 
+        <div id="help-panel-guide">
         <div class="card" style="margin-bottom:16px">
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">QUICK START</h3>
           <p style="margin:0 0 8px">1. Create a <strong>Net</strong> under My Nets — give it a name and frequency.</p>
@@ -517,6 +534,7 @@ python3 /opt/netcontrol/gmrs_sync.py --mode update</pre>
           <p style="margin:0 0 6px;font-size:12px;color:var(--text-muted)">Net owners enable reminders per-net in the Edit form, but sending them requires <code style="background:var(--surface);padding:1px 5px;border-radius:3px">send_reminders.py</code> running frequently via cron (it's idempotent, safe to run every few minutes):</p>
           <pre style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:12px;overflow-x:auto;margin:0 0 4px">*/5 * * * *  /opt/netcontrol/venv/bin/python3 /opt/netcontrol/send_reminders.py >> /var/log/nettracker/reminders.log 2>&amp;1</pre>
         </div>
+        </div><!-- /help-panel-guide -->
       </div>
     </div>
   </main>
@@ -529,6 +547,13 @@ python3 /opt/netcontrol/gmrs_sync.py --mode update</pre>
   <script src="/static/js/pwa.js?v=1"></script>
 
   <script>
+    function switchHelpTab(tab) {
+      ['guide', 'changelog'].forEach(t => {
+        document.getElementById('help-panel-' + t).style.display = t === tab ? '' : 'none';
+        document.getElementById('help-tab-' + t).classList.toggle('active', t === tab);
+      });
+    }
+
     async function initPage() {
       if (!token) { window.location.href = '/'; return; }
       try { currentUser = await apiFetch('/auth/me'); }

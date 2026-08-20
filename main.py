@@ -303,7 +303,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="Ham Radio Net Tracker", version="1.17.0", lifespan=lifespan)
+app = FastAPI(title="Ham Radio Net Tracker", version="1.18.0", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -1740,7 +1740,9 @@ def admin_clear_net_repository_key(admin: User = Depends(require_admin), db: Ses
 @app.get("/sessions/{session_id}/checkins", response_model=list[CheckinOut])
 def list_checkins(session_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     session = _get_session_for_user(session_id, current_user, db)
-    checkins = db.query(Checkin).filter(Checkin.session_id == session_id).order_by(Checkin.checked_in_at).all()
+    # Newest first — this is the live roster's data source; CSV export and
+    # ICS-205 have their own chronological (oldest-first) queries, unaffected.
+    checkins = db.query(Checkin).filter(Checkin.session_id == session_id).order_by(Checkin.checked_in_at.desc()).all()
     preferred_names = _preferred_names_for_net(session.net_id, db)
     out = [CheckinOut.model_validate(c) for c in checkins]
     for c, o in zip(checkins, out):
