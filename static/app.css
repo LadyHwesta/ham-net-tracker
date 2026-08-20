@@ -517,6 +517,12 @@
     }
 
     @media (max-width: 768px) {
+      /* iOS Safari auto-zooms the viewport on focusing any text field under
+         16px, forcing a manual pinch back out — force every form control to
+         at least 16px on mobile regardless of its own (often smaller,
+         desktop-tuned) inline font-size. */
+      input, select, textarea { font-size: 16px !important; }
+
       /* Sidebar becomes a slide-in drawer */
       #sidebar {
         position: fixed; top: 0; left: 0; bottom: 0;

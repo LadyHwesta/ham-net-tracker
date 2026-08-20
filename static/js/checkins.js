@@ -726,12 +726,15 @@ function showRemarkEditor(callsign, current) {
   div.id = 'remark-editor';
   // Positioned absolutely (like #cs-dropdown) rather than in normal flow —
   // the callsign field's column is only ~140px wide, which was forcing every
-  // item onto its own line no matter how the flex layout was tuned.
-  div.style.cssText = 'position:absolute;top:100%;left:0;z-index:150;margin-top:4px;display:flex;gap:6px;align-items:center;background:var(--surface);border:1px solid var(--lc-orange);border-radius:8px;padding:8px;box-shadow:0 4px 12px rgba(0,0,0,.5)';
+  // item onto its own line no matter how the flex layout was tuned. Wraps
+  // and caps its own width to the viewport so it can never run off the
+  // right edge of a narrow phone screen regardless of where the callsign
+  // field itself sits horizontally.
+  div.style.cssText = 'position:absolute;top:100%;left:0;z-index:150;margin-top:4px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:var(--surface);border:1px solid var(--lc-orange);border-radius:8px;padding:8px;box-shadow:0 4px 12px rgba(0,0,0,.5);max-width:min(360px, calc(100vw - 32px))';
   div.innerHTML = `
     <input id="remark-preferred-name-input" class="form-control" style="width:130px;font-size:12px"
       placeholder="Preferred name" value="${esc((current && current.preferred_name) || '')}" />
-    <input id="remark-input" class="form-control" style="width:240px;font-size:12px"
+    <input id="remark-input" class="form-control" style="flex:1;min-width:140px;font-size:12px"
       placeholder="Notes about this station…" value="${esc((current && current.remark) || '')}" />
     <button class="btn btn-primary btn-sm" onclick="submitRemark('${esc(callsign)}')">Save</button>
     <button class="btn btn-ghost btn-sm" onclick="document.getElementById('remark-editor').remove()">✕</button>`;
