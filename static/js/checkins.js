@@ -578,12 +578,13 @@ async function checkInExpected(checkbox, callsign, name) {
   const evac_zone = currentNetIsAres ? (evacZones[callsign] || null) : null;
   checkbox.disabled = true;
   try {
-    await apiFetch(`/sessions/${currentSessionId}/checkins`, {
+    const created = await apiFetch(`/sessions/${currentSessionId}/checkins`, {
       method: 'POST',
       body: JSON.stringify({ callsign, name: name || null, has_traffic, evac_zone })
     });
     pendingTrafficCallsigns.delete(callsign);  // now confirmed in DB, remove from pending
     toast(`${callsign} checked in`, 'success');
+    markRecentCheckin(created.id);
     await loadCheckins();
     renderExpectedList();
   } catch (e) {
