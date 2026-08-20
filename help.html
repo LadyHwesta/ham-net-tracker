@@ -8,6 +8,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/app.css?v=8">
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#0a0a1a" />
+  <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
   <script>(function(){var t=localStorage.getItem('nt_theme');if(t)document.documentElement.dataset.theme=t;})();</script>
 </head>
 <body>
@@ -51,6 +55,16 @@
 
         <div class="card" style="margin-bottom:16px">
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-19 — Mobile App (PWA) + Net Control Mode (v1.16.0)</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>The app is now installable — look for "Add to Home Screen" / "Install" in your browser. It launches full-screen with no browser chrome, and a service worker keeps the app shell loading even with no connection.</li>
+              <li>New <strong>📱 Net Control</strong> toggle on the live session view (next to End Session) — a simplified, large-tap-target check-in screen for running a net one-handed from a phone: big callsign field, big Check In button, minimal chrome. Persists per device.</li>
+              <li>Check-ins submitted while offline now queue locally instead of failing — a banner shows what's waiting, with automatic retry the moment you're back online (works on every browser, including iOS) plus a manual <strong>Retry Now</strong> button.</li>
+              <li>No database migration needed — this is a frontend + static-asset change only.</li>
+            </ul>
+          </div>
 
           <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-19 — Richer Net Repository Listings + Live Updates (v1.15.0)</div>
@@ -498,9 +512,10 @@ python3 /opt/netcontrol/gmrs_sync.py --mode update</pre>
 </div>
   <script src="/static/js/state.js?v=6"></script>
   <script src="/static/js/utils.js?v=7"></script>
-  <script src="/static/js/auth.js?v=8"></script>
+  <script src="/static/js/auth.js?v=9"></script>
   <script src="/static/js/theme.js?v=1"></script>
   <script src="/static/js/branding.js?v=7"></script>
+  <script src="/static/js/pwa.js?v=1"></script>
 
   <script>
     async function initPage() {

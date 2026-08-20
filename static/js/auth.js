@@ -98,6 +98,7 @@ async function enterApp() {
   if (shortEl) shortEl.textContent = currentUser.callsign;
   await loadBranding();
   restoreSidebarCollapse();
+  restoreNetControlMode();
   await loadNets();
   loadSidebarStats();   // fire-and-forget; non-blocking
   showView('nets');

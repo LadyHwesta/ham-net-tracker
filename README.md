@@ -41,6 +41,7 @@ A public demo is available at **[nettrackerdemo.meskis.net](https://nettrackerde
 - **Theme engine** — per-account color theme (LCARS, Dark, Light, High Contrast, or System/OS-matched), persisted server-side so it follows you across devices
 - **DMR hotspot integration** — connect a net to a WPSD, Pi-Star, or BrandMeister talk group; see a live "last heard" panel during the session, quick-check-in heard stations, and log Talk Group + Region per check-in
 - **Keyboard-friendly forms** — Enter submits the primary action from any save/submit form's text fields (multi-line fields like net description and report body are left alone so Enter still inserts a newline)
+- **Installable mobile app (PWA)** — installable to a phone's home screen with an offline-capable app shell; a **📱 Net Control** toggle on the live session view strips the check-in screen down to a big callsign field and minimal chrome for one-handed net control. Check-ins submitted with no connection queue locally and send automatically once back online
 
 ## Tech Stack
 
@@ -223,6 +224,32 @@ python3 push_to_net_repository.py
 ```
 
 Pushes every currently-public net. Safe to re-run — nets already on Net Repository get their listing refreshed rather than duplicated.
+
+## Mobile App (PWA) & Net Control Mode
+
+The app is installable — most mobile and desktop browsers offer an "Add to
+Home Screen" / "Install" prompt, and it launches full-screen with no browser
+chrome. A service worker precaches the app shell so it still loads with no
+connection, and installability is site-wide (every page registers it), not
+just the check-in flow.
+
+**📱 Net Control** — a toggle button on the live session view (next to End
+Session) strips the check-in screen down to a big callsign field, a large
+Check In button, and a minimal check-ins list — the net script panel,
+Expected Stations, DMR Last Heard, and secondary table columns are hidden.
+Meant for running a net one-handed from a phone. The preference persists
+across sessions (per device).
+
+**Offline check-ins** — a check-in submitted with no connection is queued
+locally rather than lost, shown in a banner with a manual **Retry Now**
+button, and sent automatically the moment the connection returns (an
+`online` event listener, checked every 15 seconds while a session is live —
+works on every browser, including iOS Safari). On browsers that support the
+Background Sync API, the service worker also gets a best-effort extra chance
+to flush the queue if the tab is backgrounded or closed while offline — a
+bonus, not the primary guarantee. A check-in that fails for a reason retrying
+won't fix (an expired session, expired login) stops retrying and surfaces in
+the banner for manual attention instead of queuing forever.
 
 ## Net Control Script
 

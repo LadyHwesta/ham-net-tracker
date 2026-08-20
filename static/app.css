@@ -665,3 +665,62 @@
       width: 100%;
       box-shadow: 0 8px 32px rgba(0,0,0,.6);
     }
+
+    /* ============================================================
+       NET CONTROL MODE — simplified, large-tap-target view (issue #10)
+       Additive only — normal desktop styles are untouched.
+       ============================================================ */
+    .net-control-mode #net-script-panel,
+    .net-control-mode #expected-stations-wrapper,
+    .net-control-mode #dmr-heard-panel,
+    .net-control-mode #traffic-log-panel,
+    .net-control-mode #duty-bar {
+      display: none !important;
+    }
+    .net-control-mode .col-signal,
+    .net-control-mode .col-comments,
+    .net-control-mode .col-traffic,
+    .net-control-mode .col-actions,
+    .net-control-mode .col-zone,
+    .net-control-mode .col-dmr-tg,
+    .net-control-mode .col-dmr-region {
+      display: none !important;
+    }
+    .net-control-mode .checkin-new-row {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .net-control-mode .callsign-field,
+    .net-control-mode #ci-call {
+      width: 100% !important;
+    }
+    .net-control-mode #ci-call {
+      font-size: 28px;
+      height: 56px;
+      text-align: center;
+      letter-spacing: .06em;
+    }
+    .net-control-mode .name-field,
+    .net-control-mode .sig-field,
+    .net-control-mode .ci-comments-group,
+    .net-control-mode #ci-zone-group,
+    .net-control-mode #ci-dmr-tg-group,
+    .net-control-mode #ci-dmr-region-group {
+      display: none !important;
+    }
+    .net-control-mode .checkin-new-row > .btn {
+      width: 100%;
+      height: 56px !important;
+      font-size: 18px;
+      font-weight: 700;
+      margin-top: 8px;
+    }
+    .net-control-mode #checkins-table-wrap {
+      font-size: 16px;
+    }
+    .net-control-mode #checkins-tbody .callsign {
+      font-size: 17px;
+    }
+    .net-control-mode #offline-queue-banner {
+      font-size: 15px;
+    }

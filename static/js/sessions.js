@@ -276,6 +276,7 @@ async function loadSessionLive(sessionId) {
     trafficMessages = [];
     renderTrafficMessages();
     await loadCheckins();
+    if (!ended) await refreshOfflineQueueBanner();
     await loadTrafficMessages();
     // DMR: init or stop polling based on session state
     if (!ended) {

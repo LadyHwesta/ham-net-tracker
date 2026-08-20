@@ -37,6 +37,27 @@ function restoreSidebarCollapse() {
   }
 }
 
+// ============================================================
+// NET CONTROL MODE — simplified, large-tap-target mobile view (issue #10)
+// ============================================================
+function toggleNetControlMode() {
+  const panel = document.getElementById('live-session-panel');
+  const btn = document.getElementById('net-control-mode-btn');
+  const on = panel.classList.toggle('net-control-mode');
+  if (btn) btn.textContent = on ? '📱 Full View' : '📱 Net Control';
+  if (on) collapseSidebar();
+  localStorage.setItem('nt_net_control_mode', on ? '1' : '0');
+}
+
+function restoreNetControlMode() {
+  if (localStorage.getItem('nt_net_control_mode') === '1') {
+    const panel = document.getElementById('live-session-panel');
+    const btn = document.getElementById('net-control-mode-btn');
+    if (panel) panel.classList.add('net-control-mode');
+    if (btn) btn.textContent = '📱 Full View';
+  }
+}
+
 // Auto-login if token stored
 if (token) enterApp();
 

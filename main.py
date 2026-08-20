@@ -303,7 +303,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="Ham Radio Net Tracker", version="1.15.0", lifespan=lifespan)
+app = FastAPI(title="Ham Radio Net Tracker", version="1.16.0", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -355,6 +355,38 @@ def serve_help():
 @app.get("/report", response_class=HTMLResponse, include_in_schema=False)
 def serve_report():
     return _serve_html("report.html")
+
+
+@app.get("/manifest.json", include_in_schema=False)
+def serve_manifest(db: Session = Depends(get_db)):
+    """PWA web manifest (issue #9). Generated dynamically rather than a static
+    file so name/short_name pick up the org's own Branding settings instead of
+    a hardcoded name — icons stay fixed to the built-in mark (reliable/square)
+    regardless of any uploaded club logo."""
+    org_name = _get_setting("org_name", db) or "Ham Radio Net Tracker"
+    return {
+        "name": org_name,
+        "short_name": org_name if len(org_name) <= 15 else "Net Tracker",
+        "description": "Track amateur radio and GMRS net check-ins",
+        "start_url": "/",
+        "scope": "/",
+        "display": "standalone",
+        "background_color": "#0a0a1a",
+        "theme_color": "#0a0a1a",
+        "icons": [
+            {"src": "/static/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+            {"src": "/static/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+            {"src": "/static/icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
+        ],
+    }
+
+
+@app.get("/sw.js", include_in_schema=False)
+def serve_service_worker():
+    """Service worker (issue #9), served from the root path (not /static/) so
+    its default registration scope is "/" and it can control every page."""
+    content = (STATIC_DIR / "sw.js").read_text(encoding="utf-8")
+    return Response(content=content, media_type="application/javascript")
 
 
 # ---------------------------------------------------------------------------

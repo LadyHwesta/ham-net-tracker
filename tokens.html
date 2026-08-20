@@ -8,6 +8,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/app.css?v=8">
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#0a0a1a" />
+  <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
   <script>(function(){var t=localStorage.getItem('nt_theme');if(t)document.documentElement.dataset.theme=t;})();</script>
 </head>
 <body>
@@ -80,10 +84,11 @@
 </div>
   <script src="/static/js/state.js?v=6"></script>
   <script src="/static/js/utils.js?v=7"></script>
-  <script src="/static/js/auth.js?v=8"></script>
+  <script src="/static/js/auth.js?v=9"></script>
   <script src="/static/js/theme.js?v=1"></script>
   <script src="/static/js/branding.js?v=7"></script>
   <script src="/static/js/tokens.js?v=7"></script>
+  <script src="/static/js/pwa.js?v=1"></script>
   <script>
     async function initPage() {
       if (!token) { window.location.href = '/'; return; }

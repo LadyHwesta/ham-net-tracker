@@ -100,26 +100,100 @@ async function addCheckin() {
     || null;
   const dmr_region = document.getElementById('ci-dmr-region').value.trim() || null;
   if (!callsign) { toast('Callsign required', 'error'); document.getElementById('ci-call').focus(); return; }
+  const payload = { callsign, name, signal_report, comments, has_traffic, evac_zone, dmr_talkgroup, dmr_region };
   try {
-    await apiFetch(`/sessions/${currentSessionId}/checkins`, {
-      method: 'POST',
-      body: JSON.stringify({ callsign, name, signal_report, comments, has_traffic, evac_zone, dmr_talkgroup, dmr_region })
-    });
-    document.getElementById('ci-call').value = '';
-    document.getElementById('ci-name').value = '';
-    document.getElementById('ci-sig').value = '';
-    document.getElementById('ci-comments').value = '';
-    document.getElementById('ci-traffic').checked = false;
-    if (currentNetIsAres) document.getElementById('ci-zone').value = '';
-    // Keep TG populated (usually same for whole session), clear region
-    document.getElementById('ci-dmr-region').value = '';
-    clearLookupInfo();
-    document.getElementById('ci-call').focus();
+    await apiFetch(`/sessions/${currentSessionId}/checkins`, { method: 'POST', body: JSON.stringify(payload) });
+    _clearCheckinForm();
     toast(`${callsign} checked in`, 'success');
     await loadCheckins();
     renderExpectedList();   // refresh expected list to show new checkin state
-  } catch (e) { toast(e.message, 'error'); }
+  } catch (e) {
+    if (e instanceof TypeError) {
+      // fetch couldn't reach the server at all — offline. Queue it rather
+      // than lose the check-in; static/js/offline-queue.js replays it
+      // automatically once back online (see the online listener below).
+      await queueCheckin(currentSessionId, payload, token);
+      _registerBackgroundSync();
+      _clearCheckinForm();
+      toast(`${callsign} queued — offline, will send automatically`, 'success');
+      await refreshOfflineQueueBanner();
+    } else {
+      toast(e.message, 'error');
+    }
+  }
 }
+
+function _clearCheckinForm() {
+  document.getElementById('ci-call').value = '';
+  document.getElementById('ci-name').value = '';
+  document.getElementById('ci-sig').value = '';
+  document.getElementById('ci-comments').value = '';
+  document.getElementById('ci-traffic').checked = false;
+  if (currentNetIsAres) document.getElementById('ci-zone').value = '';
+  // Keep TG populated (usually same for whole session), clear region
+  document.getElementById('ci-dmr-region').value = '';
+  clearLookupInfo();
+  document.getElementById('ci-call').focus();
+}
+
+// ============================================================
+// OFFLINE CHECK-IN QUEUE — banner + retry wiring (issue #9)
+// ============================================================
+async function _registerBackgroundSync() {
+  // Best-effort extra layer, not the primary guarantee — see static/sw.js
+  // header comment. Silently skipped on browsers without Background Sync
+  // (notably Safari/iOS); the online-listener below covers everyone.
+  if (!('serviceWorker' in navigator) || !('SyncManager' in window)) return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    await reg.sync.register('sync-checkins');
+  } catch { /* unsupported or registration failed — foreground retry still works */ }
+}
+
+async function refreshOfflineQueueBanner() {
+  const banner = document.getElementById('offline-queue-banner');
+  if (!banner || !currentSessionId) return;
+  const pending = await getPendingCheckins(currentSessionId);
+  if (pending.length === 0) { banner.style.display = 'none'; return; }
+  banner.style.display = '';
+  const failedCount = pending.filter(p => p.status === 'failed').length;
+  const waitingCount = pending.length - failedCount;
+  document.getElementById('offline-queue-summary').textContent =
+    (waitingCount ? `⏳ ${waitingCount} check-in${waitingCount !== 1 ? 's' : ''} waiting to sync` : '')
+    + (failedCount ? `${waitingCount ? ' · ' : ''}⚠ ${failedCount} failed` : '');
+  document.getElementById('offline-queue-list').innerHTML = pending.map(p => {
+    if (p.status === 'failed') {
+      return `<div style="display:flex;align-items:center;gap:8px;margin-top:3px">
+        <span class="callsign" style="color:var(--lc-red)">${esc(p.payload.callsign)}</span>
+        <span class="text-muted" style="font-size:11px">${esc(p.last_error || 'failed')}</span>
+        <button class="btn btn-ghost btn-sm" onclick="dismissFailedCheckin('${p.id}')" style="margin-left:auto">Dismiss</button>
+      </div>`;
+    }
+    return `<div style="display:flex;align-items:center;gap:8px;margin-top:3px">
+      <span class="callsign">${esc(p.payload.callsign)}</span>
+      <span class="text-muted" style="font-size:11px">queued ${fmt(p.queued_at)}</span>
+    </div>`;
+  }).join('');
+}
+
+async function retryOfflineQueue() {
+  const changed = await flushCheckinQueue();
+  await refreshOfflineQueueBanner();
+  if (changed) { await loadCheckins(); renderExpectedList(); }
+}
+
+async function dismissFailedCheckin(id) {
+  await removeFailedCheckin(id);
+  await refreshOfflineQueueBanner();
+}
+
+// Foreground retry — the guarantee that works on every browser including
+// iOS Safari, unlike the Background Sync API used in static/sw.js.
+window.addEventListener('online', retryOfflineQueue);
+setInterval(() => {
+  const panel = document.getElementById('live-session-panel');
+  if (panel && panel.style.display !== 'none') retryOfflineQueue();
+}, 15000);
 
 // ── Callsign search helpers ──────────────────────────────────
 // US amateur pattern: 1-2 prefix letters + digit + 1-3 suffix letters  (e.g. W1AW, KD9XYZ)
@@ -308,16 +382,16 @@ function renderCheckins(checkins) {
     <td>${esc(c.name || '—')}</td>
     <td class="col-signal">${esc(c.signal_report || '—')}</td>
     <td class="col-comments">${esc(c.comments || '—')}</td>
-    ${currentNetIsAres ? `<td style="font-size:12px;color:var(--lc-blue)">${esc(c.evac_zone || '—')}</td>` : ''}
-    ${hasDmr ? `<td style="font-size:12px;color:var(--lc-orange)">${esc(c.dmr_talkgroup || '—')}</td>` : ''}
-    ${hasDmr ? `<td style="font-size:12px">${esc(c.dmr_region || '—')}</td>` : ''}
-    <td style="text-align:center">
+    ${currentNetIsAres ? `<td class="col-zone" style="font-size:12px;color:var(--lc-blue)">${esc(c.evac_zone || '—')}</td>` : ''}
+    ${hasDmr ? `<td class="col-dmr-tg" style="font-size:12px;color:var(--lc-orange)">${esc(c.dmr_talkgroup || '—')}</td>` : ''}
+    ${hasDmr ? `<td class="col-dmr-region" style="font-size:12px">${esc(c.dmr_region || '—')}</td>` : ''}
+    <td class="col-traffic" style="text-align:center">
       <button class="btn btn-sm ${c.has_traffic ? 'btn-danger' : 'btn-ghost'}"
         style="font-size:14px;padding:2px 8px" title="${c.has_traffic ? 'Traffic — click to clear' : 'Click to flag traffic'}"
         onclick="toggleTraffic(${c.id})">${c.has_traffic ? '📢' : '○'}</button>
     </td>
     <td class="col-time text-muted">${fmt(c.checked_in_at)}</td>
-    <td><button class="btn btn-danger btn-sm" onclick="removeCheckin(${c.id})">✕</button></td>
+    <td class="col-actions"><button class="btn btn-danger btn-sm" onclick="removeCheckin(${c.id})">✕</button></td>
   </tr>`).join('');
 }
 
