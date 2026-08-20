@@ -693,14 +693,30 @@
         overflow-y: visible;
       }
     }
+    .checkin-row-header,
     .checkin-row {
       display: flex;
       align-items: center;
       gap: 8px;
       padding: 7px 8px;
+    }
+    .checkin-row-header {
+      background: var(--lc-orange);
+      color: var(--on-accent);
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      border-radius: 6px 6px 0 0;
+    }
+    .checkin-row-header .checkin-header-callsign { flex: 0 0 auto; min-width: 56px; }
+    .checkin-row-header .checkin-header-name { flex: 1; }
+    .checkin-row-header .checkin-header-traffic { flex: 0 0 30px; text-align: center; }
+    .checkin-row-header .checkin-header-actions { flex: 0 0 34px; }
+    .checkin-row {
       border-bottom: 1px solid var(--lc-border);
+      border-left: 3px solid transparent;
       font-size: 13px;
-      transition: background-color 3s ease;
     }
     .checkin-row:last-child { border-bottom: none; }
     .checkin-row .callsign { flex: 0 0 auto; }
@@ -714,7 +730,8 @@
       font-size: 12px;
     }
     .checkin-row.checkin-recent {
-      background-color: rgba(255,153,0,0.16);
+      background-color: rgba(255,153,0,0.30);
+      border-left-color: var(--lc-orange);
     }
 
     /* ============================================================
