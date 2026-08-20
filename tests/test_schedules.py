@@ -145,6 +145,63 @@ class TestDutyDisplay:
         assert row["broadcaster_name"] == "Bob"
         assert row["broadcast_label"] == "Amateur Radio Newsline"
 
+    def test_broadcaster_override_takes_precedence_over_signup(self, client, admin_headers):
+        """issue #17: a broadcaster not known until the net is about to begin can be
+        set at session start, overriding the schedule sign-up for that date."""
+        bnet = _broadcast_net(client, admin_headers)
+        sched, today = _schedule_for_today(client, admin_headers, bnet["id"])
+        client.post(f"/nets/{bnet['id']}/signups", json={
+            "schedule_id": sched["id"], "slot_date": str(today), "role": "broadcaster",
+            "callsign": "K2ABC", "name": "Bob",
+        }, headers=admin_headers)
+        s = client.post(f"/nets/{bnet['id']}/sessions", json={
+            "broadcaster_override_callsign": "k3xyz", "broadcaster_override_name": "Carol",
+        }, headers=admin_headers).json()
+
+        resp = client.get(f"/sessions/{s['id']}", headers=admin_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["broadcaster_callsign"] == "K3XYZ"  # uppercased
+        assert data["broadcaster_name"] == "Carol"
+        assert data["broadcast_label"] == "Amateur Radio Newsline"
+
+    def test_broadcaster_override_works_with_no_signup_at_all(self, client, admin_headers):
+        bnet = _broadcast_net(client, admin_headers)
+        s = client.post(f"/nets/{bnet['id']}/sessions", json={
+            "broadcaster_override_callsign": "K3XYZ", "broadcaster_override_name": "Carol",
+        }, headers=admin_headers).json()
+
+        resp = client.get(f"/sessions/{s['id']}", headers=admin_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["broadcaster_callsign"] == "K3XYZ"
+        assert data["broadcast_label"] == "Amateur Radio Newsline"
+
+    def test_no_override_falls_back_to_signup_as_before(self, client, admin_headers):
+        bnet = _broadcast_net(client, admin_headers)
+        sched, today = _schedule_for_today(client, admin_headers, bnet["id"])
+        client.post(f"/nets/{bnet['id']}/signups", json={
+            "schedule_id": sched["id"], "slot_date": str(today), "role": "broadcaster",
+            "callsign": "K2ABC", "name": "Bob",
+        }, headers=admin_headers)
+        s = client.post(f"/nets/{bnet['id']}/sessions", json={}, headers=admin_headers).json()
+
+        resp = client.get(f"/sessions/{s['id']}", headers=admin_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["broadcaster_callsign"] == "K2ABC"
+        assert data["broadcaster_name"] == "Bob"
+
+    def test_no_override_and_no_signup_leaves_broadcaster_blank(self, client, admin_headers):
+        bnet = _broadcast_net(client, admin_headers)
+        s = client.post(f"/nets/{bnet['id']}/sessions", json={}, headers=admin_headers).json()
+
+        resp = client.get(f"/sessions/{s['id']}", headers=admin_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["broadcaster_callsign"] is None
+        assert data["broadcast_label"] is None
+
     def test_session_shows_next_week_signup(self, client, admin_headers, net):
         sched, today = _schedule_for_today(client, admin_headers, net["id"])
         next_week = today + timedelta(days=7)

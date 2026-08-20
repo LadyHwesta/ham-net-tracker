@@ -303,7 +303,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="Ham Radio Net Tracker", version="1.18.0", lifespan=lifespan)
+app = FastAPI(title="Ham Radio Net Tracker", version="1.19.0", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -519,6 +519,10 @@ class BrandingUpdate(BaseModel):
 class SessionCreate(BaseModel):
     name: Optional[str] = None
     notes: Optional[str] = None
+    # Manual broadcaster override for this session — takes precedence over the
+    # schedule sign-up for the session's date (issue #17).
+    broadcaster_override_callsign: Optional[str] = None
+    broadcaster_override_name: Optional[str] = None
 
 
 class SessionRename(BaseModel):
@@ -1427,7 +1431,11 @@ def list_sessions(net_id: int, current_user: User = Depends(get_current_user), d
 @app.post("/nets/{net_id}/sessions", response_model=SessionOut, status_code=201)
 def start_session(net_id: int, data: SessionCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     _get_net_for_user(net_id, current_user, db)
-    session = NetSession(net_id=net_id, operator_id=current_user.id, name=data.name, notes=data.notes)
+    session = NetSession(
+        net_id=net_id, operator_id=current_user.id, name=data.name, notes=data.notes,
+        broadcaster_override_callsign=(data.broadcaster_override_callsign or "").strip().upper() or None,
+        broadcaster_override_name=(data.broadcaster_override_name or "").strip() or None,
+    )
     db.add(session)
     db.commit()
     db.refresh(session)
@@ -2915,17 +2923,23 @@ def _duty_labels_for_session(net: Net, session: NetSession, db: Session) -> dict
     """Net Control / Broadcaster display info for a session, sourced from the schedule
     sign-up matching the session's date when one exists, falling back to whoever
     actually started the session for Net Control. Also includes the sign-up (if any)
-    for one week later, so a script can announce next week's duty."""
+    for one week later, so a script can announce next week's duty.
+
+    A manual broadcaster override set at session start (issue #17) takes precedence
+    over the schedule sign-up — covers the case where the broadcaster isn't known
+    until the net is about to begin."""
     session_date = session.started_at.date()
     nc, bc = _duty_for_date(net.id, session_date, db)
     next_nc, next_bc = _duty_for_date(net.id, session_date + timedelta(days=7), db)
     operator = db.query(User).filter(User.id == session.operator_id).first() if session.operator_id else None
+    broadcaster_callsign = session.broadcaster_override_callsign or (bc.callsign if bc else None)
+    broadcaster_name = session.broadcaster_override_name or (bc.name if bc else None)
     return {
         "ncs_callsign": nc.callsign if nc else (operator.callsign if operator else None),
         "ncs_name": nc.name if nc else (operator.name if operator else None),
-        "broadcaster_callsign": bc.callsign if bc else None,
-        "broadcaster_name": bc.name if bc else None,
-        "broadcast_label": net.broadcast_label if (net.has_broadcast and bc) else None,
+        "broadcaster_callsign": broadcaster_callsign,
+        "broadcaster_name": broadcaster_name,
+        "broadcast_label": net.broadcast_label if (net.has_broadcast and broadcaster_callsign) else None,
         "next_ncs_callsign": next_nc.callsign if next_nc else None,
         "next_ncs_name": next_nc.name if next_nc else None,
         "next_broadcaster_callsign": next_bc.callsign if next_bc else None,

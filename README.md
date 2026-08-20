@@ -316,6 +316,8 @@ On the Schedule tab, each upcoming date shows Net Control and Broadcaster as ind
 
 Whoever is signed up for a date appears — callsign and name — in the duty bar on the live check-in screen and on the public `/live` page, so anyone checking in (or watching the public page) can see who's running the net and who's carrying the broadcast that day. If no one has signed up for a date, Net Control on the public page falls back to whoever actually started the session.
 
+**Broadcaster override at session start** — when the broadcaster isn't known until the net is about to begin, the **▶ Start New Session** form for a broadcast-enabled net includes an optional Broadcaster Override (callsign + name). Set it there and it takes precedence over that date's schedule sign-up for the duty bar, the public `/live` page, and `{{broadcaster}}`/`{{broadcaster_callsign}}`/`{{broadcaster_name}}` net script variables — leave it blank to use whoever's signed up as usual.
+
 ## Scheduled Net Reminders
 
 Enable **Reminder Emails** in a net's Edit form and set a lead time (e.g. 30 minutes) to email whoever's signed up as Net Control or Broadcaster on the Schedule tab shortly before their net starts. Each role is reminded independently, using the email address they gave when signing up — there's no reminder if nobody's signed up for that date, since there's no one to email.

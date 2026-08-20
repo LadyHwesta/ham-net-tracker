@@ -212,14 +212,30 @@ function renderSessions(sessions) {
 function toggleStartSessionForm() {
   const f = document.getElementById('start-session-form');
   f.style.display = f.style.display === 'none' ? '' : 'none';
-  if (f.style.display !== 'none') document.getElementById('new-session-name').focus();
+  if (f.style.display !== 'none') {
+    document.getElementById('new-session-name').focus();
+    const net = nets.find(n => n.id === currentNetId);
+    const bcGroup = document.getElementById('start-session-broadcaster-group');
+    bcGroup.style.display = (net && net.has_broadcast) ? '' : 'none';
+    if (net && net.has_broadcast && net.broadcast_label) {
+      document.getElementById('start-session-broadcaster-label').innerHTML =
+        `${esc(net.broadcast_label)} Override <span class="text-muted" style="font-size:11px">(optional — overrides today's sign-up)</span>`;
+    }
+  }
 }
 
 async function startSession() {
   const name = document.getElementById('new-session-name').value.trim() || null;
+  const broadcaster_override_callsign = document.getElementById('new-session-broadcaster-callsign').value.trim().toUpperCase() || null;
+  const broadcaster_override_name = document.getElementById('new-session-broadcaster-name').value.trim() || null;
   try {
-    const s = await apiFetch(`/nets/${currentNetId}/sessions`, { method: 'POST', body: JSON.stringify({ name }) });
+    const s = await apiFetch(`/nets/${currentNetId}/sessions`, {
+      method: 'POST',
+      body: JSON.stringify({ name, broadcaster_override_callsign, broadcaster_override_name }),
+    });
     document.getElementById('new-session-name').value = '';
+    document.getElementById('new-session-broadcaster-callsign').value = '';
+    document.getElementById('new-session-broadcaster-name').value = '';
     document.getElementById('start-session-form').style.display = 'none';
     toast('Session started');
     await loadSessions();

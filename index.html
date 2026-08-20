@@ -415,6 +415,20 @@
               <label>Session Name <span class="text-muted" style="font-size:11px">(optional)</span></label>
               <input class="form-control" id="new-session-name" placeholder="e.g. Monday Night Net — July 14" />
             </div>
+            <!-- Broadcaster override — only shown for nets with an additional broadcast segment.
+                 Covers a broadcaster not known until the net is about to begin (issue #17);
+                 leave blank to use whoever is scheduled via Sign-Up. -->
+            <div id="start-session-broadcaster-group" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+              <label style="font-size:12px" id="start-session-broadcaster-label">Broadcaster Override <span class="text-muted" style="font-size:11px">(optional — overrides today's sign-up)</span></label>
+              <div class="form-row" style="margin-top:4px">
+                <div class="form-group mb-0">
+                  <input class="form-control mono" id="new-session-broadcaster-callsign" placeholder="Callsign" style="text-transform:uppercase;font-size:13px" />
+                </div>
+                <div class="form-group mb-0">
+                  <input class="form-control" id="new-session-broadcaster-name" placeholder="Name (optional)" style="font-size:13px" />
+                </div>
+              </div>
+            </div>
             <div style="display:flex;gap:8px;margin-top:12px">
               <button class="btn btn-success" onclick="startSession()">▶ Start</button>
               <button class="btn btn-ghost" onclick="toggleStartSessionForm()">Cancel</button>

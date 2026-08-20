@@ -63,6 +63,14 @@
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
 
           <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-20 — Broadcaster Override at Session Start (v1.19.0)</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>The <strong>▶ Start New Session</strong> form for a broadcast-enabled net now has an optional <strong>Broadcaster Override</strong> (callsign + name) — for when the broadcaster isn't known until the net is about to begin. It takes precedence over that date's schedule sign-up for the duty bar, the public <code style="background:var(--surface);padding:1px 5px;border-radius:3px">/live</code> page, and net script variables. Leave it blank to use whoever's signed up as usual.</li>
+              <li>Requires a database migration — two new nullable columns on <code style="background:var(--surface);padding:1px 5px;border-radius:3px">net_sessions</code>. <code style="background:var(--surface);padding:1px 5px;border-radius:3px">./deploy.sh</code> runs it automatically.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-20 — Roster Polish + Changelog Tab (v1.18.0)</div>
             <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
               <li>The checked-in stations roster now sorts newest-first, and gained column headers (Callsign / Name / Tfc).</li>

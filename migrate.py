@@ -281,6 +281,12 @@ MIGRATIONS = [
      "ALTER TABLE nets ADD COLUMN IF NOT EXISTS state VARCHAR(50)"),
     ("nets: website",
      "ALTER TABLE nets ADD COLUMN IF NOT EXISTS website VARCHAR(300)"),
+
+    # ── Broadcaster override at session start (issue #17) ────────────────────
+    ("net_sessions: broadcaster override callsign",
+     "ALTER TABLE net_sessions ADD COLUMN IF NOT EXISTS broadcaster_override_callsign VARCHAR(20)"),
+    ("net_sessions: broadcaster override name",
+     "ALTER TABLE net_sessions ADD COLUMN IF NOT EXISTS broadcaster_override_name VARCHAR(100)"),
 ]
 
 # ---------------------------------------------------------------------------

@@ -90,6 +90,11 @@ class NetSession(Base):
     notes = Column(Text, nullable=True)
     started_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
     ended_at = Column(DateTime(timezone=True), nullable=True)
+    # Manual broadcaster override for this session — takes precedence over the schedule
+    # sign-up for the session's date. Covers the case where the broadcaster isn't known
+    # until the net is about to begin (issue #17).
+    broadcaster_override_callsign = Column(String(20), nullable=True)
+    broadcaster_override_name = Column(String(100), nullable=True)
 
     net = relationship("Net", back_populates="sessions")
     operator = relationship("User", back_populates="sessions")
