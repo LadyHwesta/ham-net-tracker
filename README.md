@@ -40,6 +40,7 @@ A public demo is available at **[nettrackerdemo.meskis.net](https://nettrackerde
 - **Configurable branding** — set organization name, tagline, website URL, and logo from the Admin panel
 - **Theme engine** — per-account color theme (LCARS, Dark, Light, High Contrast, or System/OS-matched), persisted server-side so it follows you across devices
 - **DMR hotspot integration** — connect a net to a WPSD, Pi-Star, or BrandMeister talk group; see a live "last heard" panel during the session, quick-check-in heard stations, and log Talk Group + Region per check-in
+- **Keyboard-friendly forms** — Enter submits the primary action from any save/submit form's text fields (multi-line fields like net description and report body are left alone so Enter still inserts a newline)
 
 ## Tech Stack
 

@@ -43,6 +43,7 @@ if (token) enterApp();
 // Enter to submit login
 document.getElementById('login-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 document.getElementById('login-user').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+onEnter(['reg-call', 'reg-name', 'reg-email', 'reg-pass'], () => doRegister(document.querySelector('#tab-register button.btn-primary')));
 
 // ============================================================
 // KEYBOARD SHORTCUT  /  → focus callsign input

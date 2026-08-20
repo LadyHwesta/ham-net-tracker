@@ -170,3 +170,5 @@ while True:
   toast('dmr_relay.py downloaded — create an API token under 🪙 API Tokens and paste it into the script.');
 }
 
+onEnter(['new-token-name'], createApiToken);
+

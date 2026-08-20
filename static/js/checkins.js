@@ -211,6 +211,8 @@ document.getElementById('ci-call').addEventListener('keydown', e => {
   if (e.key === 'Escape') { clearCallsignDropdown(); return; }
   if (e.key === 'Enter') addCheckin();
 });
+onEnter(['ci-name', 'ci-sig', 'ci-comments', 'ci-zone', 'ci-dmr-tg', 'ci-dmr-region'], addCheckin);
+onEnter(['tm-dest', 'tm-notes'], addTrafficMessage);
 
 // Close dropdown on click outside
 document.addEventListener('click', e => {
@@ -642,6 +644,7 @@ function showRemarkEditor(callsign, current) {
     <button class="btn btn-ghost btn-sm" onclick="document.getElementById('remark-editor').remove()">✕</button>`;
   const lookupInfo = document.getElementById('ci-lookup-info');
   lookupInfo.appendChild(div);
+  onEnter(['remark-preferred-name-input', 'remark-input'], () => submitRemark(callsign));
   div.querySelector('#remark-preferred-name-input').focus();
 }
 
@@ -683,14 +686,16 @@ async function toggleExpectedRemarkEditor(btn, callsign) {
   const prefInput = editor.querySelector('.exp-pref-input');
   const remarkInput = editor.querySelector('.exp-remark-input');
   const [saveBtn, cancelBtn] = editor.querySelectorAll('button');
-  saveBtn.onclick = async () => {
+  const doSave = async () => {
     try {
       await saveStationRemark(callsign, remarkInput.value, prefInput.value);
       toast('Saved', 'success');
       await loadExpectedStations();
     } catch (e) { toast(e.message, 'error'); }
   };
+  saveBtn.onclick = doSave;
   cancelBtn.onclick = () => editor.remove();
+  [prefInput, remarkInput].forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter') doSave(); }));
   row.appendChild(editor);
   prefInput.focus();
 }

@@ -43,3 +43,5 @@ function showReportStatus(msg, type) {
   el.style.color = type === 'success' ? 'var(--lc-green)' : 'var(--lc-red)';
 }
 
+onEnter(['report-subject'], submitReport);
+

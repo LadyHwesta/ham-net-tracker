@@ -104,3 +104,5 @@ async function deleteLogo() {
   } catch (e) { toast(e.message, 'error'); }
 }
 
+onEnter(['branding-org-name', 'branding-website-url', 'branding-tagline'], saveBranding);
+

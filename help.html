@@ -53,6 +53,14 @@
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
 
           <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-19 — Enter to Submit (v1.14.0)</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>Pressing <strong>Enter</strong> in any text field on a save/submit form now triggers that form's primary action, so most of the app can be driven without reaching for the mouse — registration, login, net create/edit, check-in and traffic message logging, remark editors, schedule sign-ups, branding, API tokens, report/request, and Net Repository key requests.</li>
+              <li>Multi-line fields (net description, report body) are left alone — Enter still inserts a newline there instead of submitting.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-19 — Self-Service Net Repository Keys (v1.13.0)</div>
             <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
               <li>No more manual key exchange to enable the Net Repository push (below) — <strong>Admin → Net Repository</strong> now has a <strong>Request API Key</strong> form that submits directly to that instance's admin review queue.</li>
@@ -480,10 +488,10 @@ python3 /opt/netcontrol/gmrs_sync.py --mode update</pre>
   </main>
 </div>
   <script src="/static/js/state.js?v=6"></script>
-  <script src="/static/js/utils.js?v=6"></script>
+  <script src="/static/js/utils.js?v=7"></script>
   <script src="/static/js/auth.js?v=8"></script>
   <script src="/static/js/theme.js?v=1"></script>
-  <script src="/static/js/branding.js?v=6"></script>
+  <script src="/static/js/branding.js?v=7"></script>
 
   <script>
     async function initPage() {

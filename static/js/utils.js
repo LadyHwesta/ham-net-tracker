@@ -40,6 +40,18 @@ function closeSidebar() {
   document.getElementById('sidebar-overlay').classList.remove('show');
 }
 
+// Pressing Enter while focused in any of the given input element IDs
+// triggers callback — lets a form submit without reaching for the mouse.
+// Skips <textarea> automatically (Enter there means newline, not submit).
+function onEnter(ids, callback) {
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.tagName !== 'TEXTAREA') {
+      el.addEventListener('keydown', e => { if (e.key === 'Enter') callback(); });
+    }
+  });
+}
+
 // Button loading state — call with true to start, false to restore.
 // Stores original HTML on the element so restore is always accurate.
 function btnLoading(btn, loading) {

@@ -112,7 +112,7 @@ async function toggleHistoryRemarkEditor(btn, callsign) {
   const prefInput = editor.querySelector('.hist-pref-input');
   const remarkInput = editor.querySelector('.hist-remark-input');
   const [saveBtn, cancelBtn] = editor.querySelectorAll('button');
-  saveBtn.onclick = async () => {
+  const doSave = async () => {
     try {
       await saveStationRemark(callsign, remarkInput.value, prefInput.value);
       toast('Saved', 'success');
@@ -121,7 +121,9 @@ async function toggleHistoryRemarkEditor(btn, callsign) {
       filterHistory();
     } catch (e) { toast(e.message, 'error'); }
   };
+  saveBtn.onclick = doSave;
   cancelBtn.onclick = () => editor.remove();
+  [prefInput, remarkInput].forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter') doSave(); }));
   cell.appendChild(editor);
   prefInput.focus();
 }

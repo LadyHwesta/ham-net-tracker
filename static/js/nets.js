@@ -250,3 +250,5 @@ async function deleteNet(id) {
   } catch (e) { toast(e.message, 'error'); }
 }
 
+onEnter(['net-name', 'net-freq', 'net-dmr-tg', 'net-broadcast-label', 'net-reminder-minutes'], saveNet);
+

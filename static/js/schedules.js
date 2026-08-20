@@ -333,3 +333,7 @@ async function submitAssign() {
   } catch (e) { toast(e.message, 'error'); }
 }
 
+onEnter(['sched-time', 'sched-tz', 'sched-notes'], saveSchedule);
+onEnter(['signup-callsign', 'signup-name', 'signup-email', 'signup-notes'], submitSignup);
+onEnter(['assign-notes'], submitAssign);
+

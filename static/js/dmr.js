@@ -258,3 +258,5 @@ function toggleDmrPanel() {
   if (dmrPanelOpen) refreshDmrHeard();
 }
 
+onEnter(['dmr-url', 'dmr-tg', 'dmr-filter'], saveDmrConfig);
+

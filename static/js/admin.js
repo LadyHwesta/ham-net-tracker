@@ -313,3 +313,5 @@ async function clearNetRepoKey() {
   } catch (e) { toast(e.message, 'error'); }
 }
 
+onEnter(['netrepo-req-name', 'netrepo-req-callsign', 'netrepo-req-url', 'netrepo-req-notes'], requestNetRepoKey);
+
