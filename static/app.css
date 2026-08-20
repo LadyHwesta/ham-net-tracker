@@ -629,9 +629,6 @@
         padding: 8px 0;
       }
 
-      /* ── Check-in table: hide #, Signal, Comments, Time columns ── */
-      .col-seq, .col-signal, .col-comments, .col-time { display: none; }
-
       /* ── Sessions list: hide Ended and Check-ins columns ── */
       .col-sess-ended, .col-sess-checkins { display: none; }
 
@@ -667,6 +664,60 @@
     }
 
     /* ============================================================
+       CHECKED-IN STATIONS ROSTER — right-side, independently
+       scrollable column (issue #18)
+       ============================================================ */
+    .session-columns {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+    .session-left-col {
+      flex: 1;
+      min-width: 0;
+    }
+    .session-right-col {
+      flex: 0 0 340px;
+      position: sticky;
+      top: 12px;
+      max-height: calc(100vh - 90px);
+      overflow-y: auto;
+    }
+    @media (max-width: 960px) {
+      .session-columns { flex-direction: column; }
+      .session-right-col {
+        flex: 1 1 auto;
+        width: 100%;
+        position: static;
+        max-height: none;
+        overflow-y: visible;
+      }
+    }
+    .checkin-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 8px;
+      border-bottom: 1px solid var(--lc-border);
+      font-size: 13px;
+      transition: background-color 3s ease;
+    }
+    .checkin-row:last-child { border-bottom: none; }
+    .checkin-row .callsign { flex: 0 0 auto; }
+    .checkin-row .checkin-name {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+    .checkin-row.checkin-recent {
+      background-color: rgba(255,153,0,0.16);
+    }
+
+    /* ============================================================
        NET CONTROL MODE — simplified, large-tap-target view (issue #10)
        Additive only — normal desktop styles are untouched.
        ============================================================ */
@@ -677,14 +728,15 @@
     .net-control-mode #duty-bar {
       display: none !important;
     }
-    .net-control-mode .col-signal,
-    .net-control-mode .col-comments,
-    .net-control-mode .col-traffic,
-    .net-control-mode .col-actions,
-    .net-control-mode .col-zone,
-    .net-control-mode .col-dmr-tg,
-    .net-control-mode .col-dmr-region {
-      display: none !important;
+    /* Minimal-chrome one-handed use shouldn't spend width on a side column,
+       even at a wide viewport — always stack, regardless of the 960px rule above. */
+    .net-control-mode .session-columns { flex-direction: column !important; }
+    .net-control-mode .session-right-col {
+      flex: 1 1 auto !important;
+      width: 100%;
+      position: static !important;
+      max-height: none !important;
+      overflow-y: visible !important;
     }
     .net-control-mode .checkin-new-row {
       flex-direction: column;
@@ -715,10 +767,11 @@
       font-weight: 700;
       margin-top: 8px;
     }
-    .net-control-mode #checkins-table-wrap {
+    .net-control-mode .checkin-row {
       font-size: 16px;
+      padding: 10px 8px;
     }
-    .net-control-mode #checkins-tbody .callsign {
+    .net-control-mode .checkin-row .callsign {
       font-size: 17px;
     }
     .net-control-mode #offline-queue-banner {

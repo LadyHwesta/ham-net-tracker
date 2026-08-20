@@ -303,7 +303,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="Ham Radio Net Tracker", version="1.16.0", lifespan=lifespan)
+app = FastAPI(title="Ham Radio Net Tracker", version="1.17.0", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -1739,8 +1739,14 @@ def admin_clear_net_repository_key(admin: User = Depends(require_admin), db: Ses
 
 @app.get("/sessions/{session_id}/checkins", response_model=list[CheckinOut])
 def list_checkins(session_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    _get_session_for_user(session_id, current_user, db)
-    return db.query(Checkin).filter(Checkin.session_id == session_id).order_by(Checkin.checked_in_at).all()
+    session = _get_session_for_user(session_id, current_user, db)
+    checkins = db.query(Checkin).filter(Checkin.session_id == session_id).order_by(Checkin.checked_in_at).all()
+    preferred_names = _preferred_names_for_net(session.net_id, db)
+    out = [CheckinOut.model_validate(c) for c in checkins]
+    for c, o in zip(checkins, out):
+        if c.callsign in preferred_names:
+            o.name = preferred_names[c.callsign]
+    return out
 
 
 @app.post("/sessions/{session_id}/checkins", response_model=CheckinOut, status_code=201)

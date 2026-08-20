@@ -18,7 +18,6 @@ async function openNet(netId) {
   document.getElementById('ci-zone-group').style.display = currentNetIsAres ? '' : 'none';
   document.getElementById('zone-roster-panel').style.display = currentNetIsAres ? '' : 'none';
   document.getElementById('traffic-log-panel').style.display = currentNetIsAres ? '' : 'none';
-  document.getElementById('th-zone').style.display = currentNetIsAres ? '' : 'none';
 
   // Hide DMR panel entirely for GMRS nets
   document.getElementById('dmr-heard-panel').style.display = currentNetIsGmrs ? 'none' : '';

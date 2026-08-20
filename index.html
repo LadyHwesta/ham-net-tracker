@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230a0a1a'/%3E%3C!-- Tower base --%3E%3Crect x='15' y='20' width='2' height='8' fill='%23ff9900'/%3E%3Crect x='11' y='27' width='10' height='2' rx='1' fill='%23ff9900'/%3E%3C!-- Tower mast --%3E%3Crect x='15.5' y='6' width='1' height='14' fill='%23ff9900'/%3E%3C!-- Signal arcs --%3E%3Cpath d='M10 14 A8 8 0 0 1 22 14' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M7 18 A11 11 0 0 1 25 18' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round' opacity='0.6'/%3E%3Cpath d='M4 22 A14 14 0 0 1 28 22' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round' opacity='0.3'/%3E%3C!-- Tip dot --%3E%3Ccircle cx='16' cy='6' r='1.5' fill='%23ff9900'/%3E%3C/svg%3E" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/app.css?v=10">
+  <link rel="stylesheet" href="/static/app.css?v=11">
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#0a0a1a" />
   <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png" />
@@ -426,8 +426,10 @@
         <!-- Live session checkin panel -->
         <div id="live-session-panel" style="display:none">
           <div class="card">
-            <!-- Session info + net script — pinned to the top of the card so it stays visible
-                 while scrolling through the check-in form, expected stations, or check-ins table -->
+          <div class="session-columns">
+          <div class="session-left-col">
+            <!-- Session info + net script — pinned to the top of the left column so it stays
+                 visible while scrolling through the check-in form, expected stations, etc. -->
             <div id="session-sticky-header" style="position:sticky;top:0;z-index:5;background:var(--surface);padding-bottom:6px;margin-bottom:6px;border-bottom:1px solid var(--lc-border)">
               <div class="status-bar">
                 <span class="status-dot" id="session-status-dot"></span>
@@ -622,26 +624,20 @@
                 </div>
               </div>
             </div>
+          </div><!-- /session-left-col -->
 
-            <!-- Checkin count -->
+          <!-- Checked-in stations roster — its own scrollable column (issue #18) -->
+          <div class="session-right-col">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
               <span class="text-muted" style="font-size:12px" id="checkin-count-label">0 check-ins</span>
             </div>
-
-            <!-- Checkins table -->
-            <div id="checkins-table-wrap" style="overflow-x:auto">
-              <table class="tbl">
-                <thead>
-                  <tr>
-                    <th class="col-seq">#</th><th>Callsign</th><th>Name</th><th class="col-signal">Signal</th><th class="col-comments">Comments</th><th id="th-zone" class="col-zone" style="display:none">Zone</th><th id="th-dmr-tg" class="col-dmr-tg" style="display:none">TG</th><th id="th-dmr-region" class="col-dmr-region" style="display:none">Region</th><th class="col-traffic">Traffic</th><th class="col-time">Time</th><th class="col-actions"></th>
-                  </tr>
-                </thead>
-                <tbody id="checkins-tbody"></tbody>
-              </table>
-              <div class="empty" id="checkins-empty" style="display:none">
-                <p>No check-ins yet. Add the first station above.</p>
-              </div>
+            <div id="checkins-list"></div>
+            <div class="empty" id="checkins-empty" style="display:none">
+              <p>No check-ins yet. Add the first station above.</p>
             </div>
+          </div><!-- /session-right-col -->
+
+          </div><!-- /session-columns -->
           </div>
         </div>
       </div>
@@ -819,8 +815,8 @@
   <script src="/static/js/branding.js?v=20"></script>
   <script src="/static/js/report.js?v=20"></script>
   <script src="/static/js/nets.js?v=20"></script>
-  <script src="/static/js/sessions.js?v=20"></script>
-  <script src="/static/js/checkins.js?v=21"></script>
+  <script src="/static/js/sessions.js?v=21"></script>
+  <script src="/static/js/checkins.js?v=22"></script>
   <script src="/static/js/history.js?v=20"></script>
   <script src="/static/js/admin.js?v=21"></script>
   <script src="/static/js/schedules.js?v=20"></script>

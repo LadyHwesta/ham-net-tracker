@@ -102,9 +102,10 @@ async function addCheckin() {
   if (!callsign) { toast('Callsign required', 'error'); document.getElementById('ci-call').focus(); return; }
   const payload = { callsign, name, signal_report, comments, has_traffic, evac_zone, dmr_talkgroup, dmr_region };
   try {
-    await apiFetch(`/sessions/${currentSessionId}/checkins`, { method: 'POST', body: JSON.stringify(payload) });
+    const created = await apiFetch(`/sessions/${currentSessionId}/checkins`, { method: 'POST', body: JSON.stringify(payload) });
     _clearCheckinForm();
     toast(`${callsign} checked in`, 'success');
+    markRecentCheckin(created.id);
     await loadCheckins();
     renderExpectedList();   // refresh expected list to show new checkin state
   } catch (e) {
@@ -179,7 +180,14 @@ async function refreshOfflineQueueBanner() {
 async function retryOfflineQueue() {
   const changed = await flushCheckinQueue();
   await refreshOfflineQueueBanner();
-  if (changed) { await loadCheckins(); renderExpectedList(); }
+  if (changed) {
+    const beforeIds = new Set(lastKnownCheckins.map(c => c.id));
+    await loadCheckins();
+    // Newly-appeared rows just landed via the offline queue — highlight them
+    // like a fresh check-in so a late sync doesn't look like old news.
+    lastKnownCheckins.filter(c => !beforeIds.has(c.id)).forEach(c => markRecentCheckin(c.id));
+    renderExpectedList();
+  }
 }
 
 async function dismissFailedCheckin(id) {
@@ -353,9 +361,26 @@ function updateTrafficBanner(checkins) {
   }).join('');
 }
 
+// Last 5 check-in ids added/synced, newest last — each highlighted for 20s
+// (issue #18). A station drops out of the highlight the moment either the
+// 20s window elapses or a 6th newer check-in bumps it off the list.
+let recentCheckins = [];
+
+function markRecentCheckin(id) {
+  recentCheckins.push({ id, at: Date.now() });
+  if (recentCheckins.length > 5) recentCheckins.shift();
+  renderCheckins(lastKnownCheckins);
+  setTimeout(() => renderCheckins(lastKnownCheckins), 20000);
+}
+
+function isRecentCheckin(id) {
+  const entry = recentCheckins.find(r => r.id === id);
+  return !!entry && (Date.now() - entry.at) < 20000;
+}
+
 function renderCheckins(checkins) {
   lastKnownCheckins = checkins;
-  const tbody = document.getElementById('checkins-tbody');
+  const list = document.getElementById('checkins-list');
   const empty = document.getElementById('checkins-empty');
   const count = document.getElementById('checkin-count-label');
   count.textContent = `${checkins.length} check-in${checkins.length !== 1 ? 's' : ''}`;
@@ -363,36 +388,30 @@ function renderCheckins(checkins) {
   updateTrafficBanner(checkins);
 
   if (checkins.length === 0) {
-    tbody.innerHTML = '';
+    list.innerHTML = '';
     empty.style.display = '';
     return;
   }
   empty.style.display = 'none';
-  // Show/hide zone column header based on ARES mode
-  document.getElementById('th-zone').style.display = currentNetIsAres ? '' : 'none';
-  // Show/hide DMR columns based on whether DMR config exists
   const hasDmr = !!currentDmrConfig;
-  const thDmrTg = document.getElementById('th-dmr-tg');
-  const thDmrRegion = document.getElementById('th-dmr-region');
-  if (thDmrTg) thDmrTg.style.display = hasDmr ? '' : 'none';
-  if (thDmrRegion) thDmrRegion.style.display = hasDmr ? '' : 'none';
-  tbody.innerHTML = checkins.map((c, i) => `<tr ${c.has_traffic ? 'style="background:rgba(255,68,34,0.08)"' : ''}>
-    <td class="col-seq text-muted">${i + 1}</td>
-    <td><span class="callsign">${esc(c.callsign)}</span></td>
-    <td>${esc(c.name || '—')}</td>
-    <td class="col-signal">${esc(c.signal_report || '—')}</td>
-    <td class="col-comments">${esc(c.comments || '—')}</td>
-    ${currentNetIsAres ? `<td class="col-zone" style="font-size:12px;color:var(--lc-blue)">${esc(c.evac_zone || '—')}</td>` : ''}
-    ${hasDmr ? `<td class="col-dmr-tg" style="font-size:12px;color:var(--lc-orange)">${esc(c.dmr_talkgroup || '—')}</td>` : ''}
-    ${hasDmr ? `<td class="col-dmr-region" style="font-size:12px">${esc(c.dmr_region || '—')}</td>` : ''}
-    <td class="col-traffic" style="text-align:center">
+  list.innerHTML = checkins.map(c => {
+    const details = [
+      c.signal_report ? `Signal: ${c.signal_report}` : null,
+      c.comments ? `Comments: ${c.comments}` : null,
+      currentNetIsAres && c.evac_zone ? `Zone: ${c.evac_zone}` : null,
+      hasDmr && c.dmr_talkgroup ? `TG: ${c.dmr_talkgroup}` : null,
+      hasDmr && c.dmr_region ? `Region: ${c.dmr_region}` : null,
+      `Checked in: ${fmt(c.checked_in_at)}`,
+    ].filter(Boolean).join(' · ');
+    return `<div class="checkin-row${isRecentCheckin(c.id) ? ' checkin-recent' : ''}" title="${esc(details)}">
+      <span class="callsign">${esc(c.callsign)}</span>
+      <span class="checkin-name">${esc(c.name || '—')}</span>
       <button class="btn btn-sm ${c.has_traffic ? 'btn-danger' : 'btn-ghost'}"
         style="font-size:14px;padding:2px 8px" title="${c.has_traffic ? 'Traffic — click to clear' : 'Click to flag traffic'}"
         onclick="toggleTraffic(${c.id})">${c.has_traffic ? '📢' : '○'}</button>
-    </td>
-    <td class="col-time text-muted">${fmt(c.checked_in_at)}</td>
-    <td class="col-actions"><button class="btn btn-danger btn-sm" onclick="removeCheckin(${c.id})">✕</button></td>
-  </tr>`).join('');
+      <button class="btn btn-danger btn-sm" onclick="removeCheckin(${c.id})">✕</button>
+    </div>`;
+  }).join('');
 }
 
 async function removeCheckin(id) {
@@ -443,8 +462,7 @@ async function loadExpectedStations() {
 
 // Get set of callsigns currently checked into the session (from the DOM)
 function checkedInCallsigns() {
-  const rows = document.querySelectorAll('#checkins-tbody tr td:nth-child(2) .callsign');
-  return new Set([...rows].map(el => el.textContent.trim()));
+  return new Set(lastKnownCheckins.map(c => c.callsign));
 }
 
 function renderExpectedList() {

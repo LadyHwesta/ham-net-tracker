@@ -145,6 +145,27 @@ class TestPreferredNameOverride:
         }, headers=admin_headers)
         assert add.json()["name"] == "Robert Smith"
 
+    def test_live_checkins_list_uses_fcc_name_by_default(self, client, admin_headers, net, session):
+        client.post(f"/sessions/{session['id']}/checkins", json={
+            "callsign": "W7ABC", "name": "Robert Smith", "has_traffic": False,
+        }, headers=admin_headers)
+
+        resp = client.get(f"/sessions/{session['id']}/checkins", headers=admin_headers)
+        assert resp.status_code == 200
+        assert resp.json()[0]["name"] == "Robert Smith"
+
+    def test_live_checkins_list_uses_preferred_name_when_set(self, client, admin_headers, net, session):
+        client.post(f"/sessions/{session['id']}/checkins", json={
+            "callsign": "W7ABC", "name": "Robert Smith", "has_traffic": False,
+        }, headers=admin_headers)
+        client.put(f"/nets/{net['id']}/stations/W7ABC/remark", json={
+            "preferred_name": "Bob",
+        }, headers=admin_headers)
+
+        resp = client.get(f"/sessions/{session['id']}/checkins", headers=admin_headers)
+        assert resp.status_code == 200
+        assert resp.json()[0]["name"] == "Bob"
+
 
 class TestHistoryPreferredNameOverride:
     """issue #14 follow-up: preferred name can be set/edited from the History
