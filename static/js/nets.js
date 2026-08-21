@@ -124,7 +124,7 @@ function switchNetFormTab(tab) {
   document.getElementById('net-form-tab-script-btn').classList.toggle('active', tab === 'script');
   // The Details tab was designed/laid out at a narrower width; give the script
   // editor (toolbar + big textarea + preview) more room to breathe.
-  document.getElementById('net-form-card').style.maxWidth = tab === 'script' ? '820px' : '500px';
+  document.getElementById('net-form-card').style.maxWidth = tab === 'script' ? '920px' : '500px';
   if (tab === 'script') renderScriptPreview();
 }
 

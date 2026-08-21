@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230a0a1a'/%3E%3C!-- Tower base --%3E%3Crect x='15' y='20' width='2' height='8' fill='%23ff9900'/%3E%3Crect x='11' y='27' width='10' height='2' rx='1' fill='%23ff9900'/%3E%3C!-- Tower mast --%3E%3Crect x='15.5' y='6' width='1' height='14' fill='%23ff9900'/%3E%3C!-- Signal arcs --%3E%3Cpath d='M10 14 A8 8 0 0 1 22 14' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M7 18 A11 11 0 0 1 25 18' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round' opacity='0.6'/%3E%3Cpath d='M4 22 A14 14 0 0 1 28 22' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round' opacity='0.3'/%3E%3C!-- Tip dot --%3E%3Ccircle cx='16' cy='6' r='1.5' fill='%23ff9900'/%3E%3C/svg%3E" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/app.css?v=14">
+  <link rel="stylesheet" href="/static/app.css?v=15">
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#0a0a1a" />
   <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png" />
@@ -377,50 +377,60 @@
           </div><!-- /net-form-details-panel -->
 
           <div id="net-form-script-panel" style="display:none">
-            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
-              <button type="button" class="btn btn-ghost btn-sm" onclick="wrapScriptSelection('**','**')" title="Bold"><strong>B</strong></button>
-              <button type="button" class="btn btn-ghost btn-sm" onclick="wrapScriptSelection('*','*')" title="Italic"><em>I</em></button>
-              <button type="button" class="btn btn-ghost btn-sm" onclick="insertScriptLinePrefix('# ')" title="Heading 1">H1</button>
-              <button type="button" class="btn btn-ghost btn-sm" onclick="insertScriptLinePrefix('## ')" title="Heading 2">H2</button>
-              <button type="button" class="btn btn-ghost btn-sm" onclick="insertScriptLinePrefix('### ')" title="Heading 3">H3</button>
-              <button type="button" class="btn btn-ghost btn-sm" onclick="insertScriptLinePrefix('- ')" title="Bullet list">• List</button>
-              <button type="button" class="btn btn-ghost btn-sm" onclick="insertScriptRule()" title="Horizontal rule">— Rule</button>
-            </div>
+            <!-- Variable reference sits to the right of the editor, bottom-aligned
+                 (issue #24 follow-up) — with a long script the textarea/preview
+                 stack can grow tall; keeping the reference beside it rather than
+                 stacked above it means it's never lost off the top of the screen. -->
+            <div class="script-editor-columns">
+              <div class="script-editor-main">
+                <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+                  <button type="button" class="btn btn-ghost btn-sm" onclick="wrapScriptSelection('**','**')" title="Bold"><strong>B</strong></button>
+                  <button type="button" class="btn btn-ghost btn-sm" onclick="wrapScriptSelection('*','*')" title="Italic"><em>I</em></button>
+                  <button type="button" class="btn btn-ghost btn-sm" onclick="insertScriptLinePrefix('# ')" title="Heading 1">H1</button>
+                  <button type="button" class="btn btn-ghost btn-sm" onclick="insertScriptLinePrefix('## ')" title="Heading 2">H2</button>
+                  <button type="button" class="btn btn-ghost btn-sm" onclick="insertScriptLinePrefix('### ')" title="Heading 3">H3</button>
+                  <button type="button" class="btn btn-ghost btn-sm" onclick="insertScriptLinePrefix('- ')" title="Bullet list">• List</button>
+                  <button type="button" class="btn btn-ghost btn-sm" onclick="insertScriptRule()" title="Horizontal rule">— Rule</button>
+                </div>
 
-            <button type="button" onclick="toggleScriptVarsPanel()" style="width:100%;background:var(--surface);border:1px solid var(--lc-blue);border-radius:8px 8px 0 0;color:var(--lc-blue);padding:8px 12px;text-align:left;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700;letter-spacing:.05em;display:flex;align-items:center;justify-content:space-between">
-              <span>🔤 INSERT A VARIABLE</span>
-              <span id="script-vars-toggle-icon">▶</span>
-            </button>
-            <div id="script-vars-body" style="display:none;border:1px solid var(--lc-blue);border-top:none;border-radius:0 0 8px 8px;padding:10px 12px;margin-bottom:12px;font-size:12px">
-              <div class="script-var-row"><button type="button" class="btn btn-ghost btn-sm mono" onclick="insertScriptText('{{net_name}}')">{{net_name}}</button><span class="text-muted">The net's name</span></div>
-              <div class="script-var-row"><button type="button" class="btn btn-ghost btn-sm mono" onclick="insertScriptText('{{net_control}}')">{{net_control}}</button><span class="text-muted">Net Control — name and callsign</span></div>
-              <div class="script-var-row"><button type="button" class="btn btn-ghost btn-sm mono" onclick="insertScriptText('{{net_control_callsign}}')">{{net_control_callsign}}</button><span class="text-muted">Just the callsign</span></div>
-              <div class="script-var-row"><button type="button" class="btn btn-ghost btn-sm mono" onclick="insertScriptText('{{net_control_name}}')">{{net_control_name}}</button><span class="text-muted">Just the name</span></div>
-              <div class="script-var-row"><button type="button" class="btn btn-ghost btn-sm mono" onclick="insertScriptText('{{broadcaster}}')">{{broadcaster}}</button><span class="text-muted">Broadcaster — name and callsign</span></div>
-              <div class="script-var-row"><button type="button" class="btn btn-ghost btn-sm mono" onclick="insertScriptText('{{broadcaster_callsign}}')">{{broadcaster_callsign}}</button><span class="text-muted">Just the callsign</span></div>
-              <div class="script-var-row"><button type="button" class="btn btn-ghost btn-sm mono" onclick="insertScriptText('{{broadcaster_name}}')">{{broadcaster_name}}</button><span class="text-muted">Just the name</span></div>
-              <div class="script-var-row"><button type="button" class="btn btn-ghost btn-sm mono" onclick="insertScriptText('{{broadcast_label}}')">{{broadcast_label}}</button><span class="text-muted">The net's custom broadcast name</span></div>
-              <div class="script-var-row"><button type="button" class="btn btn-ghost btn-sm mono" onclick="insertScriptText('{{net_control_next}}')">{{net_control_next}}</button><span class="text-muted">Next week's Net Control — name and callsign</span></div>
-              <div class="script-var-row"><button type="button" class="btn btn-ghost btn-sm mono" onclick="insertScriptText('{{net_control_next_callsign}}')">{{net_control_next_callsign}}</button><span class="text-muted">Just the callsign</span></div>
-              <div class="script-var-row"><button type="button" class="btn btn-ghost btn-sm mono" onclick="insertScriptText('{{net_control_next_name}}')">{{net_control_next_name}}</button><span class="text-muted">Just the name</span></div>
-              <div class="script-var-row"><button type="button" class="btn btn-ghost btn-sm mono" onclick="insertScriptText('{{broadcaster_next}}')">{{broadcaster_next}}</button><span class="text-muted">Next week's Broadcaster — name and callsign</span></div>
-              <div class="script-var-row"><button type="button" class="btn btn-ghost btn-sm mono" onclick="insertScriptText('{{broadcaster_next_callsign}}')">{{broadcaster_next_callsign}}</button><span class="text-muted">Just the callsign</span></div>
-              <div class="script-var-row"><button type="button" class="btn btn-ghost btn-sm mono" onclick="insertScriptText('{{broadcaster_next_name}}')">{{broadcaster_next_name}}</button><span class="text-muted">Just the name</span></div>
-              <div style="font-size:11px;color:var(--text-muted);margin-top:6px">Net Control falls back to whoever started the session if nobody signed up on the Schedule tab; the <code style="background:var(--surface);padding:1px 4px;border-radius:3px">_next</code> variables never fall back — they stay blank until someone actually signs up.</div>
-            </div>
+                <textarea class="form-control mono" id="net-script" rows="16" placeholder="Optional — paste your net control script here" oninput="renderScriptPreview()"></textarea>
+                <div style="font-size:11px;color:var(--text-muted);margin-top:4px">
+                  Markup: <code style="background:var(--surface);padding:1px 4px;border-radius:3px">**bold**</code>
+                  <code style="background:var(--surface);padding:1px 4px;border-radius:3px">*italic*</code>
+                  <code style="background:var(--surface);padding:1px 4px;border-radius:3px"># heading</code>
+                  <code style="background:var(--surface);padding:1px 4px;border-radius:3px">- list</code>
+                  <code style="background:var(--surface);padding:1px 4px;border-radius:3px">---</code> rule — use the toolbar above or type them directly.
+                </div>
 
-            <textarea class="form-control mono" id="net-script" rows="16" placeholder="Optional — paste your net control script here" oninput="renderScriptPreview()"></textarea>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">
-              Markup: <code style="background:var(--surface);padding:1px 4px;border-radius:3px">**bold**</code>
-              <code style="background:var(--surface);padding:1px 4px;border-radius:3px">*italic*</code>
-              <code style="background:var(--surface);padding:1px 4px;border-radius:3px"># heading</code>
-              <code style="background:var(--surface);padding:1px 4px;border-radius:3px">- list</code>
-              <code style="background:var(--surface);padding:1px 4px;border-radius:3px">---</code> rule — use the toolbar above or type them directly.
-            </div>
+                <div style="margin-top:14px">
+                  <div style="font-size:12px;font-weight:700;color:var(--lc-orange);letter-spacing:.05em;margin-bottom:6px">PREVIEW <span class="text-muted" style="font-weight:400;font-size:11px">(sample names — the real script fills in live values)</span></div>
+                  <div id="net-script-preview" style="border:1px solid var(--lc-blue);border-radius:8px;padding:12px;min-height:80px;font-size:13px;line-height:1.5;white-space:pre-wrap"></div>
+                </div>
+              </div>
 
-            <div style="margin-top:14px">
-              <div style="font-size:12px;font-weight:700;color:var(--lc-orange);letter-spacing:.05em;margin-bottom:6px">PREVIEW <span class="text-muted" style="font-weight:400;font-size:11px">(sample names — the real script fills in live values)</span></div>
-              <div id="net-script-preview" style="border:1px solid var(--lc-blue);border-radius:8px;padding:12px;min-height:80px;font-size:13px;line-height:1.5;white-space:pre-wrap"></div>
+              <div class="script-editor-vars">
+                <button type="button" onclick="toggleScriptVarsPanel()" style="width:100%;background:var(--surface);border:1px solid var(--lc-blue);border-radius:8px 8px 0 0;color:var(--lc-blue);padding:8px 12px;text-align:left;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700;letter-spacing:.05em;display:flex;align-items:center;justify-content:space-between">
+                  <span>🔤 INSERT A VARIABLE</span>
+                  <span id="script-vars-toggle-icon">▶</span>
+                </button>
+                <div id="script-vars-body" style="display:none;border:1px solid var(--lc-blue);border-top:none;border-radius:0 0 8px 8px;padding:10px 12px;font-size:12px">
+                  <div class="script-var-row"><button type="button" class="btn btn-ghost btn-sm mono" onclick="insertScriptText('{{net_name}}')">{{net_name}}</button><span class="text-muted">The net's name</span></div>
+                  <div class="script-var-row"><button type="button" class="btn btn-ghost btn-sm mono" onclick="insertScriptText('{{net_control}}')">{{net_control}}</button><span class="text-muted">Net Control — name and callsign</span></div>
+                  <div class="script-var-row"><button type="button" class="btn btn-ghost btn-sm mono" onclick="insertScriptText('{{net_control_callsign}}')">{{net_control_callsign}}</button><span class="text-muted">Just the callsign</span></div>
+                  <div class="script-var-row"><button type="button" class="btn btn-ghost btn-sm mono" onclick="insertScriptText('{{net_control_name}}')">{{net_control_name}}</button><span class="text-muted">Just the name</span></div>
+                  <div class="script-var-row"><button type="button" class="btn btn-ghost btn-sm mono" onclick="insertScriptText('{{broadcaster}}')">{{broadcaster}}</button><span class="text-muted">Broadcaster — name and callsign</span></div>
+                  <div class="script-var-row"><button type="button" class="btn btn-ghost btn-sm mono" onclick="insertScriptText('{{broadcaster_callsign}}')">{{broadcaster_callsign}}</button><span class="text-muted">Just the callsign</span></div>
+                  <div class="script-var-row"><button type="button" class="btn btn-ghost btn-sm mono" onclick="insertScriptText('{{broadcaster_name}}')">{{broadcaster_name}}</button><span class="text-muted">Just the name</span></div>
+                  <div class="script-var-row"><button type="button" class="btn btn-ghost btn-sm mono" onclick="insertScriptText('{{broadcast_label}}')">{{broadcast_label}}</button><span class="text-muted">The net's custom broadcast name</span></div>
+                  <div class="script-var-row"><button type="button" class="btn btn-ghost btn-sm mono" onclick="insertScriptText('{{net_control_next}}')">{{net_control_next}}</button><span class="text-muted">Next week's Net Control — name and callsign</span></div>
+                  <div class="script-var-row"><button type="button" class="btn btn-ghost btn-sm mono" onclick="insertScriptText('{{net_control_next_callsign}}')">{{net_control_next_callsign}}</button><span class="text-muted">Just the callsign</span></div>
+                  <div class="script-var-row"><button type="button" class="btn btn-ghost btn-sm mono" onclick="insertScriptText('{{net_control_next_name}}')">{{net_control_next_name}}</button><span class="text-muted">Just the name</span></div>
+                  <div class="script-var-row"><button type="button" class="btn btn-ghost btn-sm mono" onclick="insertScriptText('{{broadcaster_next}}')">{{broadcaster_next}}</button><span class="text-muted">Next week's Broadcaster — name and callsign</span></div>
+                  <div class="script-var-row"><button type="button" class="btn btn-ghost btn-sm mono" onclick="insertScriptText('{{broadcaster_next_callsign}}')">{{broadcaster_next_callsign}}</button><span class="text-muted">Just the callsign</span></div>
+                  <div class="script-var-row"><button type="button" class="btn btn-ghost btn-sm mono" onclick="insertScriptText('{{broadcaster_next_name}}')">{{broadcaster_next_name}}</button><span class="text-muted">Just the name</span></div>
+                  <div style="font-size:11px;color:var(--text-muted);margin-top:6px">Net Control falls back to whoever started the session if nobody signed up on the Schedule tab; the <code style="background:var(--surface);padding:1px 4px;border-radius:3px">_next</code> variables never fall back — they stay blank until someone actually signs up.</div>
+                </div>
+              </div>
             </div>
           </div><!-- /net-form-script-panel -->
 
@@ -1014,7 +1024,7 @@
   <script src="/static/js/views.js?v=19"></script>
   <script src="/static/js/branding.js?v=20"></script>
   <script src="/static/js/report.js?v=20"></script>
-  <script src="/static/js/nets.js?v=21"></script>
+  <script src="/static/js/nets.js?v=22"></script>
   <script src="/static/js/sessions.js?v=25"></script>
   <script src="/static/js/checkins.js?v=30"></script>
   <script src="/static/js/history.js?v=20"></script>

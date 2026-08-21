@@ -439,6 +439,17 @@
     .script-var-row { display: flex; align-items: center; gap: 10px; padding: 3px 0; flex-wrap: wrap; }
     .script-var-row .btn { font-size: 11px; padding: 1px 8px; white-space: nowrap; }
 
+    /* Net Script editor (issue #24 follow-up) — variable reference sits beside
+       the editor, bottom-aligned so a tall editor (long script) doesn't push it
+       out of reach the way a stacked-above panel would. */
+    .script-editor-columns { display: flex; gap: 16px; align-items: flex-end; }
+    .script-editor-main { flex: 1; min-width: 0; }
+    .script-editor-vars { flex: 0 0 280px; }
+    @media (max-width: 860px) {
+      .script-editor-columns { flex-direction: column; align-items: stretch; }
+      .script-editor-vars { flex: 1 1 auto; width: 100%; }
+    }
+
     /* ===== CALLSIGN LOOKUP ===== */
     .lookup-info {
       font-size: 10px; margin-top: 4px; min-height: 16px;
