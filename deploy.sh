@@ -44,6 +44,13 @@ git fetch origin "$GIT_BRANCH"
 git checkout "$GIT_BRANCH" 2>/dev/null || git checkout -t "origin/$GIT_BRANCH"
 git pull origin "$GIT_BRANCH"
 
+if ! "$PYTHON" -c "import pytest" 2>/dev/null; then
+  echo "✗ pytest isn't installed for $PYTHON."
+  echo "  Install test dependencies once with:"
+  echo "    ${PYTHON} -m pip install -r requirements-dev.txt"
+  exit 1
+fi
+
 echo "Running test suite..."
 "$PYTHON" -m pytest tests/ -q
 echo "✓ All tests passed"

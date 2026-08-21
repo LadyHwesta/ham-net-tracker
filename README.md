@@ -70,17 +70,21 @@ cd ham-net-tracker
 
 ### 2. Install Python dependencies
 
-```bash
-pip install fastapi uvicorn sqlalchemy psycopg2-binary pyjwt passlib[bcrypt] python-dotenv httpx pydantic[email]
-```
-
-Or with a virtual environment:
+With a virtual environment (recommended — `deploy.sh` uses `venv/bin/python3` automatically if it exists):
 
 ```bash
 python3 -m venv venv
 source venv/bin/activate
-pip install fastapi uvicorn sqlalchemy psycopg2-binary pyjwt passlib[bcrypt] python-dotenv httpx pydantic[email]
+pip install -r requirements-dev.txt
 ```
+
+Or without one:
+
+```bash
+pip install -r requirements-dev.txt
+```
+
+Install `requirements-dev.txt` (which pulls in `requirements.txt` plus `pytest`) even for a production install — `deploy.sh` runs the test suite as a safety check before every restart, and fails with `No module named pytest` if only `requirements.txt` was installed. If you don't use `deploy.sh` and just want the runtime dependencies, `pip install -r requirements.txt` alone is enough.
 
 ### 3. Create the database
 
