@@ -229,10 +229,11 @@ function renderScriptPreview() {
     escaped = escaped.replace(/\{\{\s*(\w+)\s*\}\}/g, (match, key) => (key in vars ? escapeHtml(vars[key]) : match));
     previewEl.innerHTML = scriptBlockFormat(escaped);
   }
-  // Match the editor's height to the preview's rendered height (issue #24
-  // follow-up) so the write/see-result panes grow together as you type,
-  // instead of the textarea staying a fixed size while the preview grows.
-  ta.style.height = Math.max(previewEl.scrollHeight, NET_SCRIPT_MIN_HEIGHT) + 'px';
+  // Auto-grow the editor to fit its own content (issue #24 follow-up) —
+  // resetting to auto first is what lets scrollHeight shrink back down when
+  // text is deleted, not just grow.
+  ta.style.height = 'auto';
+  ta.style.height = Math.max(ta.scrollHeight, NET_SCRIPT_MIN_HEIGHT) + 'px';
 }
 
 function cancelNetForm() {

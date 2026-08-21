@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230a0a1a'/%3E%3C!-- Tower base --%3E%3Crect x='15' y='20' width='2' height='8' fill='%23ff9900'/%3E%3Crect x='11' y='27' width='10' height='2' rx='1' fill='%23ff9900'/%3E%3C!-- Tower mast --%3E%3Crect x='15.5' y='6' width='1' height='14' fill='%23ff9900'/%3E%3C!-- Signal arcs --%3E%3Cpath d='M10 14 A8 8 0 0 1 22 14' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M7 18 A11 11 0 0 1 25 18' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round' opacity='0.6'/%3E%3Cpath d='M4 22 A14 14 0 0 1 28 22' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round' opacity='0.3'/%3E%3C!-- Tip dot --%3E%3Ccircle cx='16' cy='6' r='1.5' fill='%23ff9900'/%3E%3C/svg%3E" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/app.css?v=14">
+  <link rel="stylesheet" href="/static/app.css?v=15">
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#0a0a1a" />
   <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png" />
@@ -61,6 +61,15 @@
         <div id="help-panel-changelog" style="display:none">
         <div class="card" style="margin-bottom:16px">
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-21 — Variable Reference Floats On The Right (v2.2.3, issue #24)</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>The <strong>🔤 Insert a Variable</strong> reference is back on the right, and now <strong>floats in place as you scroll</strong> — for a long script that grows the page well past one screen, it stays visible in the viewport instead of scrolling away with the toolbar at the top.</li>
+              <li>The editor and <strong>PREVIEW</strong> are stacked together on the left, with the editor auto-growing to fit its own content as you type (rather than tracking the preview's height, which no longer applies now that they're not side by side).</li>
+              <li>No database migration — frontend only.</li>
+            </ul>
+          </div>
 
           <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-21 — Net Script Editor Becomes a Write/Preview Split (v2.2.2, issue #24)</div>
@@ -504,7 +513,7 @@
 
         <div class="card" style="margin-bottom:16px">
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">NET CONTROL SCRIPT</h3>
-          <p style="margin:0 0 8px">Net owners can attach a script to a net from its <strong>Edit</strong> form, on its own <strong>📜 Net Script</strong> tab (separate from the Details tab holding name/type/frequency/etc.). The left side has a formatting toolbar (Bold, Italic, headings, list, rule — click instead of remembering the syntax), a collapsible <strong>🔤 Insert a Variable</strong> reference where clicking any <code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{variable}}</code> inserts it at the cursor, and the editor itself. The right side shows a live <strong>Preview</strong> that renders exactly what the script will look like — using placeholder sample names, since there's no live session to pull real values from while editing — and the editor grows as you type to stay the same height as the preview.</p>
+          <p style="margin:0 0 8px">Net owners can attach a script to a net from its <strong>Edit</strong> form, on its own <strong>📜 Net Script</strong> tab (separate from the Details tab holding name/type/frequency/etc.). The left side has a formatting toolbar (Bold, Italic, headings, list, rule — click instead of remembering the syntax), the editor itself (which grows as you type to fit what you've written), and a live <strong>Preview</strong> below it that renders exactly what the script will look like — using placeholder sample names, since there's no live session to pull real values from while editing. A collapsible <strong>🔤 Insert a Variable</strong> reference floats on the right — click any <code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{variable}}</code> to insert it at the cursor — and stays in view as you scroll through a long script instead of scrolling away.</p>
           <p style="margin:0 0 8px">When set, a collapsible <strong>📜 NET SCRIPT</strong> panel is pinned to the top of the live check-in screen, open by default, so you can read from it without a second window or a printed sheet — even while scrolling through check-ins.</p>
           <p style="margin:0 0 6px;font-weight:700;color:var(--text-muted);font-size:12px">MARKUP</p>
           <p style="margin:0 0 8px">A small, deliberately limited set of formatting is supported:
