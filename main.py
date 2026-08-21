@@ -303,7 +303,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="Ham Radio Net Tracker", version="2.0.2", lifespan=lifespan)
+app = FastAPI(title="Ham Radio Net Tracker", version="2.0.3", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -642,6 +642,17 @@ class TacticalPositionOut(BaseModel):
     signed_on_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
+
+
+class TacticalPositionUpdate(BaseModel):
+    """Edit a position's plan -- location, planned operator, scheduled sign-on time.
+    tactical_callsign and is_net_control are identity, not plan, and aren't editable
+    here. Full-replace semantics (like TacticalPositionCreate): every field is sent
+    on every save, so an empty value clears it rather than leaving it untouched."""
+    location: Optional[str] = None
+    assigned_callsign: Optional[str] = None
+    assigned_name: Optional[str] = None
+    scheduled_start: Optional[datetime] = None
 
 
 class TacticalSignOn(BaseModel):
@@ -2099,6 +2110,22 @@ def create_tactical_position(session_id: int, data: TacticalPositionCreate, curr
         scheduled_start=data.scheduled_start,
     )
     db.add(position)
+    db.commit()
+    db.refresh(position)
+    return _position_to_out(position, db)
+
+
+@app.patch("/tactical-positions/{position_id}", response_model=TacticalPositionOut)
+def update_tactical_position(position_id: int, data: TacticalPositionUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Edit a position's plan (location, planned operator, scheduled sign-on). This is
+    the only way to plan ahead for Net Control specifically -- it's auto-created at
+    session start with no creation form of its own, so without this there'd be no way
+    to set who's expected next or when (issue #21 follow-up)."""
+    position = _get_position_for_user(position_id, current_user, db)
+    position.location = (data.location or "").strip() or None
+    position.assigned_callsign = (data.assigned_callsign or "").strip().upper() or None
+    position.assigned_name = (data.assigned_name or "").strip() or None
+    position.scheduled_start = data.scheduled_start
     db.commit()
     db.refresh(position)
     return _position_to_out(position, db)

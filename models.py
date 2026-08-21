@@ -4,7 +4,7 @@ SQLAlchemy models for Ham Radio Net Tracker
 
 from datetime import datetime, timezone
 from sqlalchemy import (
-    Column, Integer, String, DateTime, Date, Time, ForeignKey, Text, Boolean, UniqueConstraint
+    Column, Integer, String, DateTime, Date, Time, ForeignKey, Text, Boolean, UniqueConstraint, TypeDecorator
 )
 from sqlalchemy.orm import relationship, declarative_base
 
@@ -13,6 +13,24 @@ Base = declarative_base()
 
 def utcnow():
     return datetime.now(timezone.utc)
+
+
+class UTCDateTime(TypeDecorator):
+    """DateTime(timezone=True) that guarantees a UTC-aware Python datetime on read,
+    regardless of backend. Postgres's TIMESTAMPTZ round-trips tzinfo correctly on its
+    own; SQLite has no real timestamp-with-timezone type, so a "timezone=True" column
+    silently comes back naive there even though every value written was UTC (utcnow()).
+    A naive datetime serializes to JSON with no offset marker, which browsers then
+    parse as *local* time instead of UTC -- every timestamp in the app would render
+    off by the viewer's UTC offset. Used everywhere DateTime(timezone=True) was used
+    before; a no-op when the driver already returns a tz-aware value."""
+    impl = DateTime(timezone=True)
+    cache_ok = True
+
+    def process_result_value(self, value, dialect):
+        if value is not None and value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value
 
 
 class User(Base):
@@ -31,8 +49,8 @@ class User(Base):
     theme = Column(String(20), default="lcars", nullable=False)  # lcars | dark | light | high-contrast | system
     email_verified = Column(Boolean, default=True, nullable=False)  # False only when SMTP is configured and a verification email was actually sent
     verification_token = Column(String(64), nullable=True)
-    verification_sent_at = Column(DateTime(timezone=True), nullable=True)
-    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    verification_sent_at = Column(UTCDateTime, nullable=True)
+    created_at = Column(UTCDateTime, default=utcnow, nullable=False)
 
     nets = relationship("Net", back_populates="owner", cascade="all, delete-orphan")
     sessions = relationship("NetSession", back_populates="operator")
@@ -67,7 +85,7 @@ class Net(Base):
     state = Column(String(50), nullable=True)          # US state
     website = Column(String(300), nullable=True)       # falls back to org-wide branding website if unset
     owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    created_at = Column(UTCDateTime, default=utcnow, nullable=False)
 
     owner = relationship("User", back_populates="nets")
     sessions = relationship("NetSession", back_populates="net", cascade="all, delete-orphan")
@@ -89,8 +107,8 @@ class NetSession(Base):
     operator_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     name = Column(String(200), nullable=True)   # optional human-readable label
     notes = Column(Text, nullable=True)
-    started_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
-    ended_at = Column(DateTime(timezone=True), nullable=True)
+    started_at = Column(UTCDateTime, default=utcnow, nullable=False)
+    ended_at = Column(UTCDateTime, nullable=True)
     # Manual broadcaster override for this session — takes precedence over the schedule
     # sign-up for the session's date. Covers the case where the broadcaster isn't known
     # until the net is about to begin (issue #17).
@@ -130,13 +148,13 @@ class TacticalPosition(Base):
     location = Column(String(200), nullable=True)
     assigned_callsign = Column(String(12), nullable=True)    # planned/expected operator
     assigned_name = Column(String(100), nullable=True)
-    scheduled_start = Column(DateTime(timezone=True), nullable=True)   # planned shift sign-on time
+    scheduled_start = Column(UTCDateTime, nullable=True)   # planned shift sign-on time
     # Auto-created (one per activation session) to track Net Control itself through the
     # same sign-on/off/shift-history mechanism as any other position — NCS commonly hands
     # off mid-activation, unlike the single day-level schedule sign-up routine sessions use.
     # Not user-creatable and not deletable; enforced in main.py, not here.
     is_net_control = Column(Boolean, default=False, nullable=False)
-    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    created_at = Column(UTCDateTime, default=utcnow, nullable=False)
 
     session = relationship("NetSession", back_populates="tactical_positions")
 
@@ -159,14 +177,14 @@ class Checkin(Base):
     evac_zone = Column(String(100), nullable=True)   # ARES/ACES evacuation zone
     dmr_talkgroup = Column(String(20), nullable=True)  # DMR talk group, e.g. "3100"
     dmr_region = Column(String(100), nullable=True)    # Region/state/area for DMR nets
-    checked_in_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    checked_in_at = Column(UTCDateTime, default=utcnow, nullable=False)
     # Tactical position shift tracking (issue #21, activation sessions only). Each
     # sign-on is its own Checkin row — checked_in_at is the shift's start, and
     # signed_off_at (once set) is its end. A position's current occupant is the
     # checkin with tactical_position_id set and signed_off_at still null; earlier
     # rows for the same position are that position's shift history, kept for free.
     tactical_position_id = Column(Integer, ForeignKey("tactical_positions.id", ondelete="SET NULL"), nullable=True)
-    signed_off_at = Column(DateTime(timezone=True), nullable=True)
+    signed_off_at = Column(UTCDateTime, nullable=True)
 
     session = relationship("NetSession", back_populates="checkins")
 
@@ -188,7 +206,7 @@ class EvacZone(Base):
     net_id = Column(Integer, ForeignKey("nets.id", ondelete="CASCADE"), nullable=False)
     callsign = Column(String(12), nullable=False, index=True)
     zone = Column(String(100), nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at = Column(UTCDateTime, default=utcnow, nullable=False)
 
     net = relationship("Net", back_populates="evac_zones")
 
@@ -212,7 +230,7 @@ class TrafficMessage(Base):
     msg_type = Column(String(20), nullable=False, default="formal")   # formal | informal | health_welfare
     status = Column(String(20), nullable=False, default="received")   # received | relayed | delivered | undeliverable
     notes = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    created_at = Column(UTCDateTime, default=utcnow, nullable=False)
 
     session = relationship("NetSession", back_populates="traffic_messages")
 
@@ -232,7 +250,7 @@ class StationRemark(Base):
     # reports (ICS-205, CSV exports) — not the check-in record itself.
     preferred_name = Column(String(100), nullable=True)
     updated_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    updated_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at = Column(UTCDateTime, default=utcnow, nullable=False)
 
     __table_args__ = (
         UniqueConstraint("callsign", "net_id", name="uq_station_remark_callsign_net"),
@@ -250,7 +268,7 @@ class NetShare(Base):
     id = Column(Integer, primary_key=True, index=True)
     net_id = Column(Integer, ForeignKey("nets.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)  # NULL = share with all
-    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    created_at = Column(UTCDateTime, default=utcnow, nullable=False)
 
     net = relationship("Net", back_populates="shares")
 
@@ -274,7 +292,7 @@ class NetSchedule(Base):
     start_time = Column(String(5), nullable=False)   # "HH:MM" in local tz
     timezone = Column(String(60), nullable=False, default="UTC")
     notes = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    created_at = Column(UTCDateTime, default=utcnow, nullable=False)
 
     net = relationship("Net", back_populates="schedules")
     signups = relationship("NetControlSignup", back_populates="schedule", cascade="all, delete-orphan")
@@ -290,7 +308,7 @@ class SystemSetting(Base):
 
     key = Column(String(100), primary_key=True)
     value = Column(Text, nullable=True)
-    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+    updated_at = Column(UTCDateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
     def __repr__(self):
         return f"<SystemSetting key={self.key}>"
@@ -311,8 +329,8 @@ class NetControlSignup(Base):
     name = Column(String(100), nullable=True)
     email = Column(String(255), nullable=True)
     notes = Column(Text, nullable=True)
-    signed_up_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
-    reminder_sent_at = Column(DateTime(timezone=True), nullable=True)  # set once a reminder email has gone out
+    signed_up_at = Column(UTCDateTime, default=utcnow, nullable=False)
+    reminder_sent_at = Column(UTCDateTime, nullable=True)  # set once a reminder email has gone out
 
     schedule = relationship("NetSchedule", back_populates="signups")
 
@@ -334,8 +352,8 @@ class ApiToken(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     name = Column(String(100), nullable=False)             # human label, e.g. "DMR Relay - shack Pi"
     token_hash = Column(String(64), nullable=False, unique=True)  # SHA-256 hex of the raw token
-    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
-    last_used_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(UTCDateTime, default=utcnow, nullable=False)
+    last_used_at = Column(UTCDateTime, nullable=True)
 
     user = relationship("User")
 
@@ -355,7 +373,7 @@ class GmrsLicense(Base):
     state = Column(String(50), nullable=True)
     expires = Column(String(20), nullable=True)           # raw date string from FCC (MM/DD/YYYY)
     status = Column(String(4), nullable=True)             # 'A'=Active, 'E'=Expired, etc.
-    synced_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
+    synced_at = Column(UTCDateTime, nullable=False, default=utcnow)
 
     def __repr__(self):
         return f"<GmrsLicense {self.callsign} {self.licensee_name}>"
@@ -373,7 +391,7 @@ class CallsignCache(Base):
     grid = Column(String(10), nullable=True)
     expires = Column(String(20), nullable=True)
     source = Column(String(50), nullable=True)
-    cached_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
+    cached_at = Column(UTCDateTime, nullable=False, default=utcnow)
 
     def __repr__(self):
         return f"<CallsignCache {self.callsign} status={self.status}>"
@@ -396,7 +414,7 @@ class DmrConfig(Base):
     # True = browser fetches hotspot directly (for local-network hotspots)
     # False = backend proxies the request (for public/accessible URLs)
     direct_mode = Column(Boolean, nullable=False, default=False)
-    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    created_at = Column(UTCDateTime, default=utcnow, nullable=False)
 
     net = relationship("Net", back_populates="dmr_config")
 

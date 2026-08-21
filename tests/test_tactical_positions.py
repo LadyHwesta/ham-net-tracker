@@ -97,6 +97,61 @@ class TestTacticalPositionCreation:
         )
         assert resp.status_code == 422
 
+    def test_update_position_fields(self, client, admin_headers):
+        _anet, _activation, position = _position(client, admin_headers)
+        resp = client.patch(
+            f"/tactical-positions/{position['id']}",
+            json={
+                "location": "456 Oak St", "assigned_callsign": "w4new", "assigned_name": "Bob",
+                "scheduled_start": "2026-09-01T14:00:00Z",
+            },
+            headers=admin_headers,
+        )
+        assert resp.status_code == 200, resp.text
+        updated = resp.json()
+        assert updated["location"] == "456 Oak St"
+        assert updated["assigned_callsign"] == "W4NEW"
+        assert updated["assigned_name"] == "Bob"
+        assert updated["scheduled_start"].startswith("2026-09-01T14:00:00")
+        assert updated["tactical_callsign"] == "SHELTER 1"  # identity unchanged
+
+    def test_update_position_clears_fields_when_blank(self, client, admin_headers):
+        _anet, _activation, position = _position(
+            client, admin_headers, location="123 Main St", assigned_callsign="W1ABC",
+        )
+        resp = client.patch(f"/tactical-positions/{position['id']}", json={}, headers=admin_headers)
+        assert resp.status_code == 200, resp.text
+        updated = resp.json()
+        assert updated["location"] is None
+        assert updated["assigned_callsign"] is None
+        assert updated["scheduled_start"] is None
+
+    def test_update_net_control_position_plan(self, client, admin_headers):
+        # Net Control has no creation form of its own -- editing is the only way to
+        # plan ahead for it, same as any tactical station (issue #21 follow-up).
+        anet = _ares_net(client, admin_headers)
+        activation = _activation_session(client, admin_headers, anet["id"])
+        positions = client.get(f"/sessions/{activation['id']}/tactical-positions", headers=admin_headers).json()
+        nc = positions[0]
+        resp = client.patch(
+            f"/tactical-positions/{nc['id']}",
+            json={"assigned_callsign": "w5next", "assigned_name": "Next NCS", "scheduled_start": "2026-09-01T18:00:00Z"},
+            headers=admin_headers,
+        )
+        assert resp.status_code == 200, resp.text
+        updated = resp.json()
+        assert updated["is_net_control"] is True
+        assert updated["tactical_callsign"] == "NET CONTROL"
+        assert updated["assigned_callsign"] == "W5NEXT"
+        assert updated["scheduled_start"].startswith("2026-09-01T18:00:00")
+
+    def test_non_member_cannot_update_position(self, client, admin_headers, user_headers):
+        _anet, _activation, position = _position(client, admin_headers)
+        resp = client.patch(
+            f"/tactical-positions/{position['id']}", json={"location": "X"}, headers=user_headers,
+        )
+        assert resp.status_code == 403
+
     def test_list_positions_ordered_by_creation(self, client, admin_headers):
         # NET CONTROL is auto-created at session start and always sorts first
         # (issue #21 follow-up) -- user-created positions follow in creation order.

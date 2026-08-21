@@ -640,7 +640,13 @@ async function removeTacticalPosition(id) {
   } catch (e) { toast(e.message, 'error'); }
 }
 
-// Station Schedule tab — setup/definition only, no sign-on actions here.
+// Station Schedule tab — position setup (callsign/location/planned operator/
+// scheduled time, all editable after creation via ✏️ Edit) plus, for Net
+// Control specifically, the same sign-on/hand-off/history controls as
+// Tactical Assignments -- Net Control has no separate creation form of its
+// own (it's auto-created at session start), so this tab is the only place
+// its plan can be set, and operators look here first to hand it off too
+// (issue #21 follow-up: a plain pointer to the other tab wasn't enough).
 function renderStationSchedule() {
   const listEl = document.getElementById('tactical-schedule-list');
   if (!listEl) return;
@@ -648,21 +654,34 @@ function renderStationSchedule() {
     listEl.innerHTML = '<p class="text-muted" style="font-size:12px;margin:0">No tactical positions yet — add one above.</p>';
     return;
   }
-  listEl.innerHTML = tacticalPositions.map(p => `
-    <div class="card" style="padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;gap:12px;flex-wrap:wrap${p.is_net_control ? ';border-color:var(--lc-orange)' : ''}">
-      <div style="flex:1;min-width:160px">
-        <span class="callsign">${p.is_net_control ? '🎙 ' : ''}${esc(p.tactical_callsign)}</span>
-        ${p.location ? `<span class="text-muted" style="font-size:12px;margin-left:8px">📍 ${esc(p.location)}</span>` : ''}
-        ${p.assigned_callsign ? `<div class="text-muted" style="font-size:11px;margin-top:2px">Planned: ${esc(p.assigned_callsign)}${p.assigned_name ? ' — ' + esc(p.assigned_name) : ''}</div>` : ''}
-        ${p.scheduled_start ? `<div class="text-muted" style="font-size:11px;margin-top:2px">🕐 Sign-on: ${fmt(p.scheduled_start)}</div>` : ''}
+  listEl.innerHTML = tacticalPositions.map(p => {
+    const occupied = !!p.current_callsign;
+    return `<div class="card" style="padding:10px 12px;margin-bottom:8px${p.is_net_control ? ';border-color:var(--lc-orange)' : ''}">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:160px">
+          <span class="callsign">${p.is_net_control ? '🎙 ' : ''}${esc(p.tactical_callsign)}</span>
+          ${p.location ? `<span class="text-muted" style="font-size:12px;margin-left:8px">📍 ${esc(p.location)}</span>` : ''}
+          ${p.assigned_callsign ? `<div class="text-muted" style="font-size:11px;margin-top:2px">Planned: ${esc(p.assigned_callsign)}${p.assigned_name ? ' — ' + esc(p.assigned_name) : ''}</div>` : ''}
+          ${p.scheduled_start ? `<div class="text-muted" style="font-size:11px;margin-top:2px">🕐 Sign-on: ${fmt(p.scheduled_start)}</div>` : ''}
+        </div>
+        <span style="font-size:12px;color:${occupied ? 'var(--lc-green)' : 'var(--text-muted)'};white-space:nowrap">
+          ${occupied ? `🟢 ${esc(p.current_callsign)}${p.current_name ? ' — ' + esc(p.current_name) : ''}` : '⚪ Vacant'}
+        </span>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="toggleEditPositionForm(${p.id})">✏️ Edit</button>
+        ${p.is_net_control
+          ? `<button type="button" class="btn btn-ghost btn-sm" style="font-size:10px;padding:1px 6px" onclick="toggleShiftHistory(${p.id}, 'schedule')">🕐 History</button>
+             ${occupied
+               ? `<button type="button" class="btn btn-ghost btn-sm" onclick="toggleSignOnForm(${p.id}, 'schedule')">🔄 Hand Off Net Control</button>
+                  <button type="button" class="btn btn-danger btn-sm" onclick="signOffPosition(${p.id})">Sign Off</button>`
+               : `<button type="button" class="btn btn-primary btn-sm" onclick="toggleSignOnForm(${p.id}, 'schedule')">Sign On Net Control</button>`}`
+          : `<button type="button" class="btn btn-danger btn-sm" onclick="removeTacticalPosition(${p.id})">✕ Remove</button>`}
       </div>
-      <span style="font-size:12px;color:${p.current_callsign ? 'var(--lc-green)' : 'var(--text-muted)'};white-space:nowrap">
-        ${p.current_callsign ? `🟢 ${esc(p.current_callsign)}${p.current_name ? ' — ' + esc(p.current_name) : ''}` : '⚪ Vacant'}
-      </span>
-      ${p.is_net_control
-        ? '<span class="text-muted" style="font-size:10px;white-space:nowrap;max-width:180px;text-align:right">Hand off from 📻 Check-In → TACTICAL ASSIGNMENTS</span>'
-        : `<button type="button" class="btn btn-danger btn-sm" onclick="removeTacticalPosition(${p.id})">✕ Remove</button>`}
-    </div>`).join('');
+      <div id="tac-edit-form-${p.id}" style="display:none;margin-top:8px"></div>
+      ${p.is_net_control ? `
+      <div id="tac-signon-form-schedule-${p.id}" style="display:none;margin-top:8px"></div>
+      <div id="tac-history-schedule-${p.id}" style="display:none;margin-top:8px;font-size:11px"></div>` : ''}
+    </div>`;
+  }).join('');
 }
 
 // Tactical Assignments panel (lives in the Check-In tab's Expected Stations
@@ -691,44 +710,48 @@ function renderTacticalAssignments() {
             : '⚪ Vacant'}
         </span>
         ${dueBadge}
-        <button type="button" class="btn btn-ghost btn-sm" style="font-size:10px;padding:1px 6px" onclick="toggleShiftHistory(${p.id})">🕐 History</button>
+        <button type="button" class="btn btn-ghost btn-sm" style="font-size:10px;padding:1px 6px" onclick="toggleShiftHistory(${p.id}, 'assign')">🕐 History</button>
         ${occupied
-          ? `<button type="button" class="btn btn-ghost btn-sm" onclick="toggleSignOnForm(${p.id})">${p.is_net_control ? '🔄 Hand Off Net Control' : '↻ Sign Off & Replace'}</button>
+          ? `<button type="button" class="btn btn-ghost btn-sm" onclick="toggleSignOnForm(${p.id}, 'assign')">${p.is_net_control ? '🔄 Hand Off Net Control' : '↻ Sign Off & Replace'}</button>
              <button type="button" class="btn btn-danger btn-sm" onclick="signOffPosition(${p.id})">Sign Off</button>`
-          : `<button type="button" class="btn btn-primary btn-sm" onclick="toggleSignOnForm(${p.id})">${p.is_net_control ? 'Sign On Net Control' : 'Sign On'}</button>`}
+          : `<button type="button" class="btn btn-primary btn-sm" onclick="toggleSignOnForm(${p.id}, 'assign')">${p.is_net_control ? 'Sign On Net Control' : 'Sign On'}</button>`}
       </div>
       ${p.is_net_control
-        ? `<div class="text-muted" style="font-size:10px;margin-top:3px">🎙 Net Control is auto-staffed at session start. To hand it to someone else, click <strong>Hand Off Net Control</strong> and enter the incoming operator's callsign — the outgoing operator's shift closes immediately and the change shows up in the duty bar at the top of the screen.</div>`
+        ? `<div class="text-muted" style="font-size:10px;margin-top:3px">🎙 Net Control is auto-staffed at session start. To hand it to someone else, click <strong>Hand Off Net Control</strong> and enter the incoming operator's callsign — the outgoing operator's shift closes immediately and the change shows up in the duty bar at the top of the screen. (Also available on the 🗓 Station Schedule tab.)</div>`
         : ''}
-      <div id="tac-signon-form-${p.id}" style="display:none;margin-top:8px"></div>
-      <div id="tac-history-${p.id}" style="display:none;margin-top:8px;font-size:11px"></div>
+      <div id="tac-signon-form-assign-${p.id}" style="display:none;margin-top:8px"></div>
+      <div id="tac-history-assign-${p.id}" style="display:none;margin-top:8px;font-size:11px"></div>
     </div>`;
   }).join('');
 }
 
-function toggleSignOnForm(positionId) {
-  const container = document.getElementById(`tac-signon-form-${positionId}`);
+// scope distinguishes which surface rendered this control -- Station Schedule
+// ('schedule') and Tactical Assignments ('assign') both list every position
+// (including Net Control), so each needs its own container/input ids to avoid
+// colliding on the same element id twice in one page.
+function toggleSignOnForm(positionId, scope = 'assign') {
+  const container = document.getElementById(`tac-signon-form-${scope}-${positionId}`);
   if (!container) return;
   if (container.style.display !== 'none') { container.style.display = 'none'; container.innerHTML = ''; return; }
   const position = tacticalPositions.find(p => p.id === positionId);
-  // Pre-fill from the planned operator if one was set at Station Schedule time
-  // — fully editable, covering "override the scheduled station" (issue #21).
+  // Pre-fill from the planned operator if one was set — fully editable,
+  // covering "override the scheduled station" (issue #21).
   const defaultCallsign = (position && position.assigned_callsign) || '';
   const defaultName = (position && position.assigned_name) || '';
   container.style.display = '';
   container.innerHTML = `
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-      <input class="form-control mono" id="tac-signon-callsign-${positionId}" placeholder="Callsign" value="${esc(defaultCallsign)}" style="width:110px;text-transform:uppercase;font-size:12px" />
-      <input class="form-control" id="tac-signon-name-${positionId}" placeholder="Name (optional)" value="${esc(defaultName)}" style="width:140px;font-size:12px" />
-      <button class="btn btn-primary btn-sm" onclick="signOnPosition(${positionId})">Confirm</button>
-      <button class="btn btn-ghost btn-sm" onclick="toggleSignOnForm(${positionId})">Cancel</button>
+      <input class="form-control mono" id="tac-signon-callsign-${scope}-${positionId}" placeholder="Callsign" value="${esc(defaultCallsign)}" style="width:110px;text-transform:uppercase;font-size:12px" />
+      <input class="form-control" id="tac-signon-name-${scope}-${positionId}" placeholder="Name (optional)" value="${esc(defaultName)}" style="width:140px;font-size:12px" />
+      <button class="btn btn-primary btn-sm" onclick="signOnPosition(${positionId}, '${scope}')">Confirm</button>
+      <button class="btn btn-ghost btn-sm" onclick="toggleSignOnForm(${positionId}, '${scope}')">Cancel</button>
     </div>`;
-  document.getElementById(`tac-signon-callsign-${positionId}`).focus();
+  document.getElementById(`tac-signon-callsign-${scope}-${positionId}`).focus();
 }
 
-async function signOnPosition(positionId) {
-  const callsignEl = document.getElementById(`tac-signon-callsign-${positionId}`);
-  const nameEl = document.getElementById(`tac-signon-name-${positionId}`);
+async function signOnPosition(positionId, scope = 'assign') {
+  const callsignEl = document.getElementById(`tac-signon-callsign-${scope}-${positionId}`);
+  const nameEl = document.getElementById(`tac-signon-name-${scope}-${positionId}`);
   const callsign = callsignEl.value.trim().toUpperCase();
   const name = nameEl.value.trim() || null;
   if (!callsign) return toast('Callsign required', 'error');
@@ -753,8 +776,8 @@ async function signOffPosition(positionId) {
   } catch (e) { toast(e.message, 'error'); }
 }
 
-async function toggleShiftHistory(positionId) {
-  const container = document.getElementById(`tac-history-${positionId}`);
+async function toggleShiftHistory(positionId, scope = 'assign') {
+  const container = document.getElementById(`tac-history-${scope}-${positionId}`);
   if (!container) return;
   if (container.style.display !== 'none') { container.style.display = 'none'; return; }
   container.style.display = '';
@@ -773,6 +796,78 @@ async function toggleShiftHistory(positionId) {
   } catch (e) {
     container.innerHTML = `<span style="color:var(--lc-red)">${esc(e.message)}</span>`;
   }
+}
+
+// Edit a position's plan — location, planned operator, scheduled sign-on
+// (month/day/time, current year). The only path for Net Control specifically,
+// since it's auto-created with no creation form of its own to set these on
+// (issue #21 follow-up: "Net Control should be schedulable just like a
+// tactical station").
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function toggleEditPositionForm(positionId) {
+  const container = document.getElementById(`tac-edit-form-${positionId}`);
+  if (!container) return;
+  if (container.style.display !== 'none') { container.style.display = 'none'; container.innerHTML = ''; return; }
+  const p = tacticalPositions.find(x => x.id === positionId);
+  if (!p) return;
+  const d = p.scheduled_start ? new Date(p.scheduled_start) : null;
+  const monthOpts = MONTH_NAMES.map((name, i) => `<option value="${i + 1}" ${d && d.getMonth() === i ? 'selected' : ''}>${name}</option>`).join('');
+  const dayOpts = Array.from({ length: 31 }, (_, i) => i + 1)
+    .map(n => `<option value="${n}" ${d && d.getDate() === n ? 'selected' : ''}>${n}</option>`).join('');
+  const timeVal = d ? `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` : '';
+  container.style.display = '';
+  container.innerHTML = `
+    <div class="form-row">
+      <div class="form-group mb-0">
+        <label style="font-size:11px">Location</label>
+        <input class="form-control" id="tac-edit-location-${positionId}" value="${esc(p.location || '')}" style="font-size:13px" />
+      </div>
+      <div class="form-group mb-0">
+        <label style="font-size:11px">Assigned Operator Callsign</label>
+        <input class="form-control mono" id="tac-edit-assigned-callsign-${positionId}" value="${esc(p.assigned_callsign || '')}" style="text-transform:uppercase;font-size:13px" />
+      </div>
+    </div>
+    <div class="form-row" style="margin-top:8px">
+      <div class="form-group mb-0">
+        <label style="font-size:11px">Assigned Operator Name</label>
+        <input class="form-control" id="tac-edit-assigned-name-${positionId}" value="${esc(p.assigned_name || '')}" style="font-size:13px" />
+      </div>
+      <div class="form-group mb-0">
+        <label style="font-size:11px">Scheduled Sign-On <span class="text-muted">(this year)</span></label>
+        <div style="display:flex;gap:6px">
+          <select class="form-control" id="tac-edit-month-${positionId}" style="font-size:13px;width:78px"><option value="">Month</option>${monthOpts}</select>
+          <select class="form-control" id="tac-edit-day-${positionId}" style="font-size:13px;width:66px"><option value="">Day</option>${dayOpts}</select>
+          <input class="form-control" type="time" id="tac-edit-time-${positionId}" value="${timeVal}" style="font-size:13px;width:110px" />
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;margin-top:8px">
+      <button type="button" class="btn btn-primary btn-sm" onclick="savePositionEdit(${positionId})">Save</button>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="toggleEditPositionForm(${positionId})">Cancel</button>
+    </div>`;
+}
+
+async function savePositionEdit(positionId) {
+  const location = document.getElementById(`tac-edit-location-${positionId}`).value.trim() || null;
+  const assigned_callsign = document.getElementById(`tac-edit-assigned-callsign-${positionId}`).value.trim().toUpperCase() || null;
+  const assigned_name = document.getElementById(`tac-edit-assigned-name-${positionId}`).value.trim() || null;
+  const month = document.getElementById(`tac-edit-month-${positionId}`).value;
+  const day = document.getElementById(`tac-edit-day-${positionId}`).value;
+  const time = document.getElementById(`tac-edit-time-${positionId}`).value;
+  let scheduled_start = null;
+  if (month && day) {
+    const year = new Date().getFullYear();
+    scheduled_start = new Date(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${time || '00:00'}`).toISOString();
+  }
+  try {
+    await apiFetch(`/tactical-positions/${positionId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ location, assigned_callsign, assigned_name, scheduled_start }),
+    });
+    toast('Position updated', 'success');
+    await loadTacticalPositions();
+  } catch (e) { toast(e.message, 'error'); }
 }
 
 // ── Zone roster (ARES nets) ──────────────────────────────────
