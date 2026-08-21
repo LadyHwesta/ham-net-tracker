@@ -26,6 +26,14 @@ def _schedule_for_today(client, headers, net_id):
     return resp.json(), today
 
 
+def _gmrs_net(client, headers, name="Family GMRS Net"):
+    resp = client.post("/nets", json={
+        "name": name, "net_type": "gmrs", "is_ares": False,
+    }, headers=headers)
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
 def _broadcast_net(client, headers, label="Amateur Radio Newsline"):
     resp = client.post("/nets", json={
         "name": "Newsline Net", "is_ares": False,
@@ -129,6 +137,65 @@ class TestDutyDisplay:
         resp = client.get(f"/sessions/{session['id']}", headers=admin_headers)
         assert resp.status_code == 200
         assert resp.json()["ncs_callsign"] == "W1ADMIN"
+
+    def test_gmrs_net_fallback_uses_gmrs_callsign_when_set(self, client, admin_headers):
+        """issue #23: on a GMRS net, the "whoever started the session" fallback
+        should prefer the operator's separate GMRS callsign over their amateur one."""
+        client.patch("/auth/gmrs-callsign", json={"gmrs_callsign": "WQXH7777"}, headers=admin_headers)
+        gnet = _gmrs_net(client, admin_headers)
+        s = client.post(f"/nets/{gnet['id']}/sessions", json={}, headers=admin_headers).json()
+        resp = client.get(f"/sessions/{s['id']}", headers=admin_headers)
+        assert resp.status_code == 200
+        assert resp.json()["ncs_callsign"] == "WQXH7777"
+
+    def test_gmrs_net_fallback_uses_amateur_callsign_when_no_gmrs_set(self, client, admin_headers):
+        gnet = _gmrs_net(client, admin_headers)
+        s = client.post(f"/nets/{gnet['id']}/sessions", json={}, headers=admin_headers).json()
+        resp = client.get(f"/sessions/{s['id']}", headers=admin_headers)
+        assert resp.status_code == 200
+        assert resp.json()["ncs_callsign"] == "W1ADMIN"
+
+    def test_ham_net_fallback_ignores_gmrs_callsign(self, client, admin_headers, session):
+        """A GMRS callsign set on the profile must not leak into a ham net's duty display."""
+        client.patch("/auth/gmrs-callsign", json={"gmrs_callsign": "WQXH7777"}, headers=admin_headers)
+        resp = client.get(f"/sessions/{session['id']}", headers=admin_headers)
+        assert resp.status_code == 200
+        assert resp.json()["ncs_callsign"] == "W1ADMIN"
+
+    def test_gmrs_net_assign_uses_assigned_users_gmrs_callsign(self, client, admin_headers, user_headers):
+        """The net-owner "assign another operator" sign-up path should also prefer
+        that operator's GMRS callsign on a GMRS net."""
+        client.patch("/auth/gmrs-callsign", json={"gmrs_callsign": "WQXH9999"}, headers=user_headers)
+        assigned_user_id = client.get("/auth/me", headers=user_headers).json()["id"]
+        gnet = _gmrs_net(client, admin_headers)
+        sched, today = _schedule_for_today(client, admin_headers, gnet["id"])
+        resp = client.post(f"/nets/{gnet['id']}/signups", json={
+            "schedule_id": sched["id"], "slot_date": str(today), "assigned_user_id": assigned_user_id,
+        }, headers=admin_headers)
+        assert resp.status_code == 201, resp.text
+        assert resp.json()["callsign"] == "WQXH9999"
+
+    def test_ham_net_assign_ignores_gmrs_callsign(self, client, admin_headers, user_headers, net):
+        client.patch("/auth/gmrs-callsign", json={"gmrs_callsign": "WQXH9999"}, headers=user_headers)
+        assigned_user_id = client.get("/auth/me", headers=user_headers).json()["id"]
+        sched, today = _schedule_for_today(client, admin_headers, net["id"])
+        resp = client.post(f"/nets/{net['id']}/signups", json={
+            "schedule_id": sched["id"], "slot_date": str(today), "assigned_user_id": assigned_user_id,
+        }, headers=admin_headers)
+        assert resp.status_code == 201, resp.text
+        assert resp.json()["callsign"] == "W2USER"
+
+    def test_gmrs_net_scheduled_signup_takes_precedence_over_gmrs_callsign(self, client, admin_headers):
+        client.patch("/auth/gmrs-callsign", json={"gmrs_callsign": "WQXH7777"}, headers=admin_headers)
+        gnet = _gmrs_net(client, admin_headers)
+        sched, today = _schedule_for_today(client, admin_headers, gnet["id"])
+        client.post(f"/nets/{gnet['id']}/signups", json={
+            "schedule_id": sched["id"], "slot_date": str(today), "callsign": "WQXH1234", "name": "Alice",
+        }, headers=admin_headers)
+        s = client.post(f"/nets/{gnet['id']}/sessions", json={}, headers=admin_headers).json()
+        resp = client.get(f"/sessions/{s['id']}", headers=admin_headers)
+        assert resp.status_code == 200
+        assert resp.json()["ncs_callsign"] == "WQXH1234"
 
     def test_public_active_shows_broadcaster(self, client, admin_headers):
         bnet = _broadcast_net(client, admin_headers)

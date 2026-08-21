@@ -1,4 +1,16 @@
 // ============================================================
+// PROFILE — GMRS callsign (issue #23)
+// ============================================================
+async function saveGmrsCallsign() {
+  const gmrs_callsign = document.getElementById('profile-gmrs-callsign').value.trim().toUpperCase() || null;
+  try {
+    currentUser = await apiFetch('/auth/gmrs-callsign', { method: 'PATCH', body: JSON.stringify({ gmrs_callsign }) });
+    document.getElementById('profile-gmrs-callsign').value = currentUser.gmrs_callsign || '';
+    toast('Profile saved');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+// ============================================================
 // API TOKENS
 // ============================================================
 let _lastCreatedToken = null;
@@ -171,4 +183,5 @@ while True:
 }
 
 onEnter(['new-token-name'], createApiToken);
+onEnter(['profile-gmrs-callsign'], saveGmrsCallsign);
 

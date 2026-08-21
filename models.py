@@ -21,6 +21,7 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     callsign = Column(String(12), unique=True, nullable=False, index=True)
+    gmrs_callsign = Column(String(12), nullable=True)  # separate GMRS family license, if held (issue #23)
     name = Column(String(100), nullable=False)
     email = Column(String(255), unique=True, nullable=False, index=True)
     hashed_password = Column(String(255), nullable=False)

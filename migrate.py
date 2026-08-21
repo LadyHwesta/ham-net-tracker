@@ -287,6 +287,10 @@ MIGRATIONS = [
      "ALTER TABLE net_sessions ADD COLUMN IF NOT EXISTS broadcaster_override_callsign VARCHAR(20)"),
     ("net_sessions: broadcaster override name",
      "ALTER TABLE net_sessions ADD COLUMN IF NOT EXISTS broadcaster_override_name VARCHAR(100)"),
+
+    # ── Separate GMRS callsign on user profiles (issue #23) ──────────────────
+    ("users: GMRS callsign",
+     "ALTER TABLE users ADD COLUMN IF NOT EXISTS gmrs_callsign VARCHAR(12)"),
 ]
 
 # ---------------------------------------------------------------------------

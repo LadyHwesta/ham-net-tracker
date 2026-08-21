@@ -86,12 +86,19 @@ function renderSchedules() {
   }).join('');
 }
 
+// Callsign to pre-fill for the current user on this net — the separate GMRS
+// callsign on a GMRS net (issue #23), falling back to the amateur one.
+function myCallsignForCurrentNet() {
+  if (!currentUser) return '';
+  return (currentNetIsGmrs && currentUser.gmrs_callsign) ? currentUser.gmrs_callsign : currentUser.callsign;
+}
+
 function toggleScheduleForm() {
   const f = document.getElementById('schedule-form');
   const opening = f.style.display === 'none';
   f.style.display = opening ? '' : 'none';
   // Pre-fill callsign from current user
-  if (currentUser) document.getElementById('signup-callsign').value = currentUser.callsign;
+  if (currentUser) document.getElementById('signup-callsign').value = myCallsignForCurrentNet();
   if (opening) {
     populateTimezoneList();
     const tzField = document.getElementById('sched-tz');
@@ -222,7 +229,7 @@ function openSignupModal(scheduleId, slotDate, dateLabel, role) {
   document.getElementById('signup-modal-title').textContent = `Sign Up for ${roleLabelFor(role)}`;
   // Pre-fill from current user
   if (currentUser) {
-    document.getElementById('signup-callsign').value = currentUser.callsign;
+    document.getElementById('signup-callsign').value = myCallsignForCurrentNet();
     document.getElementById('signup-name').value     = currentUser.name || '';
     document.getElementById('signup-email').value    = currentUser.email || '';
   }
@@ -309,7 +316,8 @@ function onAssignUserChange() {
   if (!userId) { preview.style.display = 'none'; return; }
   const user = registeredUsers.find(u => u.id === userId);
   if (!user) { preview.style.display = 'none'; return; }
-  document.getElementById('assign-preview-call').textContent = user.callsign;
+  const callsign = (currentNetIsGmrs && user.gmrs_callsign) ? user.gmrs_callsign : user.callsign;
+  document.getElementById('assign-preview-call').textContent = callsign;
   document.getElementById('assign-preview-name').textContent = ' — ' + user.name;
   preview.style.display = '';
 }

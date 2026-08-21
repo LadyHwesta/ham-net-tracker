@@ -303,7 +303,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="Ham Radio Net Tracker", version="1.21.0", lifespan=lifespan)
+app = FastAPI(title="Ham Radio Net Tracker", version="1.22.0", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -408,6 +408,7 @@ class UserCreate(BaseModel):
 class UserOut(BaseModel):
     id: int
     callsign: str
+    gmrs_callsign: Optional[str] = None
     name: str
     email: str
     is_active: bool
@@ -422,6 +423,10 @@ class UserOut(BaseModel):
 
 class ThemeUpdate(BaseModel):
     theme: Literal["lcars", "dark", "light", "high-contrast", "system"]
+
+
+class GmrsCallsignUpdate(BaseModel):
+    gmrs_callsign: Optional[str] = None
 
 
 class Token(BaseModel):
@@ -493,6 +498,7 @@ class NetOut(BaseModel):
 class UserPublicOut(BaseModel):
     id: int
     callsign: str
+    gmrs_callsign: Optional[str] = None
     name: str
 
     model_config = {"from_attributes": True}
@@ -943,6 +949,20 @@ def update_theme(
     db: Session = Depends(get_db),
 ):
     current_user.theme = data.theme
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
+
+@app.patch("/auth/gmrs-callsign", response_model=UserOut)
+def update_gmrs_callsign(
+    data: GmrsCallsignUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Self-service: set or clear the operator's own GMRS callsign (issue #23)
+    — separate from their amateur callsign, used as Net Control on GMRS nets."""
+    current_user.gmrs_callsign = (data.gmrs_callsign or "").strip().upper() or None
     db.commit()
     db.refresh(current_user)
     return current_user
@@ -2935,10 +2955,19 @@ def _duty_labels_for_session(net: Net, session: NetSession, db: Session) -> dict
     nc, bc = _duty_for_date(net.id, session_date, db)
     next_nc, next_bc = _duty_for_date(net.id, session_date + timedelta(days=7), db)
     operator = db.query(User).filter(User.id == session.operator_id).first() if session.operator_id else None
+    # On a GMRS net, prefer the operator's separate GMRS callsign (issue #23) over
+    # their amateur one, when they have one set — only relevant for the "whoever
+    # started the session" fallback; an explicit schedule sign-up's callsign
+    # (typed at sign-up time) always wins regardless.
+    operator_callsign = None
+    if operator:
+        operator_callsign = (
+            (operator.gmrs_callsign or operator.callsign) if net.net_type == "gmrs" else operator.callsign
+        )
     broadcaster_callsign = session.broadcaster_override_callsign or (bc.callsign if bc else None)
     broadcaster_name = session.broadcaster_override_name or (bc.name if bc else None)
     return {
-        "ncs_callsign": nc.callsign if nc else (operator.callsign if operator else None),
+        "ncs_callsign": nc.callsign if nc else operator_callsign,
         "ncs_name": nc.name if nc else (operator.name if operator else None),
         "broadcaster_callsign": broadcaster_callsign,
         "broadcaster_name": broadcaster_name,
@@ -3360,7 +3389,7 @@ def create_signup(net_id: int, data: SignupCreate, current_user: User = Depends(
         if not assigned:
             raise HTTPException(404, "Assigned user not found")
         signup_user_id = assigned.id
-        signup_callsign = assigned.callsign
+        signup_callsign = (assigned.gmrs_callsign or assigned.callsign) if net.net_type == "gmrs" else assigned.callsign
         signup_name = assigned.name
         signup_email = assigned.email
     else:

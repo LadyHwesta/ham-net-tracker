@@ -42,6 +42,7 @@ A public demo is available at **[nettrackerdemo.meskis.net](https://nettrackerde
 - **DMR hotspot integration** — connect a net to a WPSD, Pi-Star, or BrandMeister talk group; see a live "last heard" panel during the session, quick-check-in heard stations, and log Talk Group + Region per check-in
 - **Keyboard-friendly forms** — Enter submits the primary action from any save/submit form's text fields (multi-line fields like net description and report body are left alone so Enter still inserts a newline)
 - **Installable mobile app (PWA)** — installable to a phone's home screen with an offline-capable app shell; a **📱 Net Control** toggle on the live session view strips the check-in screen down to a big callsign field and minimal chrome for one-handed net control. Check-ins submitted with no connection queue locally and send automatically once back online
+- **Separate GMRS callsign** — operators holding both an amateur and a GMRS license can set a GMRS callsign under **⚙️ Account**; Net Control on a GMRS net automatically shows it instead of the amateur callsign — duty bar, net script variables, the public live page, and Schedule sign-ups all pick it up with nothing else to configure. Leave it unset to keep using the amateur callsign everywhere
 
 ## Tech Stack
 
