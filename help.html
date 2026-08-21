@@ -63,6 +63,16 @@
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
 
           <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-21 — Clearer Net Control Handoff + Simpler Scheduling (v2.0.2)</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>Scheduled Sign-On on a tactical position is now <strong>month, day, and time</strong> — no year field to fumble with, it's always this year.</li>
+              <li>Net Control handoff got much more explicit: the button on Tactical Assignments now reads <strong>🔄 Hand Off Net Control</strong> (instead of the generic "Sign Off & Replace" every other position uses), with an inline explanation of what it does right underneath. The Station Schedule tab's NET CONTROL entry now says exactly where to go to hand it off, instead of pointing at nothing.</li>
+              <li>Added a full <strong>Guide</strong> section (ARES/ACES Activation Mode + a dedicated Handing Off Net Control section) — this was previously only documented in changelog entries, not the actual how-to reference.</li>
+              <li>No database migration — frontend and docs only.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-21 — Scheduled Sign-On + Net Control Handoff (v2.0.1)</div>
             <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
               <li>Tactical positions on the Station Schedule tab gained an optional <strong>Scheduled Sign-On</strong> time. A vacant position past that time is flagged with a "Due since" badge in Tactical Assignments; one still ahead of schedule shows "Due" instead.</li>
@@ -529,6 +539,23 @@ Thank you all for checking in. This net is now closed.</pre>
           <p style="margin:0 0 8px">Enable <strong>ARES/ACS Net</strong> in the net settings to activate evacuation zone tracking. An <strong>Evac Zone</strong> field appears in the check-in form — enter the station's zone (e.g. "Zone A") when they check in.</p>
           <p style="margin:0 0 8px">The zone is saved automatically to a per-net zone table. In future sessions, the station's last known zone appears as a 📍 badge in the Expected Stations list and is pre-filled when checking them in.</p>
           <p style="margin:0">The <strong>Zone Roster</strong> panel shows all known zones grouped by zone name with their callsigns, sorted by callsign suffix. The Zone column also appears in the check-in table and the ICS-205 export.</p>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">ARES/ACES ACTIVATION MODE</h3>
+          <p style="margin:0 0 8px">For an actual activation — not a routine weekly net — check <strong>🚨 ARES/ACES Activation</strong> on the <strong>▶ Start New Session</strong> form (only offered for ARES/ACES nets). This switches <em>that one session</em> into tactical mode; leave it unchecked and the session works exactly like a normal net. Other sessions on the same net are unaffected either way.</p>
+          <p style="margin:0 0 8px">An activation session shows two tabs at the top of the screen: <strong>📻 Check-In</strong> and <strong>🗓 Station Schedule</strong>.</p>
+          <p style="margin:0 0 8px"><strong>Station Schedule</strong> is where you define tactical positions for this activation — a tactical callsign (e.g. "SHELTER 1"), an optional location, an optional planned operator, and an optional <strong>Scheduled Sign-On</strong> (month, day, and time — always this year, so there's no year to set). This tab is setup only; nobody actually signs on here.</p>
+          <p style="margin:0 0 8px"><strong>Check-In → TACTICAL ASSIGNMENTS</strong> (replaces the usual Expected Stations panel on an activation session) is where operators actually sign on and off. A vacant position shows <strong>Sign On</strong> — pre-filled with the planned operator if one was set on Station Schedule, but fully editable if someone else shows up instead. An occupied position shows <strong>Sign Off &amp; Replace</strong> (hand it to a new operator in one step) and <strong>Sign Off</strong> (vacate with nobody lined up yet). <strong>🕐 History</strong> lists every operator who's held that position and when.</p>
+          <p style="margin:0 0 8px">A vacant position past its Scheduled Sign-On time is flagged — <strong>⏰ Due</strong> if it's still coming up today, <strong>⏰ Due since</strong> once the time has passed.</p>
+          <p style="margin:0">The check-in roster on the right switches to <strong>Tactical / Callsign / Name</strong> for the duration of an activation session. A station that checks in without a tactical assignment shows its evacuation zone there instead, if one is on file.</p>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">HANDING OFF NET CONTROL DURING AN ACTIVATION</h3>
+          <p style="margin:0 0 8px">On an activation session, <strong>🎙 NET CONTROL</strong> is always the first entry on both Station Schedule and Tactical Assignments — it's created automatically the moment the session starts, and staffed right away by whoever's signed up for Net Control that day on the Schedule tab, or by whoever actually started the session if nobody had signed up.</p>
+          <p style="margin:0 0 8px">To hand Net Control to someone else mid-activation: go to <strong>Check-In → TACTICAL ASSIGNMENTS → 🎙 NET CONTROL</strong>, click <strong>🔄 Hand Off Net Control</strong>, enter the incoming operator's callsign (name optional), and confirm. The outgoing operator's shift closes and the incoming one starts immediately — reflected right away in the duty bar at the top of the screen, the <code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{net_control}}</code> variable in the Net Script, and the check-in roster, with the full handoff history available under 🕐 History.</p>
+          <p style="margin:0">Net Control can't be removed — an activation always has one — but it can be handed off as many times as the activation needs.</p>
         </div>
 
         <div class="card" style="margin-bottom:16px">

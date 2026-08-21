@@ -602,8 +602,17 @@ async function addTacticalPosition() {
   const location = document.getElementById('tac-pos-location').value.trim() || null;
   const assigned_callsign = document.getElementById('tac-pos-assigned-callsign').value.trim().toUpperCase() || null;
   const assigned_name = document.getElementById('tac-pos-assigned-name').value.trim() || null;
-  const scheduledRaw = document.getElementById('tac-pos-scheduled').value;
-  const scheduled_start = scheduledRaw ? new Date(scheduledRaw).toISOString() : null;
+  // Month + day only -- the year is always the current one (an ARES/ACES activation
+  // doesn't span into next year), so there's no year picker to fumble with.
+  const month = document.getElementById('tac-pos-scheduled-month').value;
+  const day = document.getElementById('tac-pos-scheduled-day').value;
+  const time = document.getElementById('tac-pos-scheduled-time').value;
+  let scheduled_start = null;
+  if (month && day) {
+    const year = new Date().getFullYear();
+    const localStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${time || '00:00'}`;
+    scheduled_start = new Date(localStr).toISOString();
+  }
   if (!tactical_callsign) return toast('Tactical callsign required', 'error');
   try {
     await apiFetch(`/sessions/${currentSessionId}/tactical-positions`, {
@@ -614,7 +623,9 @@ async function addTacticalPosition() {
     document.getElementById('tac-pos-location').value = '';
     document.getElementById('tac-pos-assigned-callsign').value = '';
     document.getElementById('tac-pos-assigned-name').value = '';
-    document.getElementById('tac-pos-scheduled').value = '';
+    document.getElementById('tac-pos-scheduled-month').value = '';
+    document.getElementById('tac-pos-scheduled-day').value = '';
+    document.getElementById('tac-pos-scheduled-time').value = '';
     toast('Position added', 'success');
     await loadTacticalPositions();
   } catch (e) { toast(e.message, 'error'); }
@@ -649,7 +660,7 @@ function renderStationSchedule() {
         ${p.current_callsign ? `🟢 ${esc(p.current_callsign)}${p.current_name ? ' — ' + esc(p.current_name) : ''}` : '⚪ Vacant'}
       </span>
       ${p.is_net_control
-        ? '<span class="text-muted" style="font-size:10px;white-space:nowrap">Hands off below ↓</span>'
+        ? '<span class="text-muted" style="font-size:10px;white-space:nowrap;max-width:180px;text-align:right">Hand off from 📻 Check-In → TACTICAL ASSIGNMENTS</span>'
         : `<button type="button" class="btn btn-danger btn-sm" onclick="removeTacticalPosition(${p.id})">✕ Remove</button>`}
     </div>`).join('');
 }
@@ -682,10 +693,13 @@ function renderTacticalAssignments() {
         ${dueBadge}
         <button type="button" class="btn btn-ghost btn-sm" style="font-size:10px;padding:1px 6px" onclick="toggleShiftHistory(${p.id})">🕐 History</button>
         ${occupied
-          ? `<button type="button" class="btn btn-ghost btn-sm" onclick="toggleSignOnForm(${p.id})">↻ Sign Off &amp; Replace</button>
+          ? `<button type="button" class="btn btn-ghost btn-sm" onclick="toggleSignOnForm(${p.id})">${p.is_net_control ? '🔄 Hand Off Net Control' : '↻ Sign Off & Replace'}</button>
              <button type="button" class="btn btn-danger btn-sm" onclick="signOffPosition(${p.id})">Sign Off</button>`
-          : `<button type="button" class="btn btn-primary btn-sm" onclick="toggleSignOnForm(${p.id})">Sign On</button>`}
+          : `<button type="button" class="btn btn-primary btn-sm" onclick="toggleSignOnForm(${p.id})">${p.is_net_control ? 'Sign On Net Control' : 'Sign On'}</button>`}
       </div>
+      ${p.is_net_control
+        ? `<div class="text-muted" style="font-size:10px;margin-top:3px">🎙 Net Control is auto-staffed at session start. To hand it to someone else, click <strong>Hand Off Net Control</strong> and enter the incoming operator's callsign — the outgoing operator's shift closes immediately and the change shows up in the duty bar at the top of the screen.</div>`
+        : ''}
       <div id="tac-signon-form-${p.id}" style="display:none;margin-top:8px"></div>
       <div id="tac-history-${p.id}" style="display:none;margin-top:8px;font-size:11px"></div>
     </div>`;
