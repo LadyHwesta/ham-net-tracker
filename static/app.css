@@ -436,6 +436,8 @@
     hr.sep { border: none; border-top: 1px solid var(--surface2); margin: 16px 0; }
     .mono { font-family: 'Courier New', Courier, monospace; font-size: 13px; }
     .callsign { font-family: 'Courier New', Courier, monospace; font-weight: 700; letter-spacing: 1px; color: var(--lc-orange); font-size: 14px; }
+    .script-var-row { display: flex; align-items: center; gap: 10px; padding: 3px 0; flex-wrap: wrap; }
+    .script-var-row .btn { font-size: 11px; padding: 1px 8px; white-space: nowrap; }
 
     /* ===== CALLSIGN LOOKUP ===== */
     .lookup-info {

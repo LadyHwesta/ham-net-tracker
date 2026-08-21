@@ -84,6 +84,7 @@ function showNetForm() {
   document.getElementById('net-dmr-section').style.display = 'none';
   document.getElementById('net-form-card').style.display = '';
   onNetTypeChange();
+  switchNetFormTab('details');
 }
 
 function onBroadcastToggle() {
@@ -113,12 +114,127 @@ function onNetTypeChange() {
   }
 }
 
+// Net Script tab (issue #24) — the script editor used to be one cramped field
+// among many in Details; it now gets its own tab with room for a formatting
+// toolbar, a clickable variable reference, and a live preview.
+function switchNetFormTab(tab) {
+  document.getElementById('net-form-details-panel').style.display = tab === 'details' ? '' : 'none';
+  document.getElementById('net-form-script-panel').style.display = tab === 'script' ? '' : 'none';
+  document.getElementById('net-form-tab-details-btn').classList.toggle('active', tab === 'details');
+  document.getElementById('net-form-tab-script-btn').classList.toggle('active', tab === 'script');
+  // The Details tab was designed/laid out at a narrower width; give the script
+  // editor (toolbar + big textarea + preview) more room to breathe.
+  document.getElementById('net-form-card').style.maxWidth = tab === 'script' ? '820px' : '500px';
+  if (tab === 'script') renderScriptPreview();
+}
+
+function toggleScriptVarsPanel() {
+  const body = document.getElementById('script-vars-body');
+  const icon = document.getElementById('script-vars-toggle-icon');
+  const open = body.style.display === 'none';
+  body.style.display = open ? '' : 'none';
+  icon.textContent = open ? '▼' : '▶';
+}
+
+// Replaces the current selection with `text` (or inserts at the cursor if
+// nothing's selected) — used for variable insertion, which should never wrap
+// existing text the way Bold/Italic do.
+function insertScriptText(text) {
+  const ta = document.getElementById('net-script');
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  ta.value = ta.value.slice(0, start) + text + ta.value.slice(end);
+  const pos = start + text.length;
+  ta.focus();
+  ta.setSelectionRange(pos, pos);
+  renderScriptPreview();
+}
+
+// Wraps the current selection in before/after (Bold/Italic) — with no
+// selection, just places the cursor between the two so typing continues inline.
+function wrapScriptSelection(before, after) {
+  const ta = document.getElementById('net-script');
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  const selected = ta.value.slice(start, end);
+  const insertion = before + selected + after;
+  ta.value = ta.value.slice(0, start) + insertion + ta.value.slice(end);
+  const pos = selected ? start + insertion.length : start + before.length;
+  ta.focus();
+  ta.setSelectionRange(pos, pos);
+  renderScriptPreview();
+}
+
+// Inserts `prefix` at the start of the current line (heading levels, bullet list).
+function insertScriptLinePrefix(prefix) {
+  const ta = document.getElementById('net-script');
+  const start = ta.selectionStart;
+  const value = ta.value;
+  const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+  ta.value = value.slice(0, lineStart) + prefix + value.slice(lineStart);
+  const pos = start + prefix.length;
+  ta.focus();
+  ta.setSelectionRange(pos, pos);
+  renderScriptPreview();
+}
+
+// Inserts a horizontal rule on its own line at the cursor.
+function insertScriptRule() {
+  const ta = document.getElementById('net-script');
+  const start = ta.selectionStart;
+  const value = ta.value;
+  const needsNewlineBefore = start > 0 && value[start - 1] !== '\n';
+  const insertion = (needsNewlineBefore ? '\n' : '') + '---\n';
+  ta.value = value.slice(0, start) + insertion + value.slice(start);
+  const pos = start + insertion.length;
+  ta.focus();
+  ta.setSelectionRange(pos, pos);
+  renderScriptPreview();
+}
+
+// Sample values for the preview — there's no live session to pull real duty-bar
+// data from while editing a net, so these are clearly-fake placeholders. Order
+// (name — callsign) matches combineNameCallsign() in sessions.js so the preview
+// looks exactly like the real render.
+const NET_SCRIPT_PREVIEW_VARS = {
+  net_control: 'Jane Operator — W1AW',
+  net_control_callsign: 'W1AW',
+  net_control_name: 'Jane Operator',
+  broadcaster: 'Bob Smith — K7ABC',
+  broadcaster_callsign: 'K7ABC',
+  broadcaster_name: 'Bob Smith',
+  broadcast_label: 'Amateur Radio Newsline',
+  net_control_next: 'Sam Lee — N7XYZ',
+  net_control_next_callsign: 'N7XYZ',
+  net_control_next_name: 'Sam Lee',
+  broadcaster_next: 'Alex Kim — K9DEF',
+  broadcaster_next_callsign: 'K9DEF',
+  broadcaster_next_name: 'Alex Kim',
+};
+
+// Renders the textarea's current content through the same {{variable}}
+// substitution + markup pipeline the live session uses (escapeHtml /
+// scriptBlockFormat, defined in sessions.js — loaded on this page too).
+function renderScriptPreview() {
+  const previewEl = document.getElementById('net-script-preview');
+  if (!previewEl) return;
+  const text = document.getElementById('net-script').value;
+  if (!text.trim()) {
+    previewEl.innerHTML = '<p class="text-muted" style="font-size:12px;margin:0">Nothing to preview yet — start typing above.</p>';
+    return;
+  }
+  const netName = document.getElementById('net-name').value.trim() || 'Your Net';
+  const vars = { net_name: netName, ...NET_SCRIPT_PREVIEW_VARS };
+  let escaped = escapeHtml(text);
+  escaped = escaped.replace(/\{\{\s*(\w+)\s*\}\}/g, (match, key) => (key in vars ? escapeHtml(vars[key]) : match));
+  previewEl.innerHTML = scriptBlockFormat(escaped);
+}
+
 function cancelNetForm() {
   document.getElementById('net-form-card').style.display = 'none';
   document.getElementById('net-sharing-section').style.display = 'none';
   document.getElementById('net-dmr-section').style.display = 'none';
   editNetId = null;
   shareState = { share_with_all: false, user_ids: [] };
+  switchNetFormTab('details');
 }
 
 async function editNet(id) {
@@ -151,6 +267,7 @@ async function editNet(id) {
   if (typeRadio) typeRadio.checked = true;
   onNetTypeChange();
   document.getElementById('net-form-card').style.display = '';
+  switchNetFormTab('details');
   // Load sharing and DMR config if owner (DMR section only for ham nets)
   if (n.is_owner) {
     document.getElementById('net-sharing-section').style.display = '';
