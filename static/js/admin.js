@@ -188,6 +188,79 @@ async function adminDelete(userId) {
 }
 
 // ============================================================
+// ORG-SCOPED OPERATORS VIEW (issue #1 — org admins, not just super admins)
+// ============================================================
+// Reuses the same Operators panel markup as loadAdminUsers() above, just
+// fed from the org-scoped endpoints and with a much smaller action set —
+// deactivate/make-admin/delete are global-account actions an org admin
+// shouldn't have.
+async function loadOrgOperators() {
+  const orgId = currentUser.current_org_id;
+  const [pending, members] = await Promise.all([
+    apiFetch(`/orgs/${orgId}/pending-members`).catch(e => { toast(e.message, 'error'); return []; }),
+    apiFetch(`/orgs/${orgId}/members`).catch(e => { toast(e.message, 'error'); return []; }),
+  ]);
+
+  const pendingEl = document.getElementById('admin-pending-list');
+  if (pending.length === 0) {
+    pendingEl.innerHTML = '<p class="text-muted" style="font-size:13px">No pending registrations.</p>';
+  } else {
+    pendingEl.innerHTML = pending.map(m => `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">
+        <span class="callsign">${esc(m.callsign)}</span>
+        <span>${esc(m.name)}</span>
+        <span class="text-muted" style="font-size:12px">${esc(m.email)}</span>
+        <span class="text-muted" style="font-size:11px">Requested ${fmt(m.requested_at)}</span>
+        <div style="margin-left:auto;display:flex;gap:6px">
+          <button class="btn btn-primary btn-sm" onclick="orgApproveMember(${orgId}, ${m.user_id}, this)">✓ Approve</button>
+          <button class="btn btn-danger btn-sm" onclick="orgRejectMember(${orgId}, ${m.user_id}, '${esc(m.callsign)}')">✕ Reject</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  const tbody = document.getElementById('admin-users-tbody');
+  const empty = document.getElementById('admin-users-empty');
+  if (members.length === 0) {
+    tbody.innerHTML = '';
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+  tbody.innerHTML = members.map(m => `<tr>
+    <td><span class="callsign">${esc(m.callsign)}</span></td>
+    <td>${esc(m.name)}</td>
+    <td class="text-muted" style="font-size:12px">${esc(m.email)}</td>
+    <td>${m.role === 'admin' ? '<span class="badge badge-blue">Org Admin</span>' : '<span class="badge badge-gray">Member</span>'}</td>
+    <td><span class="badge badge-green">Active</span></td>
+    <td class="text-muted" style="font-size:11px;text-align:center">—</td>
+    <td class="text-muted" style="font-size:12px">${fmt(m.requested_at)}</td>
+    <td><span class="text-muted" style="font-size:11px">—</span></td>
+  </tr>`).join('');
+}
+
+async function orgApproveMember(orgId, userId, btn) {
+  btnLoading(btn, true);
+  try {
+    await apiFetch(`/orgs/${orgId}/members/${userId}/approve`, { method: 'PATCH' });
+    toast('Member approved', 'success');
+    loadOrgOperators();
+  } catch (e) {
+    toast(e.message, 'error');
+    btnLoading(btn, false);
+  }
+}
+
+async function orgRejectMember(orgId, userId, callsign) {
+  if (!confirm(`Reject ${callsign}'s request to join?`)) return;
+  try {
+    await apiFetch(`/orgs/${orgId}/members/${userId}/reject`, { method: 'POST' });
+    toast('Request rejected');
+    loadOrgOperators();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+// ============================================================
 // SUB-TABS (Sessions / Schedule)
 // ============================================================
 function switchSubTab(tab) {

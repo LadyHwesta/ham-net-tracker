@@ -109,6 +109,20 @@
           <label>Password</label>
           <input class="form-control" id="reg-pass" type="password" />
         </div>
+        <div class="form-group">
+          <label>Organization</label>
+          <div style="display:flex;gap:14px;margin-bottom:8px;font-size:12px">
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-weight:normal">
+              <input type="radio" name="reg-org-action" value="create" checked onchange="updateRegOrgChoice()" style="width:auto"> Create new
+            </label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-weight:normal">
+              <input type="radio" name="reg-org-action" value="join" onchange="updateRegOrgChoice()" style="width:auto"> Join existing
+            </label>
+          </div>
+          <input class="form-control" id="reg-org-name" placeholder="e.g. Snohomish County ARES" />
+          <select class="form-control" id="reg-org-select" style="display:none"></select>
+          <p id="reg-org-hint" style="margin:6px 0 0;font-size:11px;color:var(--text-muted)">You'll be this organization's admin, approved immediately.</p>
+        </div>
         <button class="btn btn-primary" style="width:100%" onclick="doRegister(this)">Create Account</button>
       </div>
     </div>
@@ -135,6 +149,7 @@
     <div id="header-user">
       <span id="header-signed-in-text">Signed in as <strong id="header-callsign"></strong></span>
       <strong id="header-callsign-short" style="display:none"></strong>
+      <select id="org-switcher" class="btn btn-ghost btn-sm" onchange="switchCurrentOrg(this.value)" title="Organization" style="display:none"></select>
       <select id="theme-select" class="btn btn-ghost btn-sm" onchange="saveTheme(this.value)" title="Theme">
         <option value="lcars">LCARS</option>
         <option value="dark">Dark</option>
@@ -1082,7 +1097,7 @@
   <script src="/static/js/state.js?v=22"></script>
   <script src="/static/js/utils.js?v=20"></script>
   <script src="/static/js/offline-queue.js?v=2"></script>
-  <script src="/static/js/auth.js?v=22"></script>
+  <script src="/static/js/auth.js?v=23"></script>
   <script src="/static/js/theme.js?v=1"></script>
   <script src="/static/js/views.js?v=19"></script>
   <script src="/static/js/branding.js?v=20"></script>
@@ -1091,7 +1106,7 @@
   <script src="/static/js/sessions.js?v=27"></script>
   <script src="/static/js/checkins.js?v=30"></script>
   <script src="/static/js/history.js?v=20"></script>
-  <script src="/static/js/admin.js?v=21"></script>
+  <script src="/static/js/admin.js?v=22"></script>
   <script src="/static/js/schedules.js?v=21"></script>
   <script src="/static/js/tokens.js?v=21"></script>
   <script src="/static/js/dmr.js?v=20"></script>

@@ -100,3 +100,53 @@ class TestPublicDirectory:
         resp = client.get("/directory")
         assert resp.status_code == 200
         assert "text/html" in resp.headers["content-type"]
+
+
+class TestPublicDirectoryOrgScoping:
+    """Multi-tenancy (issue #1) — /directory and /live are per-org."""
+
+    def test_directory_defaults_to_default_org(self, client, admin_headers):
+        """Omitting ?org uses the "default" org — single-tenant backward compat."""
+        net = _public_net(client, admin_headers)
+        resp = client.get("/public/directory")
+        ids = [n["id"] for n in resp.json()]
+        assert net["id"] in ids
+
+    def test_directory_org_param_isolates_other_orgs(self, client, admin_headers):
+        _public_net(client, admin_headers)  # net in the "default" org
+
+        # A second org's public net shouldn't show up under a different org slug
+        second = client.post("/auth/register", json={
+            "callsign": "W2SECOND", "name": "Second", "email": "second@example.com",
+            "password": "testpass123", "org_slug": "second-org", "org_name": "Second Org",
+        })
+        assert second.status_code == 201
+        token = client.post("/auth/login", data={"username": "W2SECOND", "password": "testpass123"}).json()["access_token"]
+        second_headers = {"Authorization": f"Bearer {token}"}
+        second_net = _public_net(client, second_headers, name="Second Org Net")
+
+        default_listing = client.get("/public/directory?org=default").json()
+        second_listing = client.get("/public/directory?org=second-org").json()
+        assert all(n["id"] != second_net["id"] for n in default_listing)
+        assert any(n["id"] == second_net["id"] for n in second_listing)
+
+    def test_directory_unknown_org_returns_empty_list(self, client):
+        resp = client.get("/public/directory?org=does-not-exist")
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    def test_public_organizations_lists_orgs_with_listed_nets(self, client, admin_headers):
+        _public_net(client, admin_headers)
+        resp = client.get("/public/organizations")
+        assert resp.status_code == 200
+        assert any(o["slug"] == "default" for o in resp.json())
+
+    def test_directory_slug_route_loads_without_auth(self, client):
+        resp = client.get("/directory/default")
+        assert resp.status_code == 200
+        assert "text/html" in resp.headers["content-type"]
+
+    def test_live_slug_route_loads_without_auth(self, client):
+        resp = client.get("/live/default")
+        assert resp.status_code == 200
+        assert "text/html" in resp.headers["content-type"]

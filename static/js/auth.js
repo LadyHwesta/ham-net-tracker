@@ -8,6 +8,29 @@ function switchAuthTab(tab) {
   document.getElementById('tab-login').style.display = tab === 'login' ? '' : 'none';
   document.getElementById('tab-register').style.display = tab === 'register' ? '' : 'none';
   document.getElementById('auth-error').style.display = 'none';
+  if (tab === 'register') loadRegOrgPicker();
+}
+
+// Multi-tenancy (issue #1) — the registration form's "create new" vs "join
+// existing" organization choice. No auth required for GET /orgs; safe to
+// call before login.
+async function loadRegOrgPicker() {
+  const select = document.getElementById('reg-org-select');
+  if (select.dataset.loaded) return;
+  try {
+    const orgs = await apiFetch('/orgs');
+    select.innerHTML = orgs.map(o => `<option value="${o.slug}">${esc(o.name)}</option>`).join('');
+    select.dataset.loaded = '1';
+  } catch { /* leave empty — join is a no-op if this fails, create still works */ }
+}
+
+function updateRegOrgChoice() {
+  const create = document.querySelector('input[name="reg-org-action"]:checked').value === 'create';
+  document.getElementById('reg-org-name').style.display = create ? '' : 'none';
+  document.getElementById('reg-org-select').style.display = create ? 'none' : '';
+  document.getElementById('reg-org-hint').textContent = create
+    ? "You'll be this organization's admin, approved immediately."
+    : "An admin of that organization must approve you before you can log in.";
 }
 
 async function doLogin() {
@@ -37,12 +60,26 @@ async function doRegister(btn) {
   const email = document.getElementById('reg-email').value.trim();
   const password = document.getElementById('reg-pass').value;
   if (!callsign || !name || !email || !password) return showAuthError('Fill in all fields');
+  // Multi-tenancy (issue #1) — which org to create or join
+  const creatingOrg = document.querySelector('input[name="reg-org-action"]:checked').value === 'create';
+  const body = { callsign, name, email, password };
+  if (creatingOrg) {
+    const orgName = document.getElementById('reg-org-name').value.trim();
+    if (!orgName) return showAuthError('Enter a name for your new organization');
+    body.org_name = orgName;
+  } else {
+    const orgSlug = document.getElementById('reg-org-select').value;
+    if (!orgSlug) return showAuthError('Select an organization to join, or switch to "Create new"');
+    body.org_slug = orgSlug;
+  }
   btnLoading(btn, true);
   try {
-    const newUser = await apiFetch('/auth/register', { method: 'POST', body: JSON.stringify({ callsign, name, email, password }) });
+    const newUser = await apiFetch('/auth/register', { method: 'POST', body: JSON.stringify(body) });
     btnLoading(btn, false);
     if (newUser.is_active) {
-      // First user auto-approved — go straight to login
+      // Auto-approved: either the instance's first-ever user, or creating a
+      // brand new org (its founding admin needs no one else's approval) —
+      // go straight to login
       toast('Account created — please log in', 'success');
       switchAuthTab('login');
       document.getElementById('login-user').value = callsign;
@@ -91,17 +128,59 @@ async function enterApp() {
   document.getElementById('auth-page').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   document.getElementById('header-callsign').textContent = currentUser.callsign;
-  // Show admin nav link only for admins
-  document.getElementById('nav-admin').style.display = currentUser.is_admin ? '' : 'none';
   // Mobile: show just the callsign badge in the header
   const shortEl = document.getElementById('header-callsign-short');
   if (shortEl) shortEl.textContent = currentUser.callsign;
   await loadBranding();
   restoreSidebarCollapse();
   restoreNetControlMode();
+  loadOrgSwitcher();   // fire-and-forget; non-blocking — also decides nav-admin visibility
   await loadNets();
   loadSidebarStats();   // fire-and-forget; non-blocking
   showView('nets');
+}
+
+// ============================================================
+// ORGANIZATIONS (issue #1 — multi-tenancy)
+// ============================================================
+
+// Populates the header org switcher with the user's own approved orgs, and
+// decides whether the Admin nav link is shown — a super admin always sees
+// it; an org admin (not super) sees it only while working as an org they
+// actually admin (admin.html itself re-derives this and enforces it server-side
+// too, this is just so the link isn't shown where it would just bounce them).
+async function loadOrgSwitcher() {
+  const select = document.getElementById('org-switcher');
+  const navAdmin = document.getElementById('nav-admin');
+  let orgs = [];
+  try { orgs = await apiFetch('/orgs/mine'); } catch { /* switcher/nav-admin just stay at their defaults */ }
+
+  if (navAdmin) {
+    const currentMembership = orgs.find(o => o.id === currentUser.current_org_id);
+    navAdmin.style.display = (currentUser.is_admin || (currentMembership && currentMembership.role === 'admin')) ? '' : 'none';
+  }
+
+  if (orgs.length <= 1) {
+    select.style.display = 'none';
+    return;
+  }
+  select.innerHTML = orgs.map(o =>
+    `<option value="${o.id}" ${o.id === currentUser.current_org_id ? 'selected' : ''}>${esc(o.name)}</option>`
+  ).join('');
+  select.style.display = '';
+}
+
+async function switchCurrentOrg(orgId) {
+  try {
+    currentUser = await apiFetch('/auth/current-org', { method: 'PATCH', body: JSON.stringify({ org_id: Number(orgId) }) });
+    toast('Switched organization', 'success');
+    loadOrgSwitcher();   // re-derive nav-admin visibility for the new org
+    await loadNets();
+    showView('nets');
+  } catch (e) {
+    toast(e.message, 'error');
+    loadOrgSwitcher();   // revert the dropdown to the actual current org
+  }
 }
 
 // Auto-login if token stored

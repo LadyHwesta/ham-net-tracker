@@ -63,6 +63,18 @@
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
 
           <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-21 — Multi-Tenancy: Organizations (v2.4.0, issue #1)</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>The registration form now asks you to <strong>create a new organization</strong> or <strong>join an existing one</strong>. Creating one makes you its admin immediately; joining one requires approval from that organization's own admin before you can log in.</li>
+              <li>Nets, sessions, and check-ins are now scoped to one organization at a time — operators in different organizations sharing the same install no longer see each other's nets. An org switcher appears in the header for anyone who belongs to more than one.</li>
+              <li>Organization admins get a scoped view of the <strong>Admin</strong> page — approve or reject pending members of their own organization. This is separate from (and smaller than) the existing site-wide <strong>Super Admin</strong> role, which is unchanged and still sees and manages everything across every organization.</li>
+              <li>The public <strong>/directory</strong> and <strong>/live</strong> pages are now per-organization — each gets its own URL (<code style="background:var(--surface);padding:1px 5px;border-radius:3px">/directory/&lt;org&gt;</code>, <code style="background:var(--surface);padding:1px 5px;border-radius:3px">/live/&lt;org&gt;</code>); visiting either with no organization in the URL shows a picker instead of one global list.</li>
+              <li>Existing single-organization installs are unaffected — every current user and net is automatically placed into one "Default Organization" during the upgrade, with access exactly as it was before.</li>
+              <li>Requires a database migration — two new tables (<code style="background:var(--surface);padding:1px 5px;border-radius:3px">organizations</code>, <code style="background:var(--surface);padding:1px 5px;border-radius:3px">organization_memberships</code>) and two new columns. <code style="background:var(--surface);padding:1px 5px;border-radius:3px">./deploy.sh</code> runs it automatically.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-21 — Close a Logged Net (v2.3.1, issue #20)</div>
             <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
               <li>A logged net can now be explicitly closed to further check-ins — the same <strong>■ End Session</strong> button reads <strong>🔒 Close Log</strong> for a logged net, and the status shows <strong>Logged (Closed)</strong> once clicked. Previously a logged net stayed open to new check-ins forever, with no way to lock it.</li>
@@ -506,6 +518,13 @@
         </div>
 
         <div class="card" style="margin-bottom:16px">
+          <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">ORGANIZATIONS</h3>
+          <p style="margin:0 0 8px">Every account belongs to at least one <strong>Organization</strong> — nets, sessions, and check-ins are scoped to it, so two organizations sharing the same install never see each other's nets. When registering, choose <strong>Create new</strong> (you become that organization's admin immediately) or <strong>Join existing</strong> (an admin of that organization must approve you before you can log in).</p>
+          <p style="margin:0 0 8px">Belong to more than one organization? A switcher appears next to your callsign in the header — pick which one you're working as, and the net list updates to match. To join an additional organization later, ask its admin how to request access.</p>
+          <p style="margin:0">An organization's admin can approve or reject pending members from a scoped view of the <strong>Admin</strong> page — separate from, and smaller than, the site-wide <strong>Super Admin</strong> role, which can still see and manage everything across every organization.</p>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">SESSION CLOCK &amp; TIMER</h3>
           <p style="margin:0 0 8px">While a session is live, a clock bar appears showing <strong>local time</strong>, <strong>UTC time</strong>, and the <strong>elapsed session time</strong>. The timer starts from when the session was opened and updates every second.</p>
           <p style="margin:0">The clock disappears automatically when the session ends.</p>
@@ -675,14 +694,14 @@ Thank you all for checking in. This net is now closed.</pre>
 
         <div class="card" style="margin-bottom:16px">
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">PUBLIC NET DIRECTORY</h3>
-          <p style="margin:0 0 8px">Enable <strong>List in Public Net Directory</strong> in a net's Edit form to show it at <strong>/directory</strong> — a public page, no login required, separate from the real-time <strong>/live</strong> check-in view. Listed nets show their name, net type, frequency, description, weekly schedule, and your callsign as the host.</p>
-          <p style="margin:0">Nets are unlisted by default — opt in per net. There's currently no integration with external ham radio net directories (no such site offers a public API to publish to); this is a self-contained directory within your instance only.</p>
+          <p style="margin:0 0 8px">Enable <strong>List in Public Net Directory</strong> in a net's Edit form to show it at your organization's <strong>/directory/&lt;org&gt;</strong> page — public, no login required, separate from the real-time <strong>/live/&lt;org&gt;</strong> check-in view. Listed nets show their name, net type, frequency, description, weekly schedule, and your callsign as the host.</p>
+          <p style="margin:0">Nets are unlisted by default — opt in per net. Visiting <strong>/directory</strong> or <strong>/live</strong> with no organization in the URL shows a picker listing every organization that has at least one publicly listed net.</p>
         </div>
 
         <div id="help-admin-section" class="card" style="margin-bottom:16px">
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">ADMIN PANEL</h3>
-          <p style="margin:0 0 8px">The first user to register automatically becomes admin. Additional registrations require approval before login is permitted.</p>
-          <p style="margin:0 0 8px">Admins can approve/deactivate accounts, grant admin privileges, delete accounts, and opt in to <strong>email notifications</strong> for new registrations using the ✉/📧 toggle in the Notify column.</p>
+          <p style="margin:0 0 8px">The very first user to ever register on an instance automatically becomes <strong>Super Admin</strong> — sees and manages every organization. Every other new registration either creates its own organization (becoming that organization's admin immediately) or requests to join an existing one, which needs approval from that organization's own admin before login is permitted.</p>
+          <p style="margin:0 0 8px">An organization admin gets a scoped Admin page — approve/reject pending members of their own organization only. A Super Admin's Admin page is unchanged: approve/deactivate any account, grant Super Admin, delete accounts, and opt in to <strong>email notifications</strong> for new registrations using the ✉/📧 toggle in the Notify column.</p>
           <p style="margin:0">Newly approved operators receive an automatic confirmation email if SMTP is configured in <code style="background:var(--surface);padding:1px 5px;border-radius:3px">.env</code>.</p>
         </div>
 
@@ -717,7 +736,7 @@ python3 /opt/netcontrol/gmrs_sync.py --mode update</pre>
 </div>
   <script src="/static/js/state.js?v=9"></script>
   <script src="/static/js/utils.js?v=7"></script>
-  <script src="/static/js/auth.js?v=9"></script>
+  <script src="/static/js/auth.js?v=10"></script>
   <script src="/static/js/theme.js?v=1"></script>
   <script src="/static/js/branding.js?v=7"></script>
   <script src="/static/js/pwa.js?v=1"></script>

@@ -51,12 +51,63 @@ class User(Base):
     verification_token = Column(String(64), nullable=True)
     verification_sent_at = Column(UTCDateTime, nullable=True)
     created_at = Column(UTCDateTime, default=utcnow, nullable=False)
+    # Multi-tenancy (issue #1). is_admin above is the *super admin* tier — unchanged,
+    # still bypasses org scoping everywhere. current_org_id is which org this user is
+    # "working as" right now; read fresh off this row each request (no JWT claim),
+    # same as is_admin already is. Nullable only for the moment between registration
+    # and the org create/join step completing; every active user ends up with one.
+    current_org_id = Column(Integer, ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True)
 
     nets = relationship("Net", back_populates="owner", cascade="all, delete-orphan")
     sessions = relationship("NetSession", back_populates="operator")
+    memberships = relationship("OrganizationMembership", back_populates="user", cascade="all, delete-orphan", foreign_keys="OrganizationMembership.user_id")
 
     def __repr__(self):
         return f"<User callsign={self.callsign}>"
+
+
+class Organization(Base):
+    """A tenant (issue #1) — e.g. one ARES section or region sharing a deployment
+    with others but not each other's nets. Users join via OrganizationMembership;
+    nets belong to exactly one org via Net.org_id."""
+    __tablename__ = "organizations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(200), nullable=False)
+    slug = Column(String(100), unique=True, nullable=False, index=True)  # URL-safe, used in /directory/{slug}, /live/{slug}
+    created_at = Column(UTCDateTime, default=utcnow, nullable=False)
+
+    memberships = relationship("OrganizationMembership", back_populates="org", cascade="all, delete-orphan")
+    nets = relationship("Net", back_populates="org")
+
+    def __repr__(self):
+        return f"<Organization {self.slug}>"
+
+
+class OrganizationMembership(Base):
+    """A user's membership in one organization (issue #1) — the org-admin tier,
+    separate from User.is_admin (super admin, bypasses org scoping entirely).
+    approved=False means pending: the org hasn't accepted this user yet, mirroring
+    the existing User.is_active pending-approval flow but per-org instead of
+    instance-wide. A user may hold multiple memberships (multiple orgs)."""
+    __tablename__ = "organization_memberships"
+
+    id = Column(Integer, primary_key=True, index=True)
+    org_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    role = Column(String(20), nullable=False, default="member")  # 'admin' | 'member'
+    approved = Column(Boolean, default=False, nullable=False)
+    created_at = Column(UTCDateTime, default=utcnow, nullable=False)
+
+    org = relationship("Organization", back_populates="memberships")
+    user = relationship("User", back_populates="memberships", foreign_keys=[user_id])
+
+    __table_args__ = (
+        UniqueConstraint("org_id", "user_id", name="uq_org_membership_org_user"),
+    )
+
+    def __repr__(self):
+        return f"<OrganizationMembership org={self.org_id} user={self.user_id} role={self.role}>"
 
 
 class Net(Base):
@@ -85,9 +136,15 @@ class Net(Base):
     state = Column(String(50), nullable=True)          # US state
     website = Column(String(300), nullable=True)       # falls back to org-wide branding website if unset
     owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    # Multi-tenancy (issue #1) — every net belongs to exactly one organization, set
+    # from the creating user's current_org_id at creation time and never user-editable
+    # directly. nullable=True only so existing rows can be backfilled by migrate.py's
+    # default-org migration before the NOT NULL constraint is added.
+    org_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=True)
     created_at = Column(UTCDateTime, default=utcnow, nullable=False)
 
     owner = relationship("User", back_populates="nets")
+    org = relationship("Organization", back_populates="nets")
     sessions = relationship("NetSession", back_populates="net", cascade="all, delete-orphan")
     schedules = relationship("NetSchedule", back_populates="net", cascade="all, delete-orphan")
     evac_zones = relationship("EvacZone", back_populates="net", cascade="all, delete-orphan")

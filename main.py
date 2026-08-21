@@ -44,6 +44,7 @@ import json
 import logging.handlers
 import os
 import pathlib
+import re
 import secrets
 import smtplib
 import time as _time
@@ -73,7 +74,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from database import get_db, init_db
-from models import ApiToken, CallsignCache, Checkin, DmrConfig, EvacZone, GmrsLicense, Net, NetControlShift, NetControlSignup, NetSchedule, NetSession, NetShare, StationRemark, SystemSetting, TacticalPosition, TrafficMessage, User, utcnow
+from models import ApiToken, CallsignCache, Checkin, DmrConfig, EvacZone, GmrsLicense, Net, NetControlShift, NetControlSignup, NetSchedule, NetSession, NetShare, Organization, OrganizationMembership, StationRemark, SystemSetting, TacticalPosition, TrafficMessage, User, utcnow
 import net_repository
 
 load_dotenv()
@@ -303,7 +304,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="Ham Radio Net Tracker", version="2.3.1", lifespan=lifespan)
+app = FastAPI(title="Ham Radio Net Tracker", version="2.4.0", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -398,6 +399,15 @@ class UserCreate(BaseModel):
     name: str
     email: EmailStr
     password: str
+    # Multi-tenancy (issue #1) — which organization to join, keyed by slug. If the
+    # slug doesn't exist yet it's created (with org_name as its display name) and
+    # this user becomes its approved admin; if it already exists, this creates a
+    # pending membership an admin of that org must approve. Omitted entirely means
+    # "join-or-create the default org" — preserves the old single-tenant bootstrap
+    # (first-ever registration creates it and becomes admin; everyone after that
+    # requests to join it).
+    org_slug: Optional[str] = None
+    org_name: Optional[str] = None
 
     @field_validator("callsign")
     @classmethod
@@ -417,8 +427,36 @@ class UserOut(BaseModel):
     theme: str
     email_verified: bool
     created_at: datetime
+    current_org_id: Optional[int] = None
 
     model_config = {"from_attributes": True}
+
+
+class OrganizationOut(BaseModel):
+    id: int
+    name: str
+    slug: str
+
+    model_config = {"from_attributes": True}
+
+
+class MyOrgOut(OrganizationOut):
+    """Like OrganizationOut, plus the caller's own role in that org — lets the
+    frontend show the org-admin panel only where the user actually has it."""
+    role: str
+
+
+class OrgMemberOut(BaseModel):
+    """A user's membership within one org — used for the org-admin approval
+    queue and member list. Distinct from UserOut since it's per-membership,
+    not per-account (a user can appear once per org they belong to)."""
+    user_id: int
+    callsign: str
+    name: str
+    email: str
+    role: str
+    approved: bool
+    requested_at: datetime
 
 
 class ThemeUpdate(BaseModel):
@@ -485,6 +523,7 @@ class NetOut(BaseModel):
     state: Optional[str] = None
     website: Optional[str] = None
     owner_id: int
+    org_id: int
     created_at: datetime
     # Sharing fields (populated by helper, not from ORM attributes directly)
     is_owner: bool = True
@@ -912,6 +951,31 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
 # Auth routes
 # ---------------------------------------------------------------------------
 
+def _slugify(text: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+    return slug or "org"
+
+
+def _get_or_create_org(org_slug: Optional[str], org_name: Optional[str], db: Session) -> tuple[Organization, bool]:
+    """Multi-tenancy (issue #1) join-or-create: resolves the org for a slug,
+    creating it if it doesn't exist yet. Returns (org, created) — the caller
+    uses `created` to decide whether this registrant becomes that org's
+    immediately-approved admin (new org, no one else to approve them) or a
+    pending member (existing org, its own admin must approve). Omitting both
+    slug and name resolves to the "default" org — the pre-multi-tenancy
+    single-tenant bootstrap path: first-ever registration creates it, everyone
+    after that requests to join it."""
+    slug = org_slug or (_slugify(org_name) if org_name else "default")
+    org = db.query(Organization).filter(Organization.slug == slug).first()
+    if org:
+        return org, False
+    name = org_name or (_get_setting("org_name", db) if slug == "default" else None) or slug.replace("-", " ").title()
+    org = Organization(name=name, slug=slug)
+    db.add(org)
+    db.flush()
+    return org, True
+
+
 @app.post("/auth/register", response_model=UserOut, status_code=201)
 @limiter.limit("5/minute")
 def register(request: Request, data: UserCreate, db: Session = Depends(get_db)):
@@ -920,7 +984,8 @@ def register(request: Request, data: UserCreate, db: Session = Depends(get_db)):
     if db.query(User).filter(User.email == data.email).first():
         raise HTTPException(400, "Email already registered")
 
-    # First registered user becomes admin and is immediately active
+    # First registered user becomes (super) admin and is immediately active,
+    # independent of org — is_admin bypasses org scoping entirely.
     is_first_user = db.query(User).count() == 0
     # The bootstrap admin is trusted implicitly (they had server access to deploy this at
     # all) and skips verification so a first-run SMTP misconfiguration can't lock them out.
@@ -929,20 +994,37 @@ def register(request: Request, data: UserCreate, db: Session = Depends(get_db)):
     # as api_tokens, so a DB leak alone can't be used to verify arbitrary accounts.
     verification_token = secrets.token_urlsafe(32) if needs_verification else None
     verification_token_hash = hashlib.sha256(verification_token.encode()).hexdigest() if verification_token else None
+
+    # Multi-tenancy (issue #1). Creating a brand new org makes this user its
+    # approved admin immediately; joining an existing one leaves them pending
+    # until that org's own admin approves — same shape as the old global
+    # pending-approval flow, just scoped to one org instead of the whole instance.
+    org, org_created = _get_or_create_org(data.org_slug, data.org_name, db)
+    user_active_via_org = is_first_user or org_created
+
     user = User(
         callsign=data.callsign,
         name=data.name,
         email=data.email,
         hashed_password=hash_password(data.password),
-        is_active=is_first_user,
+        is_active=user_active_via_org,
         is_admin=is_first_user,
         email_verified=not needs_verification,
         verification_token=verification_token_hash,
         verification_sent_at=datetime.now(timezone.utc) if needs_verification else None,
+        current_org_id=org.id,
     )
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    db.add(OrganizationMembership(
+        org_id=org.id,
+        user_id=user.id,
+        role="admin" if org_created else "member",
+        approved=user_active_via_org,
+    ))
+    db.commit()
 
     if needs_verification:
         verify_link = _app_url(f"/auth/verify-email?token={verification_token}")
@@ -965,11 +1047,21 @@ def register(request: Request, data: UserCreate, db: Session = Depends(get_db)):
             ),
         )
 
-    # Notify opted-in admins about the new registration (skip for the first/admin user)
-    if not is_first_user:
+    # Notify this org's own opted-in admins about the new registration — skip
+    # when no approval is actually needed (a brand new org, or the instance's
+    # bootstrap user). Scoped to org admins rather than every super admin, since
+    # approval of a pending membership is an org-admin action (issue #1).
+    if not user_active_via_org:
         notify_admins = (
             db.query(User)
-            .filter(User.is_admin == True, User.notify_new_registrations == True, User.is_active == True)
+            .join(OrganizationMembership, OrganizationMembership.user_id == User.id)
+            .filter(
+                OrganizationMembership.org_id == org.id,
+                OrganizationMembership.role == "admin",
+                OrganizationMembership.approved == True,
+                User.notify_new_registrations == True,
+                User.is_active == True,
+            )
             .all()
         )
         if notify_admins:
@@ -978,7 +1070,7 @@ def register(request: Request, data: UserCreate, db: Session = Depends(get_db)):
                 subject=f"[Ham Net Tracker] New Registration: {user.callsign}",
                 body_html=f"""<div style="font-family:sans-serif;max-width:520px">
   <h2 style="color:#FF9900">New Operator Registration</h2>
-  <p>A new user has registered and is awaiting your approval:</p>
+  <p>A new user has requested to join <strong>{html.escape(org.name)}</strong> and is awaiting your approval:</p>
   <table style="border-collapse:collapse;width:100%">
     <tr><td style="padding:6px 12px 6px 0;font-weight:bold">Callsign</td><td>{user.callsign}</td></tr>
     <tr><td style="padding:6px 12px 6px 0;font-weight:bold">Name</td><td>{user.name}</td></tr>
@@ -988,7 +1080,7 @@ def register(request: Request, data: UserCreate, db: Session = Depends(get_db)):
   <p style="margin-top:16px">Log in to the <strong>Admin</strong> panel to approve or reject this account.</p>
 </div>""",
                 body_text=(
-                    f"New registration pending approval:\n"
+                    f"New registration pending approval to join {org.name}:\n"
                     f"  Callsign : {user.callsign}\n"
                     f"  Name     : {user.name}\n"
                     f"  Email    : {user.email}\n\n"
@@ -1078,14 +1170,213 @@ def update_gmrs_callsign(
     return current_user
 
 
+# ---------------------------------------------------------------------------
+# Organizations (issue #1 — multi-tenancy)
+# ---------------------------------------------------------------------------
+
+def require_org_admin(org_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> User:
+    """Org-scoped equivalent of require_admin — an approved admin of THIS org,
+    or a super admin (User.is_admin bypasses org scoping everywhere, including
+    here)."""
+    if current_user.is_admin:
+        return current_user
+    membership = db.query(OrganizationMembership).filter(
+        OrganizationMembership.org_id == org_id,
+        OrganizationMembership.user_id == current_user.id,
+        OrganizationMembership.role == "admin",
+        OrganizationMembership.approved == True,
+    ).first()
+    if not membership:
+        raise HTTPException(403, "Organization admin access required")
+    return current_user
+
+
+@app.get("/orgs", response_model=list[OrganizationOut])
+def list_orgs(db: Session = Depends(get_db)):
+    """Every organization on this instance, name+slug only — powers the
+    "join an existing organization" picker at registration. No auth required:
+    same trust level as callsign/name being visible in the registration form
+    itself, and an org's existence isn't sensitive."""
+    return db.query(Organization).order_by(Organization.name).all()
+
+
+@app.get("/orgs/mine", response_model=list[MyOrgOut])
+def list_my_orgs(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """The current user's own approved organizations, with their role in each
+    — powers the org switcher and the org-admin panel visibility check."""
+    rows = (
+        db.query(Organization, OrganizationMembership.role)
+        .join(OrganizationMembership, OrganizationMembership.org_id == Organization.id)
+        .filter(OrganizationMembership.user_id == current_user.id, OrganizationMembership.approved == True)
+        .order_by(Organization.name)
+        .all()
+    )
+    return [MyOrgOut(id=org.id, name=org.name, slug=org.slug, role=role) for org, role in rows]
+
+
+class OrgJoinRequest(BaseModel):
+    org_slug: Optional[str] = None
+    org_name: Optional[str] = None
+
+
+@app.post("/orgs/join", response_model=OrganizationOut, status_code=201)
+def join_org(data: OrgJoinRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Already-logged-in self-service: request to join an additional org (or
+    create a new one), same join-or-create semantics as registration. Does not
+    touch is_active — the caller is already active via an existing org."""
+    org, org_created = _get_or_create_org(data.org_slug, data.org_name, db)
+    existing = db.query(OrganizationMembership).filter(
+        OrganizationMembership.org_id == org.id, OrganizationMembership.user_id == current_user.id,
+    ).first()
+    if existing:
+        raise HTTPException(400, "Already a member (or pending member) of this organization")
+    db.add(OrganizationMembership(
+        org_id=org.id,
+        user_id=current_user.id,
+        role="admin" if org_created else "member",
+        approved=org_created,
+    ))
+    if org_created:
+        current_user.current_org_id = org.id
+    db.commit()
+    return org
+
+
+class CurrentOrgUpdate(BaseModel):
+    org_id: int
+
+
+@app.patch("/auth/current-org", response_model=UserOut)
+def switch_current_org(data: CurrentOrgUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Switch which org the user is "working as" — every net/session/checkin
+    endpoint scopes to current_org_id from here on. Restricted to orgs the user
+    has an APPROVED membership in (super admins may switch to any org, since
+    they already see everything regardless)."""
+    if not current_user.is_admin:
+        membership = db.query(OrganizationMembership).filter(
+            OrganizationMembership.org_id == data.org_id,
+            OrganizationMembership.user_id == current_user.id,
+            OrganizationMembership.approved == True,
+        ).first()
+        if not membership:
+            raise HTTPException(403, "Not an approved member of that organization")
+    else:
+        if not db.query(Organization).filter(Organization.id == data.org_id).first():
+            raise HTTPException(404, "Organization not found")
+    current_user.current_org_id = data.org_id
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
+
+@app.get("/orgs/{org_id}/pending-members", response_model=list[OrgMemberOut])
+def list_pending_org_members(org_id: int, admin: User = Depends(require_org_admin), db: Session = Depends(get_db)):
+    rows = (
+        db.query(OrganizationMembership, User)
+        .join(User, User.id == OrganizationMembership.user_id)
+        .filter(OrganizationMembership.org_id == org_id, OrganizationMembership.approved == False)
+        .order_by(OrganizationMembership.created_at.desc())
+        .all()
+    )
+    return [
+        OrgMemberOut(
+            user_id=u.id, callsign=u.callsign, name=u.name, email=u.email,
+            role=m.role, approved=m.approved, requested_at=m.created_at,
+        )
+        for m, u in rows
+    ]
+
+
+@app.get("/orgs/{org_id}/members", response_model=list[OrgMemberOut])
+def list_org_members(org_id: int, admin: User = Depends(require_org_admin), db: Session = Depends(get_db)):
+    rows = (
+        db.query(OrganizationMembership, User)
+        .join(User, User.id == OrganizationMembership.user_id)
+        .filter(OrganizationMembership.org_id == org_id, OrganizationMembership.approved == True)
+        .order_by(User.callsign)
+        .all()
+    )
+    return [
+        OrgMemberOut(
+            user_id=u.id, callsign=u.callsign, name=u.name, email=u.email,
+            role=m.role, approved=m.approved, requested_at=m.created_at,
+        )
+        for m, u in rows
+    ]
+
+
+@app.patch("/orgs/{org_id}/members/{user_id}/approve", status_code=204)
+def approve_org_member(org_id: int, user_id: int, admin: User = Depends(require_org_admin), db: Session = Depends(get_db)):
+    membership = db.query(OrganizationMembership).filter(
+        OrganizationMembership.org_id == org_id, OrganizationMembership.user_id == user_id,
+    ).first()
+    if not membership:
+        raise HTTPException(404, "Membership not found")
+    membership.approved = True
+    user = db.query(User).filter(User.id == user_id).first()
+    # Only their FIRST approved org needs to flip is_active — a user already
+    # active via another org just needed this specific membership approved.
+    if user and not user.is_active:
+        user.is_active = True
+        user.email_verified = True
+        user.verification_token = None
+    db.commit()
+
+    if user:
+        login_link = _app_url("/")
+        send_email(
+            to=[user.email],
+            subject="[Ham Net Tracker] Your Account Has Been Approved",
+            body_html=f"""<div style="font-family:sans-serif;max-width:520px">
+  <h2 style="color:#FF9900">Account Approved!</h2>
+  <p>Hello <strong>{user.name}</strong> ({user.callsign}),</p>
+  <p>Your request to join has been approved. You can now log in and start using the system.</p>
+  {f'<p style="margin-top:16px"><a href="{login_link}" style="background:#FF9900;color:#000;padding:10px 20px;text-decoration:none;border-radius:20px;font-weight:bold;display:inline-block">Log In Now</a></p>' if login_link else ''}
+  <p style="color:#888;font-size:12px">If you did not request this account, please disregard this message.</p>
+</div>""",
+            body_text=(
+                f"Hello {user.name} ({user.callsign}),\n\n"
+                f"Your request to join has been approved. You can now log in.\n\n"
+                + (f"Log in here: {login_link}\n\n" if login_link else "")
+                + "If you did not request this account, please disregard this message."
+            ),
+        )
+
+
+@app.post("/orgs/{org_id}/members/{user_id}/reject", status_code=204)
+def reject_org_member(org_id: int, user_id: int, admin: User = Depends(require_org_admin), db: Session = Depends(get_db)):
+    """Rejects (deletes) a pending membership request. Unlike the legacy
+    single-tenant /admin/users/{id}/reject, this does NOT delete the user
+    account itself — they may hold approved memberships in other orgs, or be
+    free to request a different org."""
+    membership = db.query(OrganizationMembership).filter(
+        OrganizationMembership.org_id == org_id, OrganizationMembership.user_id == user_id,
+    ).first()
+    if not membership:
+        raise HTTPException(404, "Membership not found")
+    if membership.approved:
+        raise HTTPException(400, "Cannot reject an already-approved membership — remove them from the org instead")
+    db.delete(membership)
+    db.commit()
+
+
 @app.get("/stats")
 def get_stats(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Quick stats for the sidebar dashboard panel."""
     from datetime import date, datetime, timezone
 
-    # Net IDs the user can see (owned + shared)
-    owned_ids = [r[0] for r in db.query(Net.id).filter(Net.owner_id == current_user.id).all()]
-    shared_ids = [r[0] for r in db.query(NetShare.net_id).filter(NetShare.user_id == current_user.id).all()]
+    # Net IDs the user can see (owned + shared), scoped to their current org (issue #1)
+    owned_ids = [
+        r[0] for r in
+        db.query(Net.id).filter(Net.owner_id == current_user.id, Net.org_id == current_user.current_org_id).all()
+    ]
+    shared_ids = [
+        r[0] for r in
+        db.query(NetShare.net_id)
+        .join(Net, Net.id == NetShare.net_id)
+        .filter(NetShare.user_id == current_user.id, Net.org_id == current_user.current_org_id)
+        .all()
+    ]
     all_net_ids = list(set(owned_ids + shared_ids))
 
     total_nets = len(all_net_ids)
@@ -1166,19 +1457,31 @@ def delete_api_token(
 # ---------------------------------------------------------------------------
 
 @app.get("/live", response_class=HTMLResponse, include_in_schema=False)
-def public_live_page():
-    """Serve the public live nets page."""
+@app.get("/live/{org_slug}", response_class=HTMLResponse, include_in_schema=False)
+def public_live_page(org_slug: Optional[str] = None):
+    """Serve the public live nets page. org_slug (issue #1), if present, is
+    read client-side from the URL path — same SPA path-routing convention as
+    /directory/{slug} below. Bare /live with no slug renders an org picker."""
     import pathlib
     p = pathlib.Path(__file__).parent / "public.html"
     return HTMLResponse(p.read_text())
 
 
 @app.get("/public/active")
-def public_active_sessions(db: Session = Depends(get_db)):
-    """Return all currently active net sessions — no auth required."""
+def public_active_sessions(org: Optional[str] = None, db: Session = Depends(get_db)):
+    """Return all currently active net sessions for one org — no auth
+    required. Org-scoped (issue #1); omitting `org` falls back to the
+    "default" org (single-tenant backward compat — see _get_or_create_org).
+    Deliberately NOT gated on Net.public_listed, unlike /public/directory —
+    this page has always shown any net currently in progress in the org,
+    listed or not (see TestSchedules::test_public_active_shows_broadcaster)."""
+    org_row = db.query(Organization).filter(Organization.slug == (org or "default")).first()
+    if not org_row:
+        return []
     sessions = (
         db.query(NetSession)
-        .filter(NetSession.ended_at == None)
+        .join(Net, Net.id == NetSession.net_id)
+        .filter(NetSession.ended_at == None, Net.org_id == org_row.id)
         .order_by(NetSession.started_at)
         .all()
     )
@@ -1201,7 +1504,9 @@ def public_active_sessions(db: Session = Depends(get_db)):
 
 @app.get("/public/sessions/{session_id}")
 def public_session_detail(session_id: int, db: Session = Depends(get_db)):
-    """Return session info + checkin list — no auth required."""
+    """Return session info + checkin list — no auth required. Keyed directly
+    by session ID (reached by clicking through from the already org-scoped
+    /public/active list), so no separate org check is needed here."""
     s = db.query(NetSession).filter(NetSession.id == session_id, NetSession.ended_at == None).first()
     if not s:
         raise HTTPException(404, "Session not found or no longer active")
@@ -1232,17 +1537,40 @@ def public_session_detail(session_id: int, db: Session = Depends(get_db)):
 
 
 @app.get("/directory", response_class=HTMLResponse, include_in_schema=False)
-def public_directory_page():
-    """Serve the public net directory page."""
+@app.get("/directory/{org_slug}", response_class=HTMLResponse, include_in_schema=False)
+def public_directory_page(org_slug: Optional[str] = None):
+    """Serve the public net directory page. org_slug (issue #1), if present,
+    is read client-side from the URL path — the frontend calls
+    /public/directory?org=<slug> accordingly. Bare /directory with no slug
+    renders an org picker (from /public/organizations) instead of a net list."""
     return _serve_html("directory.html")
 
 
+@app.get("/public/organizations", response_model=list[OrganizationOut])
+def public_organizations(db: Session = Depends(get_db)):
+    """Orgs with at least one net in the public directory — powers the org
+    picker shown at bare /directory or /live (no slug in the URL)."""
+    return (
+        db.query(Organization)
+        .join(Net, Net.org_id == Organization.id)
+        .filter(Net.public_listed == True)
+        .distinct()
+        .order_by(Organization.name)
+        .all()
+    )
+
+
 @app.get("/public/directory")
-def public_directory(db: Session = Depends(get_db)):
-    """Return every net whose owner has opted into the public directory — no auth required."""
+def public_directory(org: Optional[str] = None, db: Session = Depends(get_db)):
+    """Return every net whose owner has opted into the public directory, for
+    one org — no auth required. Org-scoped (issue #1); omitting `org` falls
+    back to the "default" org (single-tenant backward compat)."""
+    org_row = db.query(Organization).filter(Organization.slug == (org or "default")).first()
+    if not org_row:
+        return []
     nets = (
         db.query(Net)
-        .filter(Net.public_listed == True)
+        .filter(Net.public_listed == True, Net.org_id == org_row.id)
         .order_by(Net.name)
         .all()
     )
@@ -1433,10 +1761,19 @@ def create_support_ticket(
 
 @app.get("/users", response_model=list[UserPublicOut])
 def list_users(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Return all active users (for share-with-user UI). Excludes the calling user."""
+    """Return active users in the caller's current org (for share-with-user UI).
+    Org-scoped (issue #1) — sharing a net with someone outside its own org would
+    be meaningless, since _get_net_for_user rejects cross-org access anyway.
+    Excludes the calling user."""
     users = (
         db.query(User)
-        .filter(User.is_active == True, User.id != current_user.id)
+        .join(OrganizationMembership, OrganizationMembership.user_id == User.id)
+        .filter(
+            User.is_active == True,
+            User.id != current_user.id,
+            OrganizationMembership.org_id == current_user.current_org_id,
+            OrganizationMembership.approved == True,
+        )
         .order_by(User.callsign)
         .all()
     )
@@ -1446,10 +1783,11 @@ def list_users(current_user: User = Depends(get_current_user), db: Session = Dep
 @app.get("/nets", response_model=list[NetOut])
 def list_nets(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if current_user.is_admin:
-        # Admins see every net
+        # Super admins see every net, across every org
         nets = db.query(Net).order_by(Net.name).all()
     else:
-        # Owned nets + nets shared with this user + nets shared with all
+        # Owned nets + nets shared with this user + nets shared with all,
+        # scoped to the org the user is currently working as (issue #1)
         shared_net_ids = (
             db.query(NetShare.net_id)
             .filter(or_(NetShare.user_id == current_user.id, NetShare.user_id == None))
@@ -1457,7 +1795,10 @@ def list_nets(current_user: User = Depends(get_current_user), db: Session = Depe
         )
         nets = (
             db.query(Net)
-            .filter(or_(Net.owner_id == current_user.id, Net.id.in_(shared_net_ids)))
+            .filter(
+                Net.org_id == current_user.current_org_id,
+                or_(Net.owner_id == current_user.id, Net.id.in_(shared_net_ids)),
+            )
             .order_by(Net.name)
             .all()
         )
@@ -1466,6 +1807,8 @@ def list_nets(current_user: User = Depends(get_current_user), db: Session = Depe
 
 @app.post("/nets", response_model=NetOut, status_code=201)
 def create_net(data: NetCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not current_user.current_org_id:
+        raise HTTPException(400, "No current organization selected")
     net_type = data.net_type if data.net_type in ("ham", "gmrs") else "ham"
     net = Net(
         name=data.name,
@@ -1487,6 +1830,7 @@ def create_net(data: NetCreate, current_user: User = Depends(get_current_user), 
         state=data.state or None,
         website=data.website or None,
         owner_id=current_user.id,
+        org_id=current_user.current_org_id,
     )
     db.add(net)
     db.commit()
@@ -1712,6 +2056,12 @@ def admin_approve_user(user_id: int, admin: User = Depends(require_admin), db: S
     user.is_active = True
     user.email_verified = True
     user.verification_token = None
+    # Super-admin approval is a global escape hatch (issue #1) — clear every
+    # pending org membership too, not just the account-level gate, since a
+    # super admin isn't scoped to any one org's approval queue.
+    db.query(OrganizationMembership).filter(
+        OrganizationMembership.user_id == user.id, OrganizationMembership.approved == False,
+    ).update({"approved": True})
     db.commit()
     db.refresh(user)
 
@@ -3829,7 +4179,15 @@ def create_signup(net_id: int, data: SignupCreate, current_user: User = Depends(
         # Net owner assigning a registered operator
         if net.owner_id != current_user.id:
             raise HTTPException(403, "Only the net owner can assign other operators")
-        assigned = db.query(User).filter(User.id == data.assigned_user_id, User.is_active == True).first()
+        assigned = (
+            db.query(User)
+            .join(OrganizationMembership, OrganizationMembership.user_id == User.id)
+            .filter(
+                User.id == data.assigned_user_id, User.is_active == True,
+                OrganizationMembership.org_id == net.org_id, OrganizationMembership.approved == True,
+            )
+            .first()
+        )
         if not assigned:
             raise HTTPException(404, "Assigned user not found")
         signup_user_id = assigned.id
@@ -3990,21 +4348,33 @@ def _net_to_out(net: Net, user: User, db: Session) -> NetOut:
 
 
 def _get_owned_net(net_id: int, user: User, db: Session) -> Net:
-    """Fetch a net; require owner or admin."""
+    """Fetch a net; require owner or admin. Non-admins are further scoped to
+    their current org (issue #1) — a net in a different org 404s rather than
+    403s, so its existence isn't leaked across tenants. Super admins bypass
+    org scoping entirely, same as they already bypass ownership."""
     net = db.query(Net).filter(Net.id == net_id).first()
     if not net:
         raise HTTPException(404, "Net not found")
-    if net.owner_id != user.id and not user.is_admin:
+    if user.is_admin:
+        return net
+    if net.org_id != user.current_org_id:
+        raise HTTPException(404, "Net not found")
+    if net.owner_id != user.id:
         raise HTTPException(403, "Not your net")
     return net
 
 
 def _get_net_for_user(net_id: int, user: User, db: Session) -> Net:
-    """Fetch a net; allow owner, admin, or user the net is shared with."""
+    """Fetch a net; allow owner, admin, or user the net is shared with.
+    Org-scoped for non-admins the same way as _get_owned_net above."""
     net = db.query(Net).filter(Net.id == net_id).first()
     if not net:
         raise HTTPException(404, "Net not found")
-    if net.owner_id == user.id or user.is_admin:
+    if user.is_admin:
+        return net
+    if net.org_id != user.current_org_id:
+        raise HTTPException(404, "Net not found")
+    if net.owner_id == user.id:
         return net
     # Check shares: shared with all (user_id IS NULL) or shared with this user
     share = (

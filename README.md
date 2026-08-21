@@ -18,6 +18,7 @@ A public demo is available at **[nettrackerdemo.meskis.net](https://nettrackerde
 
 ## Features
 
+- **Multi-tenancy** — every account belongs to one or more **Organizations**; nets, sessions, and check-ins are scoped so separate organizations sharing the same install never see each other's data. Registration offers create-a-new-organization (become its admin immediately) or join-an-existing-one (needs that organization's own admin to approve you); an org switcher appears for anyone in more than one. Organization admins get a scoped Admin page for their own members; the existing site-wide Super Admin role is unchanged and still sees everything
 - **Net & session management** — create nets, start/end sessions, log check-ins with signal reports
 - **Log a past net** — a net that formed with no access to the web tool can be backfilled afterward: set its date/time, Net Control, and broadcaster up front, then add check-ins that get stamped with the reported date/time instead of "now". No live-session chrome (clock, Expected Stations, DMR, Net Script) since it was never live to begin with — just the check-in form and roster. Click **🔒 Close Log** when done entering data to stop accepting further check-ins
 - **Focused live session view** — sidebar auto-collapses and session navigation hides while a session is live to cut clutter, restoring automatically once it ends; the manual check-in form stays pinned to the top of the screen so it's reachable while scrolling; the checked-in stations roster sits in its own independently-scrollable column on the right (callsign, name, traffic, delete — the 5 most recent highlighted for 20 seconds), so it's always visible without scrolling past the form
@@ -34,11 +35,11 @@ A public demo is available at **[nettrackerdemo.meskis.net](https://nettrackerde
 - **Scheduling** — weekly recurring time slots with sign-ups for Net Control and, on nets with an additional broadcast (e.g. Amateur Radio Newsline), a separate Broadcaster role; confirmation emails include a `.ics` calendar attachment. Timezone auto-detects to the browser's own when adding a schedule, and every displayed time shows a "(your time)" conversion for anyone viewing from a different zone
 - **Scheduled reminder emails** — configurable per-net lead time; reminds whoever signed up as Net Control / Broadcaster shortly before their net starts (needs a cron job — see below)
 - **Session history** — attendance statistics, filtering, and CSV export
-- **Public live page** — unauthenticated `/live` page showing active nets and check-in rosters in real time
-- **Public net directory** — opt-in per net; unauthenticated `/directory` page listing name, frequency, description, and weekly schedule for anyone to browse
+- **Public live page** — unauthenticated `/live/<org>` page showing that organization's active nets and check-in rosters in real time; bare `/live` shows a picker across every organization with at least one publicly listed net
+- **Public net directory** — opt-in per net; unauthenticated `/directory/<org>` page listing name, frequency, description, and weekly schedule for anyone to browse; bare `/directory` shows the same organization picker as `/live`
 - **Net Repository integration** — optionally push publicly-listed nets to a central, community-run directory ([Net Repository](https://github.com/LadyHwesta/Net-Repository)) so they're discoverable beyond this instance; request an API key self-service from Admin, no manual key exchange needed
 - **In-app problem reporting** — users can submit bug reports and enhancement requests directly to the administrator
-- **User management** — registration with admin approval, email verification (when SMTP is configured), email notifications, admin panel
+- **User management** — registration with org-admin approval, email verification (when SMTP is configured), email notifications, admin panel
 - **Configurable branding** — set organization name, tagline, website URL, and logo from the Admin panel
 - **Theme engine** — per-account color theme (LCARS, Dark, Light, High Contrast, or System/OS-matched), persisted server-side so it follows you across devices
 - **DMR hotspot integration** — connect a net to a WPSD, Pi-Star, or BrandMeister talk group; see a live "last heard" panel during the session, quick-check-in heard stations, and log Talk Group + Region per check-in

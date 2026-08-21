@@ -203,10 +203,10 @@
 </div>
 <script src="/static/js/state.js?v=9"></script>
 <script src="/static/js/utils.js?v=7"></script>
-<script src="/static/js/auth.js?v=9"></script>
+<script src="/static/js/auth.js?v=10"></script>
 <script src="/static/js/theme.js?v=1"></script>
 <script src="/static/js/branding.js?v=7"></script>
-<script src="/static/js/admin.js?v=9"></script>
+<script src="/static/js/admin.js?v=10"></script>
 <script src="/static/js/pwa.js?v=1"></script>
 <script>
   function switchAdminTab(tab) {
@@ -222,15 +222,38 @@
     if (!token) { window.location.href = '/'; return; }
     try { currentUser = await apiFetch('/auth/me'); }
     catch { window.location.href = '/'; return; }
-    if (!currentUser.is_admin) { window.location.href = '/'; return; }
+
+    // Multi-tenancy (issue #1) — an org admin (not just a super admin) can
+    // also reach this page, scoped to only their own org's Operators tab.
+    let orgAdminOnly = false;
+    if (!currentUser.is_admin) {
+      try {
+        const mine = await apiFetch('/orgs/mine');
+        const current = mine.find(o => o.id === currentUser.current_org_id);
+        orgAdminOnly = !!(current && current.role === 'admin');
+      } catch { orgAdminOnly = false; }
+      if (!orgAdminOnly) { window.location.href = '/'; return; }
+    }
+    window.isOrgAdminOnly = orgAdminOnly;
+
     syncThemeFromUser(currentUser);
     const cs = document.getElementById('header-callsign-short');
     if (cs) cs.textContent = currentUser.callsign;
     const navAdmin = document.getElementById('nav-admin');
     if (navAdmin) navAdmin.style.display = '';
     await loadBranding();
-    loadAdminUsers();
-    loadAdminBranding();
+
+    if (orgAdminOnly) {
+      // Branding/Email/Net Repository are super-admin-only, instance-wide concerns
+      ['branding', 'email', 'netrepo'].forEach(t => {
+        document.getElementById('admin-tab-' + t).style.display = 'none';
+      });
+      document.querySelector('#content h2.section-title').textContent = 'Organization Admin';
+      loadOrgOperators();
+    } else {
+      loadAdminUsers();
+      loadAdminBranding();
+    }
   }
   initPage();
 </script>

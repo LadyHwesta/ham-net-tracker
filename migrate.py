@@ -342,6 +342,60 @@ MIGRATIONS = [
     # session -- this is that separate signal.
     ("net_sessions: offline entry locked flag",
      "ALTER TABLE net_sessions ADD COLUMN IF NOT EXISTS is_offline_locked BOOLEAN NOT NULL DEFAULT FALSE"),
+
+    # ── Multi-tenancy (issue #1) ────────────────────────────────────────────
+    # create_all() handles these two tables on a fresh install; listed here too
+    # as documentation and a safety net for already-running instances, same as
+    # every other post-launch table above.
+    ("table: organizations",
+     """CREATE TABLE IF NOT EXISTS organizations (
+         id SERIAL PRIMARY KEY,
+         name VARCHAR(200) NOT NULL,
+         slug VARCHAR(100) NOT NULL UNIQUE,
+         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())"""),
+    ("table: organization_memberships",
+     """CREATE TABLE IF NOT EXISTS organization_memberships (
+         id SERIAL PRIMARY KEY,
+         org_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+         role VARCHAR(20) NOT NULL DEFAULT 'member',
+         approved BOOLEAN NOT NULL DEFAULT FALSE,
+         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+         CONSTRAINT uq_org_membership_org_user UNIQUE (org_id, user_id))"""),
+    ("users: current organization",
+     "ALTER TABLE users ADD COLUMN IF NOT EXISTS current_org_id INTEGER REFERENCES organizations(id) ON DELETE SET NULL"),
+    ("nets: organization",
+     "ALTER TABLE nets ADD COLUMN IF NOT EXISTS org_id INTEGER REFERENCES organizations(id) ON DELETE CASCADE"),
+
+    # Backfill: an instance upgrading from single-tenant gets one auto-created
+    # "default" org containing every existing user/net, with access unchanged
+    # from before this migration (existing admins become that org's admins too).
+    # Guarded so it's a no-op on a fresh install (no users yet) and a no-op on
+    # re-run (organizations already exists / rows already backfilled).
+    ("multi-tenancy: create default org for pre-existing data",
+     """INSERT INTO organizations (name, slug, created_at)
+        SELECT COALESCE((SELECT value FROM system_settings WHERE key = 'org_name'), 'Default Organization'),
+               'default', NOW()
+        WHERE EXISTS (SELECT 1 FROM users)
+          AND NOT EXISTS (SELECT 1 FROM organizations WHERE slug = 'default')"""),
+    ("multi-tenancy: backfill memberships into default org",
+     """INSERT INTO organization_memberships (org_id, user_id, role, approved, created_at)
+        SELECT o.id, u.id, CASE WHEN u.is_admin THEN 'admin' ELSE 'member' END, TRUE, NOW()
+        FROM users u, organizations o
+        WHERE o.slug = 'default'
+          AND NOT EXISTS (SELECT 1 FROM organization_memberships m WHERE m.user_id = u.id AND m.org_id = o.id)"""),
+    ("multi-tenancy: backfill users.current_org_id into default org",
+     """UPDATE users SET current_org_id = (SELECT id FROM organizations WHERE slug = 'default')
+        WHERE current_org_id IS NULL
+          AND EXISTS (SELECT 1 FROM organizations WHERE slug = 'default')"""),
+    ("multi-tenancy: backfill nets.org_id into default org",
+     """UPDATE nets SET org_id = (SELECT id FROM organizations WHERE slug = 'default')
+        WHERE org_id IS NULL
+          AND EXISTS (SELECT 1 FROM organizations WHERE slug = 'default')"""),
+    # Safe on both an upgraded instance (every net just got backfilled above)
+    # and a brand-new instance (nets table is still empty at this point).
+    ("nets: organization is required",
+     "ALTER TABLE nets ALTER COLUMN org_id SET NOT NULL"),
 ]
 
 # ---------------------------------------------------------------------------

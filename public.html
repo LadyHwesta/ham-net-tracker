@@ -240,8 +240,8 @@
 <main>
   <!-- List view -->
   <div id="view-list">
-    <div class="section-title">Active Nets</div>
-    <div class="refresh-bar">
+    <div class="section-title" id="section-title">Active Nets</div>
+    <div class="refresh-bar" id="refresh-bar">
       <div class="refresh-dot"></div>
       <span id="refresh-status">Loading…</span>
     </div>
@@ -314,15 +314,48 @@
     return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 
+  // Multi-tenancy (issue #1) — /live/{slug} is read client-side from the URL
+  // path, same convention as /directory/{slug}. Bare /live (no slug) shows an
+  // org picker instead of polling for active sessions across every org.
+  function orgSlugFromPath() {
+    const parts = location.pathname.split('/').filter(Boolean); // ["live", "<slug>"]
+    return parts.length > 1 ? decodeURIComponent(parts[1]) : null;
+  }
+
   // ── List view ────────────────────────────────────────
   async function loadList() {
+    const slug = orgSlugFromPath();
+    if (!slug) return loadOrgPicker();
     try {
-      const sessions = await fetch(API + '/public/active').then(r => r.json());
+      const sessions = await fetch(API + '/public/active?org=' + encodeURIComponent(slug)).then(r => r.json());
       renderList(sessions);
       const now = new Date().toLocaleTimeString();
       document.getElementById('refresh-status').textContent = `Last updated ${now} — refreshes every 30s`;
     } catch {
       document.getElementById('refresh-status').textContent = 'Error loading — retrying…';
+    }
+  }
+
+  async function loadOrgPicker() {
+    document.getElementById('section-title').textContent = 'Choose an Organization';
+    document.getElementById('refresh-bar').style.display = 'none';
+    const el = document.getElementById('nets-container');
+    try {
+      const orgs = await fetch(API + '/public/organizations').then(r => r.json());
+      if (!orgs.length) {
+        el.innerHTML = `
+          <div class="empty">
+            <div class="icon">📡</div>
+            <p>No organizations have any nets listed in the public directory yet.</p>
+          </div>`;
+        return;
+      }
+      el.innerHTML = orgs.map(o => `
+        <a class="card card-clickable" style="display:block;text-decoration:none;color:inherit" href="/live/${encodeURIComponent(o.slug)}">
+          <div class="net-name">${esc(o.name)}</div>
+        </a>`).join('');
+    } catch {
+      el.innerHTML = `<div class="empty"><p>Couldn't load organizations — try refreshing.</p></div>`;
     }
   }
 
@@ -363,7 +396,7 @@
   function startListPolling() {
     clearInterval(listInterval);
     loadList();
-    listInterval = setInterval(loadList, 30000);
+    if (orgSlugFromPath()) listInterval = setInterval(loadList, 30000);   // no point polling the static org picker
   }
 
   // ── Detail view ──────────────────────────────────────
