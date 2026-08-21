@@ -19,7 +19,7 @@ A public demo is available at **[nettrackerdemo.meskis.net](https://nettrackerde
 ## Features
 
 - **Net & session management** — create nets, start/end sessions, log check-ins with signal reports
-- **Log a past net** — a net that formed with no access to the web tool can be backfilled afterward: set its date/time, Net Control, and broadcaster up front, then add check-ins that get stamped with the reported date/time instead of "now". No live-session chrome (clock, Expected Stations, DMR, Net Script) since it was never live to begin with — just the check-in form and roster
+- **Log a past net** — a net that formed with no access to the web tool can be backfilled afterward: set its date/time, Net Control, and broadcaster up front, then add check-ins that get stamped with the reported date/time instead of "now". No live-session chrome (clock, Expected Stations, DMR, Net Script) since it was never live to begin with — just the check-in form and roster. Click **🔒 Close Log** when done entering data to stop accepting further check-ins
 - **Focused live session view** — sidebar auto-collapses and session navigation hides while a session is live to cut clutter, restoring automatically once it ends; the manual check-in form stays pinned to the top of the screen so it's reachable while scrolling; the checked-in stations roster sits in its own independently-scrollable column on the right (callsign, name, traffic, delete — the 5 most recent highlighted for 20 seconds), so it's always visible without scrolling past the form
 - **Callsign lookup** — FCC database lookup with local history suffix search
 - **Traffic management** — flag stations with traffic, interactive "called" tracking (persists across a session close/reopen), formal traffic message log

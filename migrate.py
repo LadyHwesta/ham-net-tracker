@@ -335,6 +335,13 @@ MIGRATIONS = [
      "ALTER TABLE net_sessions ADD COLUMN IF NOT EXISTS ncs_override_callsign VARCHAR(20)"),
     ("net_sessions: net control override name",
      "ALTER TABLE net_sessions ADD COLUMN IF NOT EXISTS ncs_override_name VARCHAR(100)"),
+
+    # ── Offline net entry: closing the log (issue #20 follow-up) ──────────────
+    # ended_at is set from creation for an offline entry (marks it non-live),
+    # so it can't also mean "no more checkins" the way it does for a normal
+    # session -- this is that separate signal.
+    ("net_sessions: offline entry locked flag",
+     "ALTER TABLE net_sessions ADD COLUMN IF NOT EXISTS is_offline_locked BOOLEAN NOT NULL DEFAULT FALSE"),
 ]
 
 # ---------------------------------------------------------------------------

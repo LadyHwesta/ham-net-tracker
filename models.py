@@ -123,8 +123,13 @@ class NetSession(Base):
     # tool (issue #20) — created already "ended" (started_at/ended_at both set to
     # the reported date/time) so there's no live view, but still accepts checkins
     # (add_checkin()'s ended-session guard is bypassed for these specifically),
-    # each stamped with started_at rather than utcnow().
+    # each stamped with started_at rather than utcnow(). ended_at can't double as
+    # "no more checkins" for these (it's set from creation), so is_offline_locked
+    # is the separate "finished entering data" signal — end_session() sets it
+    # instead of ended_at for an offline session, and add_checkin() checks it
+    # instead of ended_at.
     is_offline = Column(Boolean, default=False, nullable=False)
+    is_offline_locked = Column(Boolean, default=False, nullable=False)
     # Manual Net Control override for this session — same precedence pattern as
     # broadcaster_override_* above. Mainly for offline entries, where whoever's
     # backfilling the log usually isn't who actually ran the net, but not

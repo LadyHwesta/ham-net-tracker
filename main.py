@@ -303,7 +303,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="Ham Radio Net Tracker", version="2.3.0", lifespan=lifespan)
+app = FastAPI(title="Ham Radio Net Tracker", version="2.3.1", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -558,6 +558,7 @@ class SessionOut(BaseModel):
     ended_at: Optional[datetime]
     is_activation: bool = False
     is_offline: bool = False
+    is_offline_locked: bool = False
     checkin_count: int = 0
     # Scheduled duty for this session's date, from the Schedule sign-up if one exists
     # (net control falls back to whoever started the session when no sign-up matches)
@@ -1634,9 +1635,18 @@ def get_session(session_id: int, current_user: User = Depends(get_current_user),
 @app.patch("/sessions/{session_id}/end", response_model=SessionOut)
 def end_session(session_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     session = _get_session_for_user(session_id, current_user, db)
-    if session.ended_at is not None:
-        raise HTTPException(400, "Session already ended")
-    session.ended_at = datetime.now(timezone.utc)
+    # An offline entry (issue #20) already has ended_at set from creation (it's
+    # never live), so that can't also signal "done entering data" for these --
+    # is_offline_locked is that separate signal, and is what add_checkin() checks
+    # for offline sessions instead of ended_at.
+    if session.is_offline:
+        if session.is_offline_locked:
+            raise HTTPException(400, "This logged net has already been closed")
+        session.is_offline_locked = True
+    else:
+        if session.ended_at is not None:
+            raise HTTPException(400, "Session already ended")
+        session.ended_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(session)
     count = db.query(func.count(Checkin.id)).filter(Checkin.session_id == session.id).scalar()
@@ -1944,8 +1954,12 @@ def add_checkin(session_id: int, data: CheckinCreate, current_user: User = Depen
     session = _get_session_for_user(session_id, current_user, db)
     # An offline-entered session (issue #20) is created already "ended" -- at
     # the reported net date/time, not now -- specifically so it can still take
-    # checkins after the fact. Every other ended session keeps rejecting them.
-    if session.ended_at is not None and not session.is_offline:
+    # checkins after the fact. Its own is_offline_locked flag (set via the same
+    # /sessions/{id}/end endpoint) is what closes it to further checkins instead.
+    if session.is_offline:
+        if session.is_offline_locked:
+            raise HTTPException(400, "This logged net has been closed — no more check-ins can be added")
+    elif session.ended_at is not None:
         raise HTTPException(400, "Cannot add checkins to an ended session")
 
     # Prevent duplicate callsign in the same session — except for GMRS nets where a

@@ -182,6 +182,49 @@ class TestOfflineNetEntry:
         assert len(checkins) == 2
         assert all(c["checked_in_at"].startswith("2026-08-01T19:00:00") for c in checkins)
 
+    def test_starts_unlocked(self, client, admin_headers, net):
+        created = client.post(f"/nets/{net['id']}/sessions", json={
+            "is_offline": True, "occurred_at": "2026-08-01T19:00:00Z",
+        }, headers=admin_headers).json()
+        assert created["is_offline_locked"] is False
+
+    def test_end_endpoint_locks_it_instead_of_touching_ended_at(self, client, admin_headers, net):
+        created = client.post(f"/nets/{net['id']}/sessions", json={
+            "is_offline": True, "occurred_at": "2026-08-01T19:00:00Z",
+        }, headers=admin_headers).json()
+        resp = client.patch(f"/sessions/{created['id']}/end", headers=admin_headers)
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["is_offline_locked"] is True
+        # ended_at was already the reported time from creation -- closing the log
+        # doesn't reset it to "now" the way ending a normal live session would.
+        assert data["ended_at"].startswith("2026-08-01T19:00:00")
+
+    def test_checkin_rejected_after_closing(self, client, admin_headers, net):
+        created = client.post(f"/nets/{net['id']}/sessions", json={
+            "is_offline": True, "occurred_at": "2026-08-01T19:00:00Z",
+        }, headers=admin_headers).json()
+        client.patch(f"/sessions/{created['id']}/end", headers=admin_headers)
+        resp = client.post(f"/sessions/{created['id']}/checkins", json={"callsign": "W4LATE"}, headers=admin_headers)
+        assert resp.status_code == 400
+
+    def test_closing_an_already_closed_log_returns_400(self, client, admin_headers, net):
+        created = client.post(f"/nets/{net['id']}/sessions", json={
+            "is_offline": True, "occurred_at": "2026-08-01T19:00:00Z",
+        }, headers=admin_headers).json()
+        client.patch(f"/sessions/{created['id']}/end", headers=admin_headers)
+        resp = client.patch(f"/sessions/{created['id']}/end", headers=admin_headers)
+        assert resp.status_code == 400
+
+    def test_normal_session_end_behavior_unaffected(self, client, admin_headers, session):
+        """Regression: a normal (non-offline) session's /end endpoint still sets
+        ended_at to the actual current time, not something is_offline-specific."""
+        resp = client.patch(f"/sessions/{session['id']}/end", headers=admin_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["is_offline_locked"] is False
+        assert data["ended_at"] is not None
+
 
 class TestSessionPermissions:
     def test_unauthenticated_cannot_start_session(self, client, net):

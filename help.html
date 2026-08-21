@@ -63,6 +63,15 @@
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
 
           <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-21 — Close a Logged Net (v2.3.1, issue #20)</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>A logged net can now be explicitly closed to further check-ins — the same <strong>■ End Session</strong> button reads <strong>🔒 Close Log</strong> for a logged net, and the status shows <strong>Logged (Closed)</strong> once clicked. Previously a logged net stayed open to new check-ins forever, with no way to lock it.</li>
+              <li>Closing doesn't touch the reported date/time already stamped on the session — only a new <strong>is_offline_locked</strong> flag changes, since <strong>ended_at</strong> is already set for a logged net from the moment it's created.</li>
+              <li>Requires a database migration — one new column on <code style="background:var(--surface);padding:1px 5px;border-radius:3px">net_sessions</code>. <code style="background:var(--surface);padding:1px 5px;border-radius:3px">./deploy.sh</code> runs it automatically.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-21 — Log a Past Net (v2.3.0, issue #20)</div>
             <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
               <li>New <strong>🕐 Log Past Net</strong> button next to Start New Session — for a net that formed quickly with no access to the web tool. Set the net's date/time, Net Control, and (if the net carries one) broadcaster up front, then land straight in a check-in screen for it.</li>
@@ -631,7 +640,7 @@ Thank you all for checking in. This net is now closed.</pre>
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">LOG A PAST NET</h3>
           <p style="margin:0 0 8px">Sometimes a net forms quickly with no access to the web tool. Click <strong>🕐 Log Past Net</strong> next to <strong>▶ Start New Session</strong> to enter it after the fact — set the <strong>Date &amp; Time of Net</strong> (month/day/time — always this year), and optionally who ran <strong>Net Control</strong> and, if the net carries one, the <strong>Broadcaster</strong>. Both default to whoever's scheduled or started the session for a normal session; for a logged one, set them directly since whoever's backfilling the log may not be who actually ran it.</p>
           <p style="margin:0 0 8px">Submitting drops you straight into a check-in screen for it. Every check-in you add is stamped with the <strong>reported date/time</strong>, not the moment you happened to type it in — that's the whole point of logging it after the fact. The screen shows <strong>Logged</strong> instead of Live/Ended and skips anything meant for running a net in real time — no clock, Expected Stations, DMR Last Heard, or Net Script panel — but the check-in form, roster, and CSV/ICS-205 export all work exactly as normal.</p>
-          <p style="margin:0">A logged session can't be "ended" (it already was, the moment it was created) — remove individual check-ins the usual way if you need to correct one, or delete the whole session from the Sessions list to start over.</p>
+          <p style="margin:0">A logged session stays open to further check-ins until you click <strong>🔒 Close Log</strong> — the same button that reads <strong>■ End Session</strong> on a live one. Once closed, no more check-ins can be added; remove individual check-ins the usual way if you need to correct one before or after closing, or delete the whole session from the Sessions list to start over.</p>
         </div>
 
         <div class="card" style="margin-bottom:16px">

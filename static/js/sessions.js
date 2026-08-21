@@ -403,6 +403,10 @@ async function loadSessionLive(sessionId) {
     const s = await apiFetch(`/sessions/${sessionId}`);
     const ended = !!s.ended_at;
     const offline = !!s.is_offline;
+    // ended_at is set from creation for an offline entry (it's never live), so
+    // it can't double as "done entering data" the way it does for a normal
+    // session — is_offline_locked is that separate signal (issue #20 follow-up).
+    const offlineLocked = offline && !!s.is_offline_locked;
     document.getElementById('live-session-panel').style.display = '';
     // Hide the Sessions/Schedule tabs and the sessions toolbar while a session is live
     // to cut clutter; restore them once it ends (helpful when reviewing a closed session).
@@ -422,15 +426,18 @@ async function loadSessionLive(sessionId) {
     // it's a single logged point in time, not a duration — so its status/meta
     // text avoids implying either.
     document.getElementById('session-status-label').textContent = offline
-      ? `${sessionLabel} — Logged`
+      ? `${sessionLabel} — Logged${offlineLocked ? ' (Closed)' : ''}`
       : `${sessionLabel} — ${ended ? 'Ended' : 'Live'}`;
     document.getElementById('session-meta').textContent = offline
       ? `Logged for ${fmt(s.started_at)}`
       : `Started ${fmt(s.started_at)}${ended ? ' · Ended ' + fmt(s.ended_at) : ''}`;
-    document.getElementById('end-session-btn').style.display = ended ? 'none' : '';
-    // Offline entries stay "ended" from the moment they're created (no live view)
-    // but still need the check-in form to add checkins after the fact.
-    document.getElementById('checkin-form-area').style.display = (ended && !offline) ? 'none' : '';
+    // Offline entries are always already "ended" (no live view) but stay open to
+    // new check-ins until explicitly closed — the same button/endpoint as Ending
+    // a normal session, just relabeled and checked against a different flag.
+    const endBtn = document.getElementById('end-session-btn');
+    endBtn.textContent = offline ? '🔒 Close Log' : '■ End Session';
+    endBtn.style.display = offline ? (offlineLocked ? 'none' : '') : (ended ? 'none' : '');
+    document.getElementById('checkin-form-area').style.display = (offline ? offlineLocked : ended) ? 'none' : '';
     // ARES/ACES activation session-mode tabs (issue #21) — only while live; reset to
     // the Check-In tab on every (re)load without touching the other panels' own
     // visibility rules (DMR config presence, is_ares, etc.), which are already
@@ -477,11 +484,18 @@ async function loadSessionLive(sessionId) {
 }
 
 async function endSession() {
-  if (!confirm('End this session? No more check-ins can be added after ending.')) return;
+  // Same endpoint closes both a normal live session and an offline entry
+  // (issue #20 follow-up) — the backend checks is_offline_locked instead of
+  // ended_at for the latter, since ended_at is already set from creation.
+  const offline = !!(currentSessionData && currentSessionData.is_offline);
+  const confirmMsg = offline
+    ? 'Close this log? No more check-ins can be added once closed.'
+    : 'End this session? No more check-ins can be added after ending.';
+  if (!confirm(confirmMsg)) return;
   try {
     const sid = currentSessionId;
     await apiFetch(`/sessions/${sid}/end`, { method: 'PATCH', body: '{}' });
-    toast('Session ended');
+    toast(offline ? 'Log closed' : 'Session ended');
     stopClock();
     stopDmrPolling();
     currentSessionId = null;
