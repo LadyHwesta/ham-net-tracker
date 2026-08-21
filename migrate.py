@@ -327,6 +327,14 @@ MIGRATIONS = [
          name VARCHAR(100),
          scheduled_start TIMESTAMPTZ NOT NULL,
          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())"""),
+
+    # ── Offline net entry (issue #20) ──────────────────────────────────────────
+    ("net_sessions: offline entry flag",
+     "ALTER TABLE net_sessions ADD COLUMN IF NOT EXISTS is_offline BOOLEAN NOT NULL DEFAULT FALSE"),
+    ("net_sessions: net control override callsign",
+     "ALTER TABLE net_sessions ADD COLUMN IF NOT EXISTS ncs_override_callsign VARCHAR(20)"),
+    ("net_sessions: net control override name",
+     "ALTER TABLE net_sessions ADD COLUMN IF NOT EXISTS ncs_override_name VARCHAR(100)"),
 ]
 
 # ---------------------------------------------------------------------------

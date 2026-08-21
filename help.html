@@ -63,6 +63,16 @@
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
 
           <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-21 — Log a Past Net (v2.3.0, issue #20)</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>New <strong>🕐 Log Past Net</strong> button next to Start New Session — for a net that formed quickly with no access to the web tool. Set the net's date/time, Net Control, and (if the net carries one) broadcaster up front, then land straight in a check-in screen for it.</li>
+              <li>Check-ins added to a logged net are stamped with the <strong>reported date/time</strong>, not real "now" — the whole point is entering it after the fact.</li>
+              <li>The logged session has <strong>no live-session chrome</strong> — no clock, Expected Stations, DMR Last Heard, or Net Script panel — since it was never live to begin with. It shows as <strong>Logged</strong> rather than Live/Ended, and the check-in form and roster work exactly as normal, including CSV/ICS-205 export.</li>
+              <li>Requires a database migration — three new columns on <code style="background:var(--surface);padding:1px 5px;border-radius:3px">net_sessions</code>. <code style="background:var(--surface);padding:1px 5px;border-radius:3px">./deploy.sh</code> runs it automatically.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-21 — Variable Reference Floats On The Right (v2.2.3, issue #24)</div>
             <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
               <li>The <strong>🔤 Insert a Variable</strong> reference is back on the right, and now <strong>floats in place as you scroll</strong> — for a long script that grows the page well past one screen, it stays visible in the viewport instead of scrolling away with the toolbar at the top.</li>
@@ -615,6 +625,13 @@ Thank you all for checking in. This net is now closed.</pre>
           <p style="margin:0 0 8px">Because Net Control classically rotates on a fixed cadence throughout a long activation, that sub-tab also has its own <strong>+ Add Planned Shift</strong> form — queue up callsign, name, and a scheduled sign-on time for as many upcoming shifts as you want. They're listed chronologically, with the soonest marked <strong>NEXT UP</strong>.</p>
           <p style="margin:0 0 8px">When it's actually time to hand off, click <strong>🔄 Hand Off Net Control</strong> — the incoming operator's callsign and name are <strong>auto-filled from the next planned shift</strong>, still fully editable in case of a last-minute change. Confirming closes the outgoing operator's shift and starts the incoming one immediately — reflected right away in the duty bar, the <code style="background:var(--surface);padding:1px 5px;border-radius:3px">{{net_control}}</code> variable in the Net Script, and the check-in roster, with the full handoff history under 🕐 History. The shift used for the auto-fill is removed from the queue once confirmed, whether or not you changed who actually signed on, so "next" always points at whoever's genuinely next.</p>
           <p style="margin:0">Net Control can't be removed — an activation always has one — but it can be handed off, and its rotation replanned, as many times as the activation needs.</p>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">LOG A PAST NET</h3>
+          <p style="margin:0 0 8px">Sometimes a net forms quickly with no access to the web tool. Click <strong>🕐 Log Past Net</strong> next to <strong>▶ Start New Session</strong> to enter it after the fact — set the <strong>Date &amp; Time of Net</strong> (month/day/time — always this year), and optionally who ran <strong>Net Control</strong> and, if the net carries one, the <strong>Broadcaster</strong>. Both default to whoever's scheduled or started the session for a normal session; for a logged one, set them directly since whoever's backfilling the log may not be who actually ran it.</p>
+          <p style="margin:0 0 8px">Submitting drops you straight into a check-in screen for it. Every check-in you add is stamped with the <strong>reported date/time</strong>, not the moment you happened to type it in — that's the whole point of logging it after the fact. The screen shows <strong>Logged</strong> instead of Live/Ended and skips anything meant for running a net in real time — no clock, Expected Stations, DMR Last Heard, or Net Script panel — but the check-in form, roster, and CSV/ICS-205 export all work exactly as normal.</p>
+          <p style="margin:0">A logged session can't be "ended" (it already was, the moment it was created) — remove individual check-ins the usual way if you need to correct one, or delete the whole session from the Sessions list to start over.</p>
         </div>
 
         <div class="card" style="margin-bottom:16px">

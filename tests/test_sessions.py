@@ -110,6 +110,79 @@ class TestSessionSummary:
         assert resp.json()["total_checkins"] == 1
 
 
+class TestOfflineNetEntry:
+    """Backfilling a net that already happened with no access to the web tool
+    (issue #20) -- created already "ended" at the reported date/time, but
+    add_checkin() specifically lets checkins through anyway, each stamped
+    with that date/time rather than real "now"."""
+
+    def test_requires_occurred_at(self, client, admin_headers, net):
+        resp = client.post(f"/nets/{net['id']}/sessions", json={"is_offline": True}, headers=admin_headers)
+        assert resp.status_code == 400
+
+    def test_creates_session_at_reported_time_already_ended(self, client, admin_headers, net):
+        resp = client.post(f"/nets/{net['id']}/sessions", json={
+            "is_offline": True, "occurred_at": "2026-08-01T19:00:00Z",
+        }, headers=admin_headers)
+        assert resp.status_code == 201, resp.text
+        data = resp.json()
+        assert data["is_offline"] is True
+        assert data["started_at"].startswith("2026-08-01T19:00:00")
+        assert data["ended_at"] is not None
+        assert data["ended_at"].startswith("2026-08-01T19:00:00")
+
+    def test_normal_session_is_offline_defaults_false(self, client, admin_headers, net):
+        resp = client.post(f"/nets/{net['id']}/sessions", json={}, headers=admin_headers)
+        assert resp.json()["is_offline"] is False
+
+    def test_ncs_override_reflected_in_get_session(self, client, admin_headers, net):
+        created = client.post(f"/nets/{net['id']}/sessions", json={
+            "is_offline": True, "occurred_at": "2026-08-01T19:00:00Z",
+            "ncs_override_callsign": "w1abc", "ncs_override_name": "Alice",
+        }, headers=admin_headers).json()
+        resp = client.get(f"/sessions/{created['id']}", headers=admin_headers)
+        data = resp.json()
+        assert data["ncs_callsign"] == "W1ABC"
+        assert data["ncs_name"] == "Alice"
+
+    def test_broadcaster_override_still_works_for_offline_entry(self, client, admin_headers, net):
+        # has_broadcast isn't required for the override field to be stored/resolved --
+        # matches the existing (issue #17) broadcaster-override behavior generally.
+        created = client.post(f"/nets/{net['id']}/sessions", json={
+            "is_offline": True, "occurred_at": "2026-08-01T19:00:00Z",
+            "broadcaster_override_callsign": "k7xyz", "broadcaster_override_name": "Bob",
+        }, headers=admin_headers).json()
+        resp = client.get(f"/sessions/{created['id']}", headers=admin_headers)
+        data = resp.json()
+        assert data["broadcaster_callsign"] == "K7XYZ"
+        assert data["broadcaster_name"] == "Bob"
+
+    def test_checkin_allowed_despite_session_already_ended(self, client, admin_headers, net):
+        created = client.post(f"/nets/{net['id']}/sessions", json={
+            "is_offline": True, "occurred_at": "2026-08-01T19:00:00Z",
+        }, headers=admin_headers).json()
+        assert created["ended_at"] is not None
+        resp = client.post(f"/sessions/{created['id']}/checkins", json={"callsign": "W2DEF"}, headers=admin_headers)
+        assert resp.status_code == 201, resp.text
+
+    def test_checkin_timestamp_matches_reported_net_time_not_now(self, client, admin_headers, net):
+        created = client.post(f"/nets/{net['id']}/sessions", json={
+            "is_offline": True, "occurred_at": "2026-08-01T19:00:00Z",
+        }, headers=admin_headers).json()
+        checkin = client.post(f"/sessions/{created['id']}/checkins", json={"callsign": "W2DEF"}, headers=admin_headers).json()
+        assert checkin["checked_in_at"].startswith("2026-08-01T19:00:00")
+
+    def test_multiple_checkins_all_share_the_reported_time(self, client, admin_headers, net):
+        created = client.post(f"/nets/{net['id']}/sessions", json={
+            "is_offline": True, "occurred_at": "2026-08-01T19:00:00Z",
+        }, headers=admin_headers).json()
+        client.post(f"/sessions/{created['id']}/checkins", json={"callsign": "W3ONE"}, headers=admin_headers)
+        client.post(f"/sessions/{created['id']}/checkins", json={"callsign": "W3TWO"}, headers=admin_headers)
+        checkins = client.get(f"/sessions/{created['id']}/checkins", headers=admin_headers).json()
+        assert len(checkins) == 2
+        assert all(c["checked_in_at"].startswith("2026-08-01T19:00:00") for c in checkins)
+
+
 class TestSessionPermissions:
     def test_unauthenticated_cannot_start_session(self, client, net):
         resp = client.post(f"/nets/{net['id']}/sessions", json={})

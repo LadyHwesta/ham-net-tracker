@@ -288,6 +288,7 @@ function toggleStartSessionForm() {
   const f = document.getElementById('start-session-form');
   f.style.display = f.style.display === 'none' ? '' : 'none';
   if (f.style.display !== 'none') {
+    document.getElementById('log-offline-form').style.display = 'none';
     document.getElementById('new-session-name').focus();
     const net = nets.find(n => n.id === currentNetId);
     const bcGroup = document.getElementById('start-session-broadcaster-group');
@@ -323,6 +324,60 @@ async function startSession() {
   } catch (e) { toast(e.message, 'error'); }
 }
 
+// Log a net that already happened (issue #20) — no access to the web tool at
+// the time, backfilled afterward. Mirrors toggleStartSessionForm()/startSession()
+// but collects a required date/time instead of assuming "now", plus a direct
+// Net Control override (whoever backfills the log usually isn't who ran it).
+function toggleLogOfflineForm() {
+  const f = document.getElementById('log-offline-form');
+  f.style.display = f.style.display === 'none' ? '' : 'none';
+  if (f.style.display !== 'none') {
+    document.getElementById('start-session-form').style.display = 'none';
+    document.getElementById('log-offline-name').focus();
+    setDefaultMonthDay('log-offline-month', 'log-offline-day');
+    document.getElementById('log-offline-time').value = '';
+    const net = nets.find(n => n.id === currentNetId);
+    const bcGroup = document.getElementById('log-offline-broadcaster-group');
+    bcGroup.style.display = (net && net.has_broadcast) ? '' : 'none';
+    if (net && net.has_broadcast && net.broadcast_label) {
+      document.getElementById('log-offline-broadcaster-label').innerHTML =
+        `${esc(net.broadcast_label)} <span class="text-muted" style="font-size:11px">(optional)</span>`;
+    }
+  }
+}
+
+async function logOfflineNet() {
+  const name = document.getElementById('log-offline-name').value.trim() || null;
+  const month = document.getElementById('log-offline-month').value;
+  const day = document.getElementById('log-offline-day').value;
+  const time = document.getElementById('log-offline-time').value;
+  if (!month || !day || !time) return toast('Date and time of the net are required', 'error');
+  const year = new Date().getFullYear();
+  const occurred_at = new Date(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${time}`).toISOString();
+  const ncs_override_callsign = document.getElementById('log-offline-ncs-callsign').value.trim().toUpperCase() || null;
+  const ncs_override_name = document.getElementById('log-offline-ncs-name').value.trim() || null;
+  const broadcaster_override_callsign = document.getElementById('log-offline-broadcaster-callsign').value.trim().toUpperCase() || null;
+  const broadcaster_override_name = document.getElementById('log-offline-broadcaster-name').value.trim() || null;
+  try {
+    const s = await apiFetch(`/nets/${currentNetId}/sessions`, {
+      method: 'POST',
+      body: JSON.stringify({
+        name, is_offline: true, occurred_at, ncs_override_callsign, ncs_override_name,
+        broadcaster_override_callsign, broadcaster_override_name,
+      }),
+    });
+    document.getElementById('log-offline-name').value = '';
+    document.getElementById('log-offline-ncs-callsign').value = '';
+    document.getElementById('log-offline-ncs-name').value = '';
+    document.getElementById('log-offline-broadcaster-callsign').value = '';
+    document.getElementById('log-offline-broadcaster-name').value = '';
+    document.getElementById('log-offline-form').style.display = 'none';
+    toast('Net logged');
+    await loadSessions();
+    await loadSessionLive(s.id);
+  } catch (e) { toast(e.message, 'error'); }
+}
+
 async function promptRenameSession(id, currentName) {
   const name = prompt('Session name:', currentName);
   if (name === null) return; // cancelled
@@ -347,6 +402,7 @@ async function loadSessionLive(sessionId) {
   try {
     const s = await apiFetch(`/sessions/${sessionId}`);
     const ended = !!s.ended_at;
+    const offline = !!s.is_offline;
     document.getElementById('live-session-panel').style.display = '';
     // Hide the Sessions/Schedule tabs and the sessions toolbar while a session is live
     // to cut clutter; restore them once it ends (helpful when reviewing a closed session).
@@ -362,10 +418,19 @@ async function loadSessionLive(sessionId) {
     }
     document.getElementById('session-status-dot').className = 'status-dot' + (ended ? ' ended' : '');
     const sessionLabel = s.name ? s.name : `Session ${sessionId}`;
-    document.getElementById('session-status-label').textContent = `${sessionLabel} — ${ended ? 'Ended' : 'Live'}`;
-    document.getElementById('session-meta').textContent = `Started ${fmt(s.started_at)}${ended ? ' · Ended ' + fmt(s.ended_at) : ''}`;
+    // An offline entry (issue #20) is never "live" and never really "ends" —
+    // it's a single logged point in time, not a duration — so its status/meta
+    // text avoids implying either.
+    document.getElementById('session-status-label').textContent = offline
+      ? `${sessionLabel} — Logged`
+      : `${sessionLabel} — ${ended ? 'Ended' : 'Live'}`;
+    document.getElementById('session-meta').textContent = offline
+      ? `Logged for ${fmt(s.started_at)}`
+      : `Started ${fmt(s.started_at)}${ended ? ' · Ended ' + fmt(s.ended_at) : ''}`;
     document.getElementById('end-session-btn').style.display = ended ? 'none' : '';
-    document.getElementById('checkin-form-area').style.display = ended ? 'none' : '';
+    // Offline entries stay "ended" from the moment they're created (no live view)
+    // but still need the check-in form to add checkins after the fact.
+    document.getElementById('checkin-form-area').style.display = (ended && !offline) ? 'none' : '';
     // ARES/ACES activation session-mode tabs (issue #21) — only while live; reset to
     // the Check-In tab on every (re)load without touching the other panels' own
     // visibility rules (DMR config presence, is_ares, etc.), which are already
@@ -382,6 +447,17 @@ async function loadSessionLive(sessionId) {
     if (currentSessionIsActivation) await loadTacticalPositions(); else tacticalPositions = [];
     renderDutyBar(effectiveSession(s));
     renderNetScript(effectiveSession(s));
+    // An offline entry (issue #20) has no live view to speak of — Expected
+    // Stations (historical-attendance list) doesn't apply to backfilling a net
+    // that already happened, unlike a normal ended session where it stays
+    // visible for later review. Set explicitly either way (not just when
+    // offline) since this is a single-page app -- without an explicit reset,
+    // an earlier offline session's hidden state would otherwise leak into the
+    // next (non-offline) session viewed in the same page load. Net Script
+    // needs no such reset: renderNetScript() above already redecides its
+    // visibility from scratch on every call.
+    document.getElementById('expected-stations-wrapper').style.display = offline ? 'none' : '';
+    if (offline) document.getElementById('net-script-panel').style.display = 'none';
     if (!ended) startClock(s.started_at); else stopClock();
     trafficMessages = [];
     renderTrafficMessages();

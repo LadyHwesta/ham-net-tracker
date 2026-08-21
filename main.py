@@ -303,7 +303,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="Ham Radio Net Tracker", version="2.2.3", lifespan=lifespan)
+app = FastAPI(title="Ham Radio Net Tracker", version="2.3.0", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -533,6 +533,15 @@ class SessionCreate(BaseModel):
     # is is_ares. Set once at start; enables tactical positions and the
     # simplified roster for this session only, not every session on the net.
     is_activation: bool = False
+    # Offline net entry (issue #20) — backfilling a net that already happened
+    # with no access to the web tool. occurred_at is required when is_offline
+    # is set; it becomes both started_at and ended_at (no live view, matches
+    # the issue). ncs_override_* mirrors broadcaster_override_* above — usually
+    # needed here since whoever backfills the log may not be who ran the net.
+    is_offline: bool = False
+    occurred_at: Optional[datetime] = None
+    ncs_override_callsign: Optional[str] = None
+    ncs_override_name: Optional[str] = None
 
 
 class SessionRename(BaseModel):
@@ -548,6 +557,7 @@ class SessionOut(BaseModel):
     started_at: datetime
     ended_at: Optional[datetime]
     is_activation: bool = False
+    is_offline: bool = False
     checkin_count: int = 0
     # Scheduled duty for this session's date, from the Schedule sign-up if one exists
     # (net control falls back to whoever started the session when no sign-up matches)
@@ -1550,15 +1560,30 @@ def list_sessions(net_id: int, current_user: User = Depends(get_current_user), d
 @app.post("/nets/{net_id}/sessions", response_model=SessionOut, status_code=201)
 def start_session(net_id: int, data: SessionCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     net = _get_net_for_user(net_id, current_user, db)
+    if data.is_offline and not data.occurred_at:
+        raise HTTPException(400, "occurred_at is required for an offline net entry")
     session = NetSession(
         net_id=net_id, operator_id=current_user.id, name=data.name, notes=data.notes,
         broadcaster_override_callsign=(data.broadcaster_override_callsign or "").strip().upper() or None,
         broadcaster_override_name=(data.broadcaster_override_name or "").strip() or None,
         is_activation=data.is_activation if net.is_ares else False,
+        is_offline=data.is_offline,
+        ncs_override_callsign=(data.ncs_override_callsign or "").strip().upper() or None,
+        ncs_override_name=(data.ncs_override_name or "").strip() or None,
     )
+    if data.is_offline:
+        session.started_at = data.occurred_at
     db.add(session)
     db.commit()
     db.refresh(session)
+
+    if data.is_offline:
+        # No live view for a backfilled entry (issue #20) -- put it straight into
+        # the "ended" state at the reported timestamp. add_checkin() specifically
+        # lets checkins through despite ended_at being set for sessions like this.
+        session.ended_at = session.started_at
+        db.commit()
+        db.refresh(session)
 
     # Auto-create the Net Control tactical position for an activation session, seeded
     # from the same day's-schedule/whoever-started-it resolution routine sessions use,
@@ -1917,7 +1942,10 @@ def list_checkins(session_id: int, current_user: User = Depends(get_current_user
 @app.post("/sessions/{session_id}/checkins", response_model=CheckinOut, status_code=201)
 def add_checkin(session_id: int, data: CheckinCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     session = _get_session_for_user(session_id, current_user, db)
-    if session.ended_at is not None:
+    # An offline-entered session (issue #20) is created already "ended" -- at
+    # the reported net date/time, not now -- specifically so it can still take
+    # checkins after the fact. Every other ended session keeps rejecting them.
+    if session.ended_at is not None and not session.is_offline:
         raise HTTPException(400, "Cannot add checkins to an ended session")
 
     # Prevent duplicate callsign in the same session — except for GMRS nets where a
@@ -1943,6 +1971,9 @@ def add_checkin(session_id: int, data: CheckinCreate, current_user: User = Depen
         dmr_talkgroup=data.dmr_talkgroup or None,
         dmr_region=data.dmr_region or None,
     )
+    if session.is_offline:
+        # Stamp with the reported net date/time, not real "now" (issue #20).
+        checkin.checked_in_at = session.started_at
     db.add(checkin)
     db.commit()
     db.refresh(checkin)
@@ -3345,7 +3376,9 @@ def _duty_labels_for_session(net: Net, session: NetSession, db: Session) -> dict
 
     A manual broadcaster override set at session start (issue #17) takes precedence
     over the schedule sign-up — covers the case where the broadcaster isn't known
-    until the net is about to begin."""
+    until the net is about to begin. A manual Net Control override (issue #20,
+    mainly for offline-entered nets where whoever backfills the log may not be
+    who actually ran it) takes the same precedence over the schedule sign-up."""
     session_date = session.started_at.date()
     nc, bc = _duty_for_date(net.id, session_date, db)
     next_nc, next_bc = _duty_for_date(net.id, session_date + timedelta(days=7), db)
@@ -3359,11 +3392,13 @@ def _duty_labels_for_session(net: Net, session: NetSession, db: Session) -> dict
         operator_callsign = (
             (operator.gmrs_callsign or operator.callsign) if net.net_type == "gmrs" else operator.callsign
         )
+    ncs_callsign = session.ncs_override_callsign or (nc.callsign if nc else operator_callsign)
+    ncs_name = session.ncs_override_name or (nc.name if nc else (operator.name if operator else None))
     broadcaster_callsign = session.broadcaster_override_callsign or (bc.callsign if bc else None)
     broadcaster_name = session.broadcaster_override_name or (bc.name if bc else None)
     return {
-        "ncs_callsign": nc.callsign if nc else operator_callsign,
-        "ncs_name": nc.name if nc else (operator.name if operator else None),
+        "ncs_callsign": ncs_callsign,
+        "ncs_name": ncs_name,
         "broadcaster_callsign": broadcaster_callsign,
         "broadcaster_name": broadcaster_name,
         "broadcast_label": net.broadcast_label if (net.has_broadcast and broadcaster_callsign) else None,

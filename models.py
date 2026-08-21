@@ -119,6 +119,18 @@ class NetSession(Base):
     # exactly as before; only an activation session gets tactical positions, shift
     # sign-on/off, and the simplified roster.
     is_activation = Column(Boolean, default=False, nullable=False)
+    # Backfilled entry for a net that already happened with no access to the web
+    # tool (issue #20) — created already "ended" (started_at/ended_at both set to
+    # the reported date/time) so there's no live view, but still accepts checkins
+    # (add_checkin()'s ended-session guard is bypassed for these specifically),
+    # each stamped with started_at rather than utcnow().
+    is_offline = Column(Boolean, default=False, nullable=False)
+    # Manual Net Control override for this session — same precedence pattern as
+    # broadcaster_override_* above. Mainly for offline entries, where whoever's
+    # backfilling the log usually isn't who actually ran the net, but not
+    # restricted to those.
+    ncs_override_callsign = Column(String(20), nullable=True)
+    ncs_override_name = Column(String(100), nullable=True)
 
     net = relationship("Net", back_populates="sessions")
     operator = relationship("User", back_populates="sessions")

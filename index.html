@@ -466,6 +466,7 @@
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
             <span class="text-muted" style="font-size:13px">Sessions</span>
             <button class="btn btn-success btn-sm" onclick="toggleStartSessionForm()">▶ Start New Session</button>
+            <button class="btn btn-ghost btn-sm" onclick="toggleLogOfflineForm()">🕐 Log Past Net</button>
             <button class="btn btn-ghost btn-sm" id="export-net-btn" onclick="exportNet()">⬇ Export All CSV</button>
             <button class="btn btn-ghost btn-sm" onclick="showView('history', currentNetId)">📊 History</button>
           </div>
@@ -502,6 +503,68 @@
             <div style="display:flex;gap:8px;margin-top:12px">
               <button class="btn btn-success" onclick="startSession()">▶ Start</button>
               <button class="btn btn-ghost" onclick="toggleStartSessionForm()">Cancel</button>
+            </div>
+          </div>
+          <!-- Log a past net (issue #20) — for a net that already happened with no
+               access to the web tool. Created already "ended" at the reported date/
+               time (no live view: no Expected Stations/DMR/Net Script/clock), but the
+               check-in form stays usable so checkins can be entered afterward, each
+               stamped with the reported date/time rather than real "now". -->
+          <div id="log-offline-form" class="card" style="display:none;max-width:460px;margin-bottom:12px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);letter-spacing:.05em;margin-bottom:10px">🕐 LOG A NET THAT ALREADY HAPPENED</div>
+            <div class="form-group mb-0">
+              <label>Session Name <span class="text-muted" style="font-size:11px">(optional)</span></label>
+              <input class="form-control" id="log-offline-name" placeholder="e.g. Monday Night Net — July 14" />
+            </div>
+            <div class="form-group" style="margin-top:10px">
+              <label style="font-size:12px">Date &amp; Time of Net * <span class="text-muted" style="font-size:11px">(this year)</span></label>
+              <div style="display:flex;gap:6px">
+                <select class="form-control" id="log-offline-month" style="font-size:13px;width:78px">
+                  <option value="">Month</option>
+                  <option value="1">Jan</option><option value="2">Feb</option><option value="3">Mar</option>
+                  <option value="4">Apr</option><option value="5">May</option><option value="6">Jun</option>
+                  <option value="7">Jul</option><option value="8">Aug</option><option value="9">Sep</option>
+                  <option value="10">Oct</option><option value="11">Nov</option><option value="12">Dec</option>
+                </select>
+                <select class="form-control" id="log-offline-day" style="font-size:13px;width:66px">
+                  <option value="">Day</option>
+                  <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option>
+                  <option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option>
+                  <option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option>
+                  <option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option>
+                  <option value="21">21</option><option value="22">22</option><option value="23">23</option><option value="24">24</option><option value="25">25</option>
+                  <option value="26">26</option><option value="27">27</option><option value="28">28</option><option value="29">29</option><option value="30">30</option>
+                  <option value="31">31</option>
+                </select>
+                <input class="form-control" type="time" id="log-offline-time" style="font-size:13px;width:110px" />
+              </div>
+            </div>
+            <div class="form-row" style="margin-top:10px">
+              <div class="form-group mb-0">
+                <label style="font-size:12px">Net Control Callsign</label>
+                <input class="form-control mono" id="log-offline-ncs-callsign" placeholder="Optional" style="text-transform:uppercase;font-size:13px" />
+              </div>
+              <div class="form-group mb-0">
+                <label style="font-size:12px">Net Control Name</label>
+                <input class="form-control" id="log-offline-ncs-name" placeholder="Optional" style="font-size:13px" />
+              </div>
+            </div>
+            <!-- Same conditional visibility as the live-session broadcaster override —
+                 only shown for nets with an additional broadcast segment. -->
+            <div id="log-offline-broadcaster-group" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+              <label style="font-size:12px" id="log-offline-broadcaster-label">Broadcaster <span class="text-muted" style="font-size:11px">(optional)</span></label>
+              <div class="form-row" style="margin-top:4px">
+                <div class="form-group mb-0">
+                  <input class="form-control mono" id="log-offline-broadcaster-callsign" placeholder="Callsign" style="text-transform:uppercase;font-size:13px" />
+                </div>
+                <div class="form-group mb-0">
+                  <input class="form-control" id="log-offline-broadcaster-name" placeholder="Name (optional)" style="font-size:13px" />
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:12px">
+              <button class="btn btn-success" onclick="logOfflineNet()">📝 Log Net</button>
+              <button class="btn btn-ghost" onclick="toggleLogOfflineForm()">Cancel</button>
             </div>
           </div>
           <div id="sessions-list-container"></div>
@@ -1025,7 +1088,7 @@
   <script src="/static/js/branding.js?v=20"></script>
   <script src="/static/js/report.js?v=20"></script>
   <script src="/static/js/nets.js?v=24"></script>
-  <script src="/static/js/sessions.js?v=25"></script>
+  <script src="/static/js/sessions.js?v=26"></script>
   <script src="/static/js/checkins.js?v=30"></script>
   <script src="/static/js/history.js?v=20"></script>
   <script src="/static/js/admin.js?v=21"></script>
