@@ -169,13 +169,17 @@ sudo systemctl start nettracker
 
 #### Running more than one instance on the same server
 
-The template above, plus `PORT` and `SYSTEMD_SERVICE` in `.env`, is all `deploy.sh` needs to work unmodified for multiple instances (e.g. a production site and a demo site) checked out separately on one server — no per-instance edits to `deploy.sh` or the unit file's `ExecStart` line. For each instance:
+The template above, plus `PORT`, `SYSTEMD_SERVICE`, and `GIT_BRANCH` in `.env`, is all `deploy.sh` needs to work unmodified for multiple instances (e.g. a stable site and a testing site) checked out separately on one server — no per-instance edits to `deploy.sh` or the unit file's `ExecStart` line. For each instance:
 
-1. Check out the repo to its own directory (e.g. `/opt/netcontrol` and `/opt/netcontrol-demo`).
-2. Give each its own `.env` with a distinct `DATABASE_URL`, `PORT`, and `SYSTEMD_SERVICE` (e.g. `nettracker` and `nettrackerdemo`).
+1. Check out the repo to its own directory (e.g. `/opt/netcontrol` and `/opt/netcontrol-testing`).
+2. Give each its own `.env` with a distinct `DATABASE_URL`, `PORT`, `SYSTEMD_SERVICE` (e.g. `nettracker` and `nettrackertesting`), and `GIT_BRANCH` (`main` for the stable instance, `testing` for the testing instance).
 3. Copy the unit file template above to `/etc/systemd/system/<SYSTEMD_SERVICE>.service` for each instance — the file contents are identical except the description/working directory; only `.env` needs to differ.
-4. Add a matching sudoers `NOPASSWD` line for each `SYSTEMD_SERVICE` value (see the prerequisite comment at the top of `deploy.sh`) — `deploy.sh` reads `SYSTEMD_SERVICE` from the `.env` in its own checkout and restarts exactly that unit.
+4. Add a matching sudoers `NOPASSWD` line for each `SYSTEMD_SERVICE` value (see the prerequisite comment at the top of `deploy.sh`) — `deploy.sh` reads `SYSTEMD_SERVICE` and `GIT_BRANCH` from the `.env` in its own checkout, checks out and pulls exactly that branch, and restarts exactly that unit.
 5. Point each Apache vhost's reverse proxy at the matching `PORT`.
+
+#### Branching model
+
+`main` is the stable branch; `testing` is where day-to-day commits land until they've been worked out. Point a stable instance's `deploy.sh` at `main` and a testing instance's at `testing` (via `GIT_BRANCH`, above) to keep the two separate. Merge `testing` into `main` only once a change is confirmed good.
 
 ### Apache reverse proxy
 

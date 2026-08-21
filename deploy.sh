@@ -4,10 +4,12 @@
 # Usage:  ./deploy.sh
 #
 # Supports running multiple instances of this app from separate checkouts on
-# one server (e.g. production + a demo site) — each instance's .env sets its
-# own SYSTEMD_SERVICE (and PORT, used by the systemd unit's ExecStart line),
-# so the same deploy.sh works unmodified for every instance. Falls back to
-# "nettracker" if SYSTEMD_SERVICE isn't set. See "Deployment" in README.md.
+# one server (e.g. a stable instance + a testing instance) — each instance's
+# .env sets its own SYSTEMD_SERVICE, PORT (used by the systemd unit's
+# ExecStart line), and GIT_BRANCH (which branch this instance tracks — e.g.
+# "main" for stable, "testing" for pre-release), so the same deploy.sh works
+# unmodified for every instance. Falls back to "nettracker" / "main" if
+# unset. See "Deployment" in README.md.
 #
 # Prerequisites:
 #   1. The netcontrol user must be allowed to restart the service without a
@@ -19,10 +21,13 @@ set -e
 
 cd "$(dirname "$0")"
 
-# Read SYSTEMD_SERVICE from .env without sourcing the whole file — values in
-# there aren't guaranteed to be safe shell syntax.
+# Read SYSTEMD_SERVICE/GIT_BRANCH from .env without sourcing the whole file —
+# values in there aren't guaranteed to be safe shell syntax.
 SYSTEMD_SERVICE=$(grep -E '^SYSTEMD_SERVICE=' .env 2>/dev/null | tail -1 | cut -d= -f2-)
 SYSTEMD_SERVICE="${SYSTEMD_SERVICE:-nettracker}"
+
+GIT_BRANCH=$(grep -E '^GIT_BRANCH=' .env 2>/dev/null | tail -1 | cut -d= -f2-)
+GIT_BRANCH="${GIT_BRANCH:-main}"
 
 # Use this checkout's own virtualenv if one exists, rather than whatever
 # `python3` happens to resolve to on the caller's PATH -- each checkout
@@ -34,8 +39,10 @@ if [ -x venv/bin/python3 ]; then
   PYTHON=venv/bin/python3
 fi
 
-echo "Pulling latest from GitHub..."
-git pull
+echo "Pulling latest from GitHub ($GIT_BRANCH)..."
+git fetch origin "$GIT_BRANCH"
+git checkout "$GIT_BRANCH" 2>/dev/null || git checkout -t "origin/$GIT_BRANCH"
+git pull origin "$GIT_BRANCH"
 
 echo "Running test suite..."
 "$PYTHON" -m pytest tests/ -q
