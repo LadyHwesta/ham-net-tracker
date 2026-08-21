@@ -73,7 +73,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from database import get_db, init_db
-from models import ApiToken, CallsignCache, Checkin, DmrConfig, EvacZone, GmrsLicense, Net, NetControlSignup, NetSchedule, NetSession, NetShare, StationRemark, SystemSetting, TrafficMessage, User, utcnow
+from models import ApiToken, CallsignCache, Checkin, DmrConfig, EvacZone, GmrsLicense, Net, NetControlSignup, NetSchedule, NetSession, NetShare, StationRemark, SystemSetting, TacticalPosition, TrafficMessage, User, utcnow
 import net_repository
 
 load_dotenv()
@@ -303,7 +303,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="Ham Radio Net Tracker", version="1.23.0", lifespan=lifespan)
+app = FastAPI(title="Ham Radio Net Tracker", version="2.0.0", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -529,6 +529,10 @@ class SessionCreate(BaseModel):
     # schedule sign-up for the session's date (issue #17).
     broadcaster_override_callsign: Optional[str] = None
     broadcaster_override_name: Optional[str] = None
+    # ARES/ACES activation (issue #21) — forced False server-side unless the net
+    # is is_ares. Set once at start; enables tactical positions and the
+    # simplified roster for this session only, not every session on the net.
+    is_activation: bool = False
 
 
 class SessionRename(BaseModel):
@@ -543,6 +547,7 @@ class SessionOut(BaseModel):
     notes: Optional[str]
     started_at: datetime
     ended_at: Optional[datetime]
+    is_activation: bool = False
     checkin_count: int = 0
     # Scheduled duty for this session's date, from the Schedule sign-up if one exists
     # (net control falls back to whoever started the session when no sign-up matches)
@@ -590,8 +595,61 @@ class CheckinOut(BaseModel):
     dmr_talkgroup: Optional[str] = None
     dmr_region: Optional[str] = None
     checked_in_at: datetime
+    # Tactical position shift tracking (issue #21, activation sessions only).
+    # tactical_callsign is denormalized from the linked TacticalPosition for
+    # display — populated by list_checkins()/sign_on_tactical_position(), null
+    # whenever the checkin isn't tied to a position.
+    tactical_position_id: Optional[int] = None
+    tactical_callsign: Optional[str] = None
+    signed_off_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
+
+
+class TacticalPositionCreate(BaseModel):
+    tactical_callsign: str
+    location: Optional[str] = None
+    assigned_callsign: Optional[str] = None   # planned/expected operator (optional)
+    assigned_name: Optional[str] = None
+
+    @field_validator("tactical_callsign")
+    @classmethod
+    def tactical_callsign_upper(cls, v):
+        v = v.strip().upper()
+        if not v:
+            raise ValueError("tactical_callsign is required")
+        return v
+
+
+class TacticalPositionOut(BaseModel):
+    id: int
+    session_id: int
+    tactical_callsign: str
+    location: Optional[str]
+    assigned_callsign: Optional[str]
+    assigned_name: Optional[str]
+    created_at: datetime
+    # Derived from the checkin (if any) currently holding this position —
+    # tactical_position_id set, signed_off_at still null.
+    current_checkin_id: Optional[int] = None
+    current_callsign: Optional[str] = None
+    current_name: Optional[str] = None
+    signed_on_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class TacticalSignOn(BaseModel):
+    callsign: str
+    name: Optional[str] = None
+
+    @field_validator("callsign")
+    @classmethod
+    def callsign_upper(cls, v):
+        v = v.strip().upper()
+        if not v:
+            raise ValueError("callsign is required")
+        return v
 
 
 class DmrConfigCreate(BaseModel):
@@ -1450,11 +1508,12 @@ def list_sessions(net_id: int, current_user: User = Depends(get_current_user), d
 
 @app.post("/nets/{net_id}/sessions", response_model=SessionOut, status_code=201)
 def start_session(net_id: int, data: SessionCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    _get_net_for_user(net_id, current_user, db)
+    net = _get_net_for_user(net_id, current_user, db)
     session = NetSession(
         net_id=net_id, operator_id=current_user.id, name=data.name, notes=data.notes,
         broadcaster_override_callsign=(data.broadcaster_override_callsign or "").strip().upper() or None,
         broadcaster_override_name=(data.broadcaster_override_name or "").strip() or None,
+        is_activation=data.is_activation if net.is_ares else False,
     )
     db.add(session)
     db.commit()
@@ -1775,10 +1834,13 @@ def list_checkins(session_id: int, current_user: User = Depends(get_current_user
     # ICS-205 have their own chronological (oldest-first) queries, unaffected.
     checkins = db.query(Checkin).filter(Checkin.session_id == session_id).order_by(Checkin.checked_in_at.desc()).all()
     preferred_names = _preferred_names_for_net(session.net_id, db)
+    tactical_callsigns = _tactical_callsigns_for_session(session_id, db)
     out = [CheckinOut.model_validate(c) for c in checkins]
     for c, o in zip(checkins, out):
         if c.callsign in preferred_names:
             o.name = preferred_names[c.callsign]
+        if c.tactical_position_id:
+            o.tactical_callsign = tactical_callsigns.get(c.tactical_position_id)
     return out
 
 
@@ -1925,6 +1987,151 @@ def toggle_traffic_called(checkin_id: int, current_user: User = Depends(get_curr
 
 
 # ---------------------------------------------------------------------------
+# Tactical Positions — ARES/ACES activation mode (issue #21)
+#
+# Session-scoped, not a reusable net-level template: different activations
+# commonly need an entirely different tactical roster. Only usable on a
+# session explicitly started as an activation (NetSession.is_activation) —
+# a routine session on an ARES net is rejected the same as a non-ARES net,
+# so "is_ares" alone never turns this on.
+#
+# Signing on creates a brand-new Checkin row every time rather than reusing
+# add_checkin() — that endpoint blocks a second checkin for the same
+# callsign on ham nets, which would wrongly stop an operator holding two
+# positions, or re-signing onto one later in the same activation. Each
+# sign-on IS a shift-history entry; nothing extra to store for that.
+# ---------------------------------------------------------------------------
+
+def _get_activation_session(session_id: int, user: User, db: Session) -> NetSession:
+    """Fetch a session, requiring net access and that it's an activation."""
+    session = _get_session_for_user(session_id, user, db)
+    net = db.query(Net).filter(Net.id == session.net_id).first()
+    if not net or not net.is_ares:
+        raise HTTPException(400, "Tactical positions require an ARES/ACES net")
+    if not session.is_activation:
+        raise HTTPException(400, "This session is not marked as an activation")
+    return session
+
+
+def _get_position_for_user(position_id: int, user: User, db: Session) -> TacticalPosition:
+    position = db.query(TacticalPosition).filter(TacticalPosition.id == position_id).first()
+    if not position:
+        raise HTTPException(404, "Tactical position not found")
+    _get_session_for_user(position.session_id, user, db)  # raises 403/404 if no access
+    return position
+
+
+def _current_occupant(position_id: int, db: Session) -> Optional[Checkin]:
+    return (
+        db.query(Checkin)
+        .filter(Checkin.tactical_position_id == position_id, Checkin.signed_off_at.is_(None))
+        .order_by(Checkin.checked_in_at.desc())
+        .first()
+    )
+
+
+def _position_to_out(position: TacticalPosition, db: Session) -> TacticalPositionOut:
+    out = TacticalPositionOut.model_validate(position)
+    current = _current_occupant(position.id, db)
+    if current:
+        out.current_checkin_id = current.id
+        out.current_callsign = current.callsign
+        out.current_name = current.name
+        out.signed_on_at = current.checked_in_at
+    return out
+
+
+@app.get("/sessions/{session_id}/tactical-positions", response_model=list[TacticalPositionOut])
+def list_tactical_positions(session_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    session = _get_activation_session(session_id, current_user, db)
+    positions = (
+        db.query(TacticalPosition)
+        .filter(TacticalPosition.session_id == session.id)
+        .order_by(TacticalPosition.created_at)
+        .all()
+    )
+    return [_position_to_out(p, db) for p in positions]
+
+
+@app.post("/sessions/{session_id}/tactical-positions", response_model=TacticalPositionOut, status_code=201)
+def create_tactical_position(session_id: int, data: TacticalPositionCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    session = _get_activation_session(session_id, current_user, db)
+    position = TacticalPosition(
+        session_id=session.id,
+        tactical_callsign=data.tactical_callsign,
+        location=(data.location or "").strip() or None,
+        assigned_callsign=(data.assigned_callsign or "").strip().upper() or None,
+        assigned_name=(data.assigned_name or "").strip() or None,
+    )
+    db.add(position)
+    db.commit()
+    db.refresh(position)
+    return _position_to_out(position, db)
+
+
+@app.delete("/tactical-positions/{position_id}", status_code=204)
+def delete_tactical_position(position_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    position = _get_position_for_user(position_id, current_user, db)
+    db.delete(position)  # checkins keep their history; tactical_position_id -> NULL via ON DELETE SET NULL
+    db.commit()
+
+
+@app.get("/tactical-positions/{position_id}/shifts", response_model=list[CheckinOut])
+def list_tactical_shifts(position_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    position = _get_position_for_user(position_id, current_user, db)
+    shifts = (
+        db.query(Checkin)
+        .filter(Checkin.tactical_position_id == position.id)
+        .order_by(Checkin.checked_in_at)
+        .all()
+    )
+    out = [CheckinOut.model_validate(c) for c in shifts]
+    for o in out:
+        o.tactical_callsign = position.tactical_callsign
+    return out
+
+
+@app.post("/tactical-positions/{position_id}/sign-on", response_model=CheckinOut, status_code=201)
+def sign_on_tactical_position(position_id: int, data: TacticalSignOn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    position = _get_position_for_user(position_id, current_user, db)
+    session = db.query(NetSession).filter(NetSession.id == position.session_id).first()
+    if session.ended_at is not None:
+        raise HTTPException(400, "Cannot sign on to a position on an ended session")
+
+    outgoing = _current_occupant(position.id, db)
+    if outgoing:
+        outgoing.signed_off_at = utcnow()
+
+    checkin = Checkin(
+        session_id=session.id,
+        callsign=data.callsign,
+        name=(data.name or "").strip() or None,
+        has_traffic=False,
+        tactical_position_id=position.id,
+    )
+    db.add(checkin)
+    db.commit()
+    db.refresh(checkin)
+    out = CheckinOut.model_validate(checkin)
+    out.tactical_callsign = position.tactical_callsign
+    return out
+
+
+@app.post("/tactical-positions/{position_id}/sign-off", response_model=CheckinOut)
+def sign_off_tactical_position(position_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    position = _get_position_for_user(position_id, current_user, db)
+    outgoing = _current_occupant(position.id, db)
+    if not outgoing:
+        raise HTTPException(404, "This position is not currently occupied")
+    outgoing.signed_off_at = utcnow()
+    db.commit()
+    db.refresh(outgoing)
+    out = CheckinOut.model_validate(outgoing)
+    out.tactical_callsign = position.tactical_callsign
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Expected Stations
 # ---------------------------------------------------------------------------
 
@@ -1936,6 +2143,29 @@ def _preferred_names_for_net(net_id: int, db: Session) -> dict:
         .all()
     )
     return {r.callsign: r.preferred_name for r in rows}
+
+
+def _tactical_callsigns_for_session(session_id: int, db: Session) -> dict:
+    """tactical_position_id -> tactical_callsign for this session's positions
+    (issue #21) — avoids an N+1 lookup per checkin row in list_checkins()."""
+    rows = (
+        db.query(TacticalPosition.id, TacticalPosition.tactical_callsign)
+        .filter(TacticalPosition.session_id == session_id)
+        .all()
+    )
+    return {r.id: r.tactical_callsign for r in rows}
+
+
+def _tactical_callsigns_for_net(net_id: int, db: Session) -> dict:
+    """Same as _tactical_callsigns_for_session, but across every session on
+    this net — for the multi-session net-wide CSV export."""
+    rows = (
+        db.query(TacticalPosition.id, TacticalPosition.tactical_callsign)
+        .join(NetSession, NetSession.id == TacticalPosition.session_id)
+        .filter(NetSession.net_id == net_id)
+        .all()
+    )
+    return {r.id: r.tactical_callsign for r in rows}
 
 
 @app.get("/nets/{net_id}/expected", response_model=list[ExpectedStation])
@@ -2058,17 +2288,22 @@ def session_ics205(
     freq    = net.frequency if net and net.frequency else "—"
 
     preferred_names = _preferred_names_for_net(session.net_id, db)
+    tactical_callsigns = _tactical_callsigns_for_session(session_id, db) if session.is_activation else {}
 
     checkin_rows = ""
     for i, c in enumerate(checkins, 1):
         traffic_flag = " 📢" if c.has_traffic else ""
         display_name = preferred_names.get(c.callsign, c.name)
         zone_cell = f"<td>{html.escape(c.evac_zone or '—')}</td>" if net and net.is_ares else ""
+        tactical_cell = (
+            f"<td>{html.escape(tactical_callsigns.get(c.tactical_position_id, '') or '—')}</td>"
+            if session.is_activation else ""
+        )
         checkin_rows += (
             f"<tr><td>{i}</td><td>{c.checked_in_at.strftime('%H%MZ')}</td>"
             f"<td><strong>{html.escape(c.callsign)}</strong></td><td>{html.escape(display_name or '')}</td>"
             f"<td>{html.escape(c.signal_report or '')}</td><td>{html.escape(c.comments or '')}{traffic_flag}</td>"
-            f"{zone_cell}</tr>\n"
+            f"{zone_cell}{tactical_cell}</tr>\n"
         )
 
     traffic_rows = ""
@@ -2081,6 +2316,7 @@ def session_ics205(
         )
 
     zone_th = "<th>Zone</th>" if net and net.is_ares else ""
+    tactical_th = "<th>Tactical</th>" if session.is_activation else ""
     traffic_section = ""
     if traffic_msgs:
         traffic_section = f"""
@@ -2134,7 +2370,7 @@ def session_ics205(
 <h2>Station Check-In Log</h2>
 <table>
   <thead><tr><th>#</th><th>Time (UTC)</th><th>Callsign</th><th>Name</th>
-    <th>Signal</th><th>Comments / Traffic</th>{zone_th}</tr></thead>
+    <th>Signal</th><th>Comments / Traffic</th>{zone_th}{tactical_th}</tr></thead>
   <tbody>{checkin_rows}</tbody>
 </table>
 {traffic_section}
@@ -2391,13 +2627,22 @@ def export_session_csv(session_id: int, current_user: User = Depends(get_current
     checkins = db.query(Checkin).filter(Checkin.session_id == session_id).order_by(Checkin.checked_in_at).all()
     net = db.query(Net).filter(Net.id == session.net_id).first()
     preferred_names = _preferred_names_for_net(session.net_id, db)
+    tactical_callsigns = _tactical_callsigns_for_session(session_id, db) if session.is_activation else {}
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["#", "Callsign", "Name", "Signal Report", "Comments", "Checked In At"])
+    header = ["#", "Callsign", "Name", "Signal Report", "Comments", "Checked In At"]
+    if session.is_activation:
+        header.insert(1, "Tactical Callsign")
+        header.append("Signed Off At")
+    writer.writerow(header)
     for i, c in enumerate(checkins, start=1):
         display_name = preferred_names.get(c.callsign, c.name)
-        writer.writerow([i, c.callsign, display_name or "", c.signal_report or "", c.comments or "", c.checked_in_at.isoformat()])
+        row = [i, c.callsign, display_name or "", c.signal_report or "", c.comments or "", c.checked_in_at.isoformat()]
+        if session.is_activation:
+            row.insert(1, tactical_callsigns.get(c.tactical_position_id, "") or "")
+            row.append(c.signed_off_at.isoformat() if c.signed_off_at else "")
+        writer.writerow(row)
 
     filename = f"session_{session_id}_{net.name.replace(' ', '_')}.csv"
     output.seek(0)
@@ -2412,6 +2657,7 @@ def export_session_csv(session_id: int, current_user: User = Depends(get_current
 def export_net_csv(net_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     net = _get_net_for_user(net_id, current_user, db)
     preferred_names = _preferred_names_for_net(net_id, db)
+    tactical_callsigns = _tactical_callsigns_for_net(net_id, db) if net.is_ares else {}
 
     rows = (
         db.query(Checkin, NetSession)
@@ -2423,10 +2669,13 @@ def export_net_csv(net_id: int, current_user: User = Depends(get_current_user), 
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["Session ID", "Session Started", "Callsign", "Name", "Signal Report", "Comments", "Checked In At"])
+    header = ["Session ID", "Session Started", "Callsign", "Name", "Signal Report", "Comments", "Checked In At"]
+    if net.is_ares:
+        header.insert(3, "Tactical Callsign")
+    writer.writerow(header)
     for checkin, session in rows:
         display_name = preferred_names.get(checkin.callsign, checkin.name)
-        writer.writerow([
+        row = [
             session.id,
             session.started_at.isoformat(),
             checkin.callsign,
@@ -2434,7 +2683,10 @@ def export_net_csv(net_id: int, current_user: User = Depends(get_current_user), 
             checkin.signal_report or "",
             checkin.comments or "",
             checkin.checked_in_at.isoformat(),
-        ])
+        ]
+        if net.is_ares:
+            row.insert(3, tactical_callsigns.get(checkin.tactical_position_id, "") or "")
+        writer.writerow(row)
 
     filename = f"net_{net_id}_{net.name.replace(' ', '_')}_all_sessions.csv"
     output.seek(0)

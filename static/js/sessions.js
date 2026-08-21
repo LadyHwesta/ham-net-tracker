@@ -185,6 +185,44 @@ function renderDutyBar(s) {
     bcEl.style.display = 'none';
   }
   bar.style.display = (s.ncs_callsign || s.broadcaster_callsign) ? '' : 'none';
+
+  // Static Net Control reference on the Station Schedule tab (issue #21) — read-only,
+  // no separate endpoint, same ncs_callsign/ncs_name already on the session object.
+  const ncLine = document.getElementById('schedule-net-control-line');
+  if (ncLine) {
+    ncLine.querySelector('strong').textContent = s.ncs_callsign
+      ? (s.ncs_name ? `${s.ncs_callsign} — ${s.ncs_name}` : s.ncs_callsign)
+      : '—';
+  }
+}
+
+// Session-mode tabs (issue #21) — hides the currently-visible "Check-In"
+// elements when switching to Station Schedule, remembering exactly which
+// ones were showing so switching back restores that (rather than blindly
+// re-showing everything, which would ignore each panel's own visibility
+// rule — ended session, DMR config presence, etc.).
+function switchSessionTab(tab) {
+  const contentEls = document.querySelectorAll('.session-checkin-tab-content');
+  if (tab === 'schedule') {
+    contentEls.forEach(el => {
+      if (el.style.display !== 'none') {
+        el.dataset.wasVisible = '1';
+        el.style.display = 'none';
+      }
+    });
+    document.getElementById('station-schedule-panel').style.display = '';
+    loadTacticalPositions();
+  } else {
+    contentEls.forEach(el => {
+      if (el.dataset.wasVisible) {
+        el.style.display = '';
+        delete el.dataset.wasVisible;
+      }
+    });
+    document.getElementById('station-schedule-panel').style.display = 'none';
+  }
+  document.getElementById('session-tab-checkin-btn').classList.toggle('active', tab === 'checkin');
+  document.getElementById('session-tab-schedule-btn').classList.toggle('active', tab === 'schedule');
 }
 
 async function loadSessions() {
@@ -230,6 +268,9 @@ function toggleStartSessionForm() {
       document.getElementById('start-session-broadcaster-label').innerHTML =
         `${esc(net.broadcast_label)} Override <span class="text-muted" style="font-size:11px">(optional — overrides today's sign-up)</span>`;
     }
+    // ARES/ACES activation checkbox — only offered for ARES-enabled nets (issue #21)
+    document.getElementById('start-session-activation-group').style.display = (net && net.is_ares) ? '' : 'none';
+    document.getElementById('new-session-is-activation').checked = false;
   }
 }
 
@@ -237,14 +278,16 @@ async function startSession() {
   const name = document.getElementById('new-session-name').value.trim() || null;
   const broadcaster_override_callsign = document.getElementById('new-session-broadcaster-callsign').value.trim().toUpperCase() || null;
   const broadcaster_override_name = document.getElementById('new-session-broadcaster-name').value.trim() || null;
+  const is_activation = document.getElementById('new-session-is-activation').checked;
   try {
     const s = await apiFetch(`/nets/${currentNetId}/sessions`, {
       method: 'POST',
-      body: JSON.stringify({ name, broadcaster_override_callsign, broadcaster_override_name }),
+      body: JSON.stringify({ name, broadcaster_override_callsign, broadcaster_override_name, is_activation }),
     });
     document.getElementById('new-session-name').value = '';
     document.getElementById('new-session-broadcaster-callsign').value = '';
     document.getElementById('new-session-broadcaster-name').value = '';
+    document.getElementById('new-session-is-activation').checked = false;
     document.getElementById('start-session-form').style.display = 'none';
     toast('Session started');
     await loadSessions();
@@ -295,6 +338,15 @@ async function loadSessionLive(sessionId) {
     document.getElementById('session-meta').textContent = `Started ${fmt(s.started_at)}${ended ? ' · Ended ' + fmt(s.ended_at) : ''}`;
     document.getElementById('end-session-btn').style.display = ended ? 'none' : '';
     document.getElementById('checkin-form-area').style.display = ended ? 'none' : '';
+    // ARES/ACES activation session-mode tabs (issue #21) — only while live; reset to
+    // the Check-In tab on every (re)load without touching the other panels' own
+    // visibility rules (DMR config presence, is_ares, etc.), which are already
+    // correctly applied by the code above/below this point.
+    currentSessionIsActivation = !!s.is_activation;
+    document.getElementById('session-mode-tab-bar').style.display = (s.is_activation && !ended) ? '' : 'none';
+    document.getElementById('station-schedule-panel').style.display = 'none';
+    document.getElementById('session-tab-checkin-btn').classList.add('active');
+    document.getElementById('session-tab-schedule-btn').classList.remove('active');
     renderDutyBar(s);
     renderNetScript(s);
     if (!ended) startClock(s.started_at); else stopClock();

@@ -23,6 +23,7 @@ A public demo is available at **[nettrackerdemo.meskis.net](https://nettrackerde
 - **Callsign lookup** — FCC database lookup with local history suffix search
 - **Traffic management** — flag stations with traffic, interactive "called" tracking (persists across a session close/reopen), formal traffic message log
 - **ARES/ACES mode** — evacuation zone tracking per station, zone roster panel
+- **ARES/ACES activation mode** — mark an individual session on an ARES net as an activation to unlock tactical assignments: define tactical positions (callsign, location, planned operator) on a dedicated Station Schedule tab, then sign operators on and off each position in shifts from the live check-in screen (with full shift history per position) instead of the routine per-callsign roster. A station checking in without a tactical assignment shows its evacuation zone instead. Routine sessions on the same net are completely unaffected — this is opt-in per session, not a net-wide setting
 - **Expected stations** — pre-built check-in list from historical attendees with pre-flag support
 - **Station remarks & preferred names** — persistent per-net notes on any callsign, plus a preferred name that overrides the FCC/GMRS-looked-up name on the Expected Stations list, Checkin History, and net reports; editable from the check-in form, Expected Stations, or Checkin History (including after a net has closed)
 - **Session summary & ICS-205** — automatic summary card on session end, printable net log export

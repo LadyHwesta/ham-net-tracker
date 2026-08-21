@@ -291,6 +291,25 @@ MIGRATIONS = [
     # ── Separate GMRS callsign on user profiles (issue #23) ──────────────────
     ("users: GMRS callsign",
      "ALTER TABLE users ADD COLUMN IF NOT EXISTS gmrs_callsign VARCHAR(12)"),
+
+    # ── Enhanced ARES/ACES activation mode (issue #21) ────────────────────────
+    # tactical_positions must be created before the checkins columns below,
+    # since one of them references it.
+    ("table: tactical_positions",
+     """CREATE TABLE IF NOT EXISTS tactical_positions (
+         id SERIAL PRIMARY KEY,
+         session_id INTEGER NOT NULL REFERENCES net_sessions(id) ON DELETE CASCADE,
+         tactical_callsign VARCHAR(50) NOT NULL,
+         location VARCHAR(200),
+         assigned_callsign VARCHAR(12),
+         assigned_name VARCHAR(100),
+         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())"""),
+    ("net_sessions: ARES/ACES activation flag",
+     "ALTER TABLE net_sessions ADD COLUMN IF NOT EXISTS is_activation BOOLEAN NOT NULL DEFAULT FALSE"),
+    ("checkins: tactical position link",
+     "ALTER TABLE checkins ADD COLUMN IF NOT EXISTS tactical_position_id INTEGER REFERENCES tactical_positions(id) ON DELETE SET NULL"),
+    ("checkins: shift sign-off timestamp",
+     "ALTER TABLE checkins ADD COLUMN IF NOT EXISTS signed_off_at TIMESTAMPTZ"),
 ]
 
 # ---------------------------------------------------------------------------

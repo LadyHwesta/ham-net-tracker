@@ -378,6 +378,20 @@ function isRecentCheckin(id) {
   return !!entry && (Date.now() - entry.at) < 20000;
 }
 
+function renderCheckinsHeader() {
+  const header = document.getElementById('checkins-list-header');
+  if (!header) return;
+  header.innerHTML = currentSessionIsActivation
+    ? `<span class="checkin-header-callsign">Tactical</span>
+       <span class="checkin-header-name">Callsign</span>
+       <span class="checkin-header-name">Name</span>
+       <span class="checkin-header-actions"></span>`
+    : `<span class="checkin-header-callsign">Callsign</span>
+       <span class="checkin-header-name">Name</span>
+       <span class="checkin-header-traffic">Tfc</span>
+       <span class="checkin-header-actions"></span>`;
+}
+
 function renderCheckins(checkins) {
   lastKnownCheckins = checkins;
   const list = document.getElementById('checkins-list');
@@ -386,6 +400,7 @@ function renderCheckins(checkins) {
   count.textContent = `${checkins.length} check-in${checkins.length !== 1 ? 's' : ''}`;
 
   updateTrafficBanner(checkins);
+  renderCheckinsHeader();
 
   if (checkins.length === 0) {
     list.innerHTML = '';
@@ -401,8 +416,28 @@ function renderCheckins(checkins) {
       currentNetIsAres && c.evac_zone ? `Zone: ${c.evac_zone}` : null,
       hasDmr && c.dmr_talkgroup ? `TG: ${c.dmr_talkgroup}` : null,
       hasDmr && c.dmr_region ? `Region: ${c.dmr_region}` : null,
+      c.tactical_callsign ? `Tactical: ${c.tactical_callsign}` : null,
+      c.signed_off_at ? `Signed off: ${fmt(c.signed_off_at)}` : null,
       `Checked in: ${fmt(c.checked_in_at)}`,
     ].filter(Boolean).join(' · ');
+
+    // ARES/ACES activation session (issue #21): Tactical / Callsign / First
+    // Name, no traffic toggle. A station with no tactical assignment shows
+    // its evac zone instead, if it has one. Every other session (including
+    // a routine ARES one): unchanged Callsign / Name / Traffic layout.
+    if (currentSessionIsActivation) {
+      const firstName = (c.name || '').trim().split(/\s+/)[0] || '';
+      const tacticalCell = c.tactical_callsign
+        ? esc(c.tactical_callsign)
+        : (c.evac_zone ? `📍 ${esc(c.evac_zone)}` : '—');
+      return `<div class="checkin-row${isRecentCheckin(c.id) ? ' checkin-recent' : ''}" title="${esc(details)}">
+        <span class="tactical-callsign">${tacticalCell}</span>
+        <span class="callsign">${esc(c.callsign)}</span>
+        <span class="checkin-name">${esc(firstName || '—')}</span>
+        <button class="btn btn-danger btn-sm" onclick="removeCheckin(${c.id})">✕</button>
+      </div>`;
+    }
+
     return `<div class="checkin-row${isRecentCheckin(c.id) ? ' checkin-recent' : ''}" title="${esc(details)}">
       <span class="callsign">${esc(c.callsign)}</span>
       <span class="checkin-name">${esc(c.name || '—')}</span>
@@ -445,6 +480,11 @@ function toggleExpectedPanel() {
   const open = body.style.display === 'none';
   body.style.display = open ? '' : 'none';
   icon.textContent = open ? '▼' : '▶';
+  // ARES/ACES activation (issue #21) — this panel pulls from the Station
+  // Schedule tab's tactical positions instead of the historical-attendance
+  // list; load them the first time it's opened rather than requiring a
+  // separate trip to the Schedule tab first.
+  if (open && currentSessionIsActivation) loadTacticalPositions();
 }
 
 async function loadExpectedStations() {
@@ -466,6 +506,14 @@ function checkedInCallsigns() {
 }
 
 function renderExpectedList() {
+  // ARES/ACES activation session (issue #21) — replaces the historical-
+  // attendance list entirely with the tactical position roster. A routine
+  // session on an ARES net (currentNetIsAres but not currentSessionIsActivation)
+  // falls through to the unchanged code below.
+  document.getElementById('expected-panel-title').textContent = currentSessionIsActivation ? 'TACTICAL ASSIGNMENTS' : 'EXPECTED STATIONS';
+  document.getElementById('expected-filter-row').style.display = currentSessionIsActivation ? 'none' : '';
+  if (currentSessionIsActivation) { renderTacticalAssignments(); return; }
+
   const listEl = document.getElementById('expected-list');
   if (!expectedStations.length) {
     listEl.innerHTML = '<p class="text-muted" style="font-size:12px;margin:0">No matching stations found.</p>';
@@ -521,6 +569,177 @@ function toggleExpectedTraffic(callsign, checked) {
     pendingTrafficCallsigns.delete(callsign);
   }
   updateTrafficBanner(lastKnownCheckins);
+}
+
+// ============================================================
+// TACTICAL POSITIONS — ARES/ACES activation mode (issue #21)
+// ============================================================
+// Single load point shared by both surfaces that display this session's
+// positions: the Station Schedule tab (setup) and the Tactical Assignments
+// panel (renderExpectedList()'s activation branch, above — the live sign-on/
+// off surface). Anything that changes a position (add/remove/sign-on/off)
+// calls this to refresh both in sync rather than re-deriving state twice.
+async function loadTacticalPositions() {
+  if (!currentSessionIsActivation) return;
+  try {
+    tacticalPositions = await apiFetch(`/sessions/${currentSessionId}/tactical-positions`);
+  } catch {
+    tacticalPositions = [];
+  }
+  renderStationSchedule();
+  renderExpectedList();
+}
+
+async function addTacticalPosition() {
+  const tactical_callsign = document.getElementById('tac-pos-callsign').value.trim().toUpperCase();
+  const location = document.getElementById('tac-pos-location').value.trim() || null;
+  const assigned_callsign = document.getElementById('tac-pos-assigned-callsign').value.trim().toUpperCase() || null;
+  const assigned_name = document.getElementById('tac-pos-assigned-name').value.trim() || null;
+  if (!tactical_callsign) return toast('Tactical callsign required', 'error');
+  try {
+    await apiFetch(`/sessions/${currentSessionId}/tactical-positions`, {
+      method: 'POST',
+      body: JSON.stringify({ tactical_callsign, location, assigned_callsign, assigned_name }),
+    });
+    document.getElementById('tac-pos-callsign').value = '';
+    document.getElementById('tac-pos-location').value = '';
+    document.getElementById('tac-pos-assigned-callsign').value = '';
+    document.getElementById('tac-pos-assigned-name').value = '';
+    toast('Position added', 'success');
+    await loadTacticalPositions();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function removeTacticalPosition(id) {
+  if (!confirm('Remove this tactical position? Its shift history is kept, just no longer linked to a position.')) return;
+  try {
+    await apiFetch(`/tactical-positions/${id}`, { method: 'DELETE' });
+    toast('Position removed', 'success');
+    await loadTacticalPositions();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+// Station Schedule tab — setup/definition only, no sign-on actions here.
+function renderStationSchedule() {
+  const listEl = document.getElementById('tactical-schedule-list');
+  if (!listEl) return;
+  if (!tacticalPositions.length) {
+    listEl.innerHTML = '<p class="text-muted" style="font-size:12px;margin:0">No tactical positions yet — add one above.</p>';
+    return;
+  }
+  listEl.innerHTML = tacticalPositions.map(p => `
+    <div class="card" style="padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:160px">
+        <span class="callsign">${esc(p.tactical_callsign)}</span>
+        ${p.location ? `<span class="text-muted" style="font-size:12px;margin-left:8px">📍 ${esc(p.location)}</span>` : ''}
+        ${p.assigned_callsign ? `<div class="text-muted" style="font-size:11px;margin-top:2px">Planned: ${esc(p.assigned_callsign)}${p.assigned_name ? ' — ' + esc(p.assigned_name) : ''}</div>` : ''}
+      </div>
+      <span style="font-size:12px;color:${p.current_callsign ? 'var(--lc-green)' : 'var(--text-muted)'};white-space:nowrap">
+        ${p.current_callsign ? `🟢 ${esc(p.current_callsign)}${p.current_name ? ' — ' + esc(p.current_name) : ''}` : '⚪ Vacant'}
+      </span>
+      <button type="button" class="btn btn-danger btn-sm" onclick="removeTacticalPosition(${p.id})">✕ Remove</button>
+    </div>`).join('');
+}
+
+// Tactical Assignments panel (lives in the Check-In tab's Expected Stations
+// slot) — the live sign-on/off surface, pulling from the same tacticalPositions
+// data the Station Schedule tab defines.
+function renderTacticalAssignments() {
+  const listEl = document.getElementById('expected-list');
+  if (!tacticalPositions.length) {
+    listEl.innerHTML = '<p class="text-muted" style="font-size:12px;margin:0">No tactical positions defined yet — add some on the 🗓 Station Schedule tab.</p>';
+    return;
+  }
+  listEl.innerHTML = tacticalPositions.map(p => {
+    const occupied = !!p.current_callsign;
+    return `<div class="exp-row" style="display:block;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span class="callsign">${esc(p.tactical_callsign)}</span>
+        ${p.location ? `<span class="text-muted" style="font-size:11px">📍 ${esc(p.location)}</span>` : ''}
+        <span style="flex:1;min-width:140px;font-size:12px;color:${occupied ? 'var(--lc-green)' : 'var(--text-muted)'}">
+          ${occupied
+            ? `🟢 ${esc(p.current_callsign)}${p.current_name ? ' — ' + esc(p.current_name) : ''} <span class="text-muted" style="font-size:10px">since ${fmt(p.signed_on_at)}</span>`
+            : '⚪ Vacant'}
+        </span>
+        <button type="button" class="btn btn-ghost btn-sm" style="font-size:10px;padding:1px 6px" onclick="toggleShiftHistory(${p.id})">🕐 History</button>
+        ${occupied
+          ? `<button type="button" class="btn btn-ghost btn-sm" onclick="toggleSignOnForm(${p.id})">↻ Sign Off &amp; Replace</button>
+             <button type="button" class="btn btn-danger btn-sm" onclick="signOffPosition(${p.id})">Sign Off</button>`
+          : `<button type="button" class="btn btn-primary btn-sm" onclick="toggleSignOnForm(${p.id})">Sign On</button>`}
+      </div>
+      <div id="tac-signon-form-${p.id}" style="display:none;margin-top:8px"></div>
+      <div id="tac-history-${p.id}" style="display:none;margin-top:8px;font-size:11px"></div>
+    </div>`;
+  }).join('');
+}
+
+function toggleSignOnForm(positionId) {
+  const container = document.getElementById(`tac-signon-form-${positionId}`);
+  if (!container) return;
+  if (container.style.display !== 'none') { container.style.display = 'none'; container.innerHTML = ''; return; }
+  const position = tacticalPositions.find(p => p.id === positionId);
+  // Pre-fill from the planned operator if one was set at Station Schedule time
+  // — fully editable, covering "override the scheduled station" (issue #21).
+  const defaultCallsign = (position && position.assigned_callsign) || '';
+  const defaultName = (position && position.assigned_name) || '';
+  container.style.display = '';
+  container.innerHTML = `
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <input class="form-control mono" id="tac-signon-callsign-${positionId}" placeholder="Callsign" value="${esc(defaultCallsign)}" style="width:110px;text-transform:uppercase;font-size:12px" />
+      <input class="form-control" id="tac-signon-name-${positionId}" placeholder="Name (optional)" value="${esc(defaultName)}" style="width:140px;font-size:12px" />
+      <button class="btn btn-primary btn-sm" onclick="signOnPosition(${positionId})">Confirm</button>
+      <button class="btn btn-ghost btn-sm" onclick="toggleSignOnForm(${positionId})">Cancel</button>
+    </div>`;
+  document.getElementById(`tac-signon-callsign-${positionId}`).focus();
+}
+
+async function signOnPosition(positionId) {
+  const callsignEl = document.getElementById(`tac-signon-callsign-${positionId}`);
+  const nameEl = document.getElementById(`tac-signon-name-${positionId}`);
+  const callsign = callsignEl.value.trim().toUpperCase();
+  const name = nameEl.value.trim() || null;
+  if (!callsign) return toast('Callsign required', 'error');
+  try {
+    await apiFetch(`/tactical-positions/${positionId}/sign-on`, {
+      method: 'POST',
+      body: JSON.stringify({ callsign, name }),
+    });
+    toast(`${callsign} signed on`, 'success');
+    await loadTacticalPositions();
+    await loadCheckins();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function signOffPosition(positionId) {
+  if (!confirm('Sign off the current operator from this position?')) return;
+  try {
+    await apiFetch(`/tactical-positions/${positionId}/sign-off`, { method: 'POST' });
+    toast('Signed off', 'success');
+    await loadTacticalPositions();
+    await loadCheckins();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function toggleShiftHistory(positionId) {
+  const container = document.getElementById(`tac-history-${positionId}`);
+  if (!container) return;
+  if (container.style.display !== 'none') { container.style.display = 'none'; return; }
+  container.style.display = '';
+  container.innerHTML = '<span class="text-muted">Loading…</span>';
+  try {
+    const shifts = await apiFetch(`/tactical-positions/${positionId}/shifts`);
+    if (!shifts.length) {
+      container.innerHTML = '<span class="text-muted">No shifts yet.</span>';
+      return;
+    }
+    container.innerHTML = shifts.map(s => `
+      <div class="text-muted" style="padding:2px 0">
+        ${esc(s.callsign)}${s.name ? ' — ' + esc(s.name) : ''}:
+        ${fmt(s.checked_in_at)} → ${s.signed_off_at ? fmt(s.signed_off_at) : '<span style="color:var(--lc-green)">now</span>'}
+      </div>`).join('');
+  } catch (e) {
+    container.innerHTML = `<span style="color:var(--lc-red)">${esc(e.message)}</span>`;
+  }
 }
 
 // ── Zone roster (ARES nets) ──────────────────────────────────

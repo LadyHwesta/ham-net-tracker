@@ -96,11 +96,17 @@ class NetSession(Base):
     # until the net is about to begin (issue #17).
     broadcaster_override_callsign = Column(String(20), nullable=True)
     broadcaster_override_name = Column(String(100), nullable=True)
+    # ARES/ACES activation (issue #21) — set once at session start, immutable after.
+    # A routine session on an ARES net (is_ares=true, is_activation=false) behaves
+    # exactly as before; only an activation session gets tactical positions, shift
+    # sign-on/off, and the simplified roster.
+    is_activation = Column(Boolean, default=False, nullable=False)
 
     net = relationship("Net", back_populates="sessions")
     operator = relationship("User", back_populates="sessions")
     checkins = relationship("Checkin", back_populates="session", cascade="all, delete-orphan")
     traffic_messages = relationship("TrafficMessage", back_populates="session", cascade="all, delete-orphan")
+    tactical_positions = relationship("TacticalPosition", back_populates="session", cascade="all, delete-orphan")
 
     @property
     def is_active(self):
@@ -108,6 +114,28 @@ class NetSession(Base):
 
     def __repr__(self):
         return f"<NetSession id={self.id} net={self.net_id}>"
+
+
+class TacticalPosition(Base):
+    """A tactical assignment slot for one ARES/ACES activation session (issue #21)
+    — e.g. "SHELTER 1". Session-scoped and re-created fresh each activation, not a
+    reusable net-level template: different activations commonly need entirely
+    different tactical rosters. Who currently holds it, and its shift history, are
+    derived from Checkin rows (tactical_position_id + signed_off_at), not stored here."""
+    __tablename__ = "tactical_positions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey("net_sessions.id", ondelete="CASCADE"), nullable=False)
+    tactical_callsign = Column(String(50), nullable=False)   # e.g. "SHELTER 1"
+    location = Column(String(200), nullable=True)
+    assigned_callsign = Column(String(12), nullable=True)    # planned/expected operator
+    assigned_name = Column(String(100), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+    session = relationship("NetSession", back_populates="tactical_positions")
+
+    def __repr__(self):
+        return f"<TacticalPosition {self.tactical_callsign}>"
 
 
 class Checkin(Base):
@@ -126,12 +154,21 @@ class Checkin(Base):
     dmr_talkgroup = Column(String(20), nullable=True)  # DMR talk group, e.g. "3100"
     dmr_region = Column(String(100), nullable=True)    # Region/state/area for DMR nets
     checked_in_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    # Tactical position shift tracking (issue #21, activation sessions only). Each
+    # sign-on is its own Checkin row — checked_in_at is the shift's start, and
+    # signed_off_at (once set) is its end. A position's current occupant is the
+    # checkin with tactical_position_id set and signed_off_at still null; earlier
+    # rows for the same position are that position's shift history, kept for free.
+    tactical_position_id = Column(Integer, ForeignKey("tactical_positions.id", ondelete="SET NULL"), nullable=True)
+    signed_off_at = Column(DateTime(timezone=True), nullable=True)
 
     session = relationship("NetSession", back_populates="checkins")
 
     # No DB-level unique constraint on (session_id, callsign) — GMRS nets allow the
     # same callsign multiple times (shared family licence). Uniqueness for ham nets
-    # is enforced at the application layer in add_checkin().
+    # is enforced at the application layer in add_checkin(). Tactical sign-ons
+    # (sign_on_tactical_position()) bypass that check entirely — the same operator
+    # legitimately holding two positions, or re-signing onto one later, is expected.
 
     def __repr__(self):
         return f"<Checkin callsign={self.callsign} session={self.session_id}>"

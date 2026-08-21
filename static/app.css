@@ -735,6 +735,16 @@
       color: var(--text-muted);
       font-size: 12px;
     }
+    /* Tactical position column — ARES/ACES activation sessions (issue #21) */
+    .checkin-row .tactical-callsign {
+      flex: 0 0 auto;
+      min-width: 56px;
+      font-family: 'Courier New', Courier, monospace;
+      font-weight: 700;
+      letter-spacing: .5px;
+      font-size: 12px;
+      color: var(--lc-blue);
+    }
     .checkin-row.checkin-recent {
       background-color: rgba(255,153,0,0.30);
       border-left-color: var(--lc-orange);
@@ -748,7 +758,8 @@
     .net-control-mode #expected-stations-wrapper,
     .net-control-mode #dmr-heard-panel,
     .net-control-mode #traffic-log-panel,
-    .net-control-mode #duty-bar {
+    .net-control-mode #duty-bar,
+    .net-control-mode #session-mode-tab-bar {
       display: none !important;
     }
     /* Minimal-chrome one-handed use shouldn't spend width on a side column,

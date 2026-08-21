@@ -63,6 +63,18 @@
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
 
           <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-20 — Enhanced ARES/ACES Activation Mode (v2.0.0)</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>An ARES/ACES net's <strong>▶ Start New Session</strong> form gained an optional <strong>🚨 ARES/ACES Activation</strong> checkbox. Leave it unchecked and a session behaves exactly as before — evacuation zone field, historical Expected Stations, normal roster. Check it and the session switches into activation mode for tactical operations.</li>
+              <li>An activation session's live view gains a <strong>Check-In</strong> / <strong>🗓 Station Schedule</strong> tab bar. Station Schedule is where you define this activation's tactical positions — a tactical callsign (e.g. "SHELTER 1"), optional location, and an optional planned operator.</li>
+              <li>The Expected Stations panel becomes <strong>Tactical Assignments</strong>, pulling directly from the Station Schedule: sign an operator on to a vacant position (pre-filled from the planned operator if one was set, but fully editable — override it with whoever actually shows up), sign off a position, or sign off the outgoing operator and sign on their replacement in one step. Each position keeps a full shift history, viewable with 🕐 History.</li>
+              <li>The check-ins roster switches to Tactical / Callsign / Name (first name only, no traffic indicator) for the duration of an activation session. A station that checks in without a tactical assignment shows its evacuation zone in that column instead.</li>
+              <li>CSV and ICS-205 exports include the tactical callsign for activation sessions.</li>
+              <li>Requires a database migration — a new <code style="background:var(--surface);padding:1px 5px;border-radius:3px">tactical_positions</code> table, an <code style="background:var(--surface);padding:1px 5px;border-radius:3px">is_activation</code> column on <code style="background:var(--surface);padding:1px 5px;border-radius:3px">net_sessions</code>, and two new columns on <code style="background:var(--surface);padding:1px 5px;border-radius:3px">checkins</code>. <code style="background:var(--surface);padding:1px 5px;border-radius:3px">./deploy.sh</code> runs it automatically.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-21 — Back to Sessions Button (v1.23.0)</div>
             <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
               <li>While viewing a live session, a new <strong>← Back to Sessions</strong> button sits next to <strong>← Back to Nets</strong> — step back one level to see this net's other sessions or make changes, without leaving the net entirely.</li>
@@ -582,7 +594,7 @@ python3 /opt/netcontrol/gmrs_sync.py --mode update</pre>
     </div>
   </main>
 </div>
-  <script src="/static/js/state.js?v=6"></script>
+  <script src="/static/js/state.js?v=7"></script>
   <script src="/static/js/utils.js?v=7"></script>
   <script src="/static/js/auth.js?v=9"></script>
   <script src="/static/js/theme.js?v=1"></script>
