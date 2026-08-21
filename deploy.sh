@@ -1,7 +1,15 @@
 #!/bin/bash
 # deploy.sh — pull latest from GitHub and restart the service
 #
-# Usage:  ./deploy.sh
+# Usage:  ./deploy.sh [--force-tests]
+#
+#   --force-tests   Run the test suite even if GIT_BRANCH isn't "testing".
+#                   By default the suite only runs automatically on a testing
+#                   instance -- a stable (main) instance skips it, since a
+#                   change should already have been proven out on testing
+#                   before being merged to main. Use this flag to run it
+#                   anyway on a main instance (e.g. after a hotfix straight
+#                   to main).
 #
 # Supports running multiple instances of this app from separate checkouts on
 # one server (e.g. a stable instance + a testing instance) — each instance's
@@ -18,6 +26,18 @@
 #        netcontrol ALL=(ALL) NOPASSWD: /bin/systemctl restart nettracker
 #
 set -e
+
+FORCE_TESTS=false
+for arg in "$@"; do
+  case "$arg" in
+    --force-tests) FORCE_TESTS=true ;;
+    *)
+      echo "Unknown option: $arg" >&2
+      echo "Usage: $0 [--force-tests]" >&2
+      exit 1
+      ;;
+  esac
+done
 
 cd "$(dirname "$0")"
 
@@ -44,16 +64,20 @@ git fetch origin "$GIT_BRANCH"
 git checkout "$GIT_BRANCH" 2>/dev/null || git checkout -t "origin/$GIT_BRANCH"
 git pull origin "$GIT_BRANCH"
 
-if ! "$PYTHON" -c "import pytest" 2>/dev/null; then
-  echo "✗ pytest isn't installed for $PYTHON."
-  echo "  Install test dependencies once with:"
-  echo "    ${PYTHON} -m pip install -r requirements-dev.txt"
-  exit 1
-fi
+if [ "$GIT_BRANCH" = "testing" ] || [ "$FORCE_TESTS" = true ]; then
+  if ! "$PYTHON" -c "import pytest" 2>/dev/null; then
+    echo "✗ pytest isn't installed for $PYTHON."
+    echo "  Install test dependencies once with:"
+    echo "    ${PYTHON} -m pip install -r requirements-dev.txt"
+    exit 1
+  fi
 
-echo "Running test suite..."
-"$PYTHON" -m pytest tests/ -q
-echo "✓ All tests passed"
+  echo "Running test suite..."
+  "$PYTHON" -m pytest tests/ -q
+  echo "✓ All tests passed"
+else
+  echo "Skipping test suite (GIT_BRANCH=$GIT_BRANCH) — pass --force-tests to run it anyway."
+fi
 
 echo "Applying database migrations..."
 "$PYTHON" migrate.py
