@@ -303,7 +303,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="Ham Radio Net Tracker", version="2.0.0", lifespan=lifespan)
+app = FastAPI(title="Ham Radio Net Tracker", version="2.0.1", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -611,6 +611,7 @@ class TacticalPositionCreate(BaseModel):
     location: Optional[str] = None
     assigned_callsign: Optional[str] = None   # planned/expected operator (optional)
     assigned_name: Optional[str] = None
+    scheduled_start: Optional[datetime] = None   # planned shift sign-on time (optional)
 
     @field_validator("tactical_callsign")
     @classmethod
@@ -628,6 +629,10 @@ class TacticalPositionOut(BaseModel):
     location: Optional[str]
     assigned_callsign: Optional[str]
     assigned_name: Optional[str]
+    scheduled_start: Optional[datetime] = None
+    # Auto-created, one per activation session — Net Control tracked the same way as any
+    # other tactical position (sign-on/off, shift history), not user-creatable or removable.
+    is_net_control: bool = False
     created_at: datetime
     # Derived from the checkin (if any) currently holding this position —
     # tactical_position_id set, signed_off_at still null.
@@ -1518,6 +1523,35 @@ def start_session(net_id: int, data: SessionCreate, current_user: User = Depends
     db.add(session)
     db.commit()
     db.refresh(session)
+
+    # Auto-create the Net Control tactical position for an activation session, seeded
+    # from the same day's-schedule/whoever-started-it resolution routine sessions use,
+    # and sign them straight on if known — NCS is live the moment the net starts, and
+    # from here on hands off through the same sign-on/off flow as any other position
+    # (issue #21 follow-up: routine sessions' single day-level NCS wasn't enough for a
+    # multi-hour activation where net control itself rotates).
+    if session.is_activation:
+        duty = _duty_labels_for_session(net, session, db)
+        nc_position = TacticalPosition(
+            session_id=session.id,
+            tactical_callsign="NET CONTROL",
+            is_net_control=True,
+            assigned_callsign=duty["ncs_callsign"],
+            assigned_name=duty["ncs_name"],
+        )
+        db.add(nc_position)
+        db.commit()
+        db.refresh(nc_position)
+        if duty["ncs_callsign"]:
+            db.add(Checkin(
+                session_id=session.id,
+                callsign=duty["ncs_callsign"],
+                name=duty["ncs_name"],
+                has_traffic=False,
+                tactical_position_id=nc_position.id,
+            ))
+            db.commit()
+
     out = SessionOut.model_validate(session)
     out.checkin_count = 0
     return out
@@ -2047,7 +2081,7 @@ def list_tactical_positions(session_id: int, current_user: User = Depends(get_cu
     positions = (
         db.query(TacticalPosition)
         .filter(TacticalPosition.session_id == session.id)
-        .order_by(TacticalPosition.created_at)
+        .order_by(TacticalPosition.is_net_control.desc(), TacticalPosition.created_at)
         .all()
     )
     return [_position_to_out(p, db) for p in positions]
@@ -2062,6 +2096,7 @@ def create_tactical_position(session_id: int, data: TacticalPositionCreate, curr
         location=(data.location or "").strip() or None,
         assigned_callsign=(data.assigned_callsign or "").strip().upper() or None,
         assigned_name=(data.assigned_name or "").strip() or None,
+        scheduled_start=data.scheduled_start,
     )
     db.add(position)
     db.commit()
@@ -2072,6 +2107,8 @@ def create_tactical_position(session_id: int, data: TacticalPositionCreate, curr
 @app.delete("/tactical-positions/{position_id}", status_code=204)
 def delete_tactical_position(position_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     position = _get_position_for_user(position_id, current_user, db)
+    if position.is_net_control:
+        raise HTTPException(400, "Cannot remove the Net Control position — hand it off instead")
     db.delete(position)  # checkins keep their history; tactical_position_id -> NULL via ON DELETE SET NULL
     db.commit()
 

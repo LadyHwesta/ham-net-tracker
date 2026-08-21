@@ -522,7 +522,9 @@
               <!-- Station Schedule tab content — setup/definition only; sign-on/off
                    actions live in the Tactical Assignments panel (Check-In tab, below). -->
               <div id="station-schedule-panel" style="display:none">
-                <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px" id="schedule-net-control-line">🎙 Net Control: <strong></strong></div>
+                <!-- Net Control is listed as the first entry in #tactical-schedule-list below
+                     (auto-created, pinned to the top) rather than a separate static line here —
+                     it hands off through the same sign-on/off flow as any other position. -->
                 <div class="card" style="margin-bottom:12px;padding:12px">
                   <div style="font-size:12px;font-weight:700;color:var(--lc-orange);letter-spacing:.05em;margin-bottom:8px">+ ADD TACTICAL POSITION</div>
                   <div class="form-row">
@@ -543,6 +545,12 @@
                     <div class="form-group mb-0">
                       <label style="font-size:11px">Assigned Operator Name</label>
                       <input class="form-control" id="tac-pos-assigned-name" placeholder="Optional" style="font-size:13px" />
+                    </div>
+                  </div>
+                  <div class="form-row" style="margin-top:8px">
+                    <div class="form-group mb-0">
+                      <label style="font-size:11px">Scheduled Sign-On</label>
+                      <input class="form-control" type="datetime-local" id="tac-pos-scheduled" style="font-size:13px" />
                     </div>
                   </div>
                   <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="addTacticalPosition()">+ Add Position</button>
@@ -880,7 +888,7 @@
   </main>
 </div><!-- /app -->
 
-  <script src="/static/js/state.js?v=20"></script>
+  <script src="/static/js/state.js?v=21"></script>
   <script src="/static/js/utils.js?v=20"></script>
   <script src="/static/js/offline-queue.js?v=2"></script>
   <script src="/static/js/auth.js?v=22"></script>
@@ -889,8 +897,8 @@
   <script src="/static/js/branding.js?v=20"></script>
   <script src="/static/js/report.js?v=20"></script>
   <script src="/static/js/nets.js?v=20"></script>
-  <script src="/static/js/sessions.js?v=23"></script>
-  <script src="/static/js/checkins.js?v=26"></script>
+  <script src="/static/js/sessions.js?v=24"></script>
+  <script src="/static/js/checkins.js?v=27"></script>
   <script src="/static/js/history.js?v=20"></script>
   <script src="/static/js/admin.js?v=21"></script>
   <script src="/static/js/schedules.js?v=21"></script>

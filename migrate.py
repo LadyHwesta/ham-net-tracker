@@ -310,6 +310,13 @@ MIGRATIONS = [
      "ALTER TABLE checkins ADD COLUMN IF NOT EXISTS tactical_position_id INTEGER REFERENCES tactical_positions(id) ON DELETE SET NULL"),
     ("checkins: shift sign-off timestamp",
      "ALTER TABLE checkins ADD COLUMN IF NOT EXISTS signed_off_at TIMESTAMPTZ"),
+
+    # ── Tactical position scheduling + trackable Net Control handoff ──────────
+    # (issue #21 follow-up — live-testing feedback)
+    ("tactical_positions: scheduled sign-on time",
+     "ALTER TABLE tactical_positions ADD COLUMN IF NOT EXISTS scheduled_start TIMESTAMPTZ"),
+    ("tactical_positions: net control flag",
+     "ALTER TABLE tactical_positions ADD COLUMN IF NOT EXISTS is_net_control BOOLEAN NOT NULL DEFAULT FALSE"),
 ]
 
 # ---------------------------------------------------------------------------

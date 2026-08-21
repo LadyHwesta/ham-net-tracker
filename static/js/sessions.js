@@ -167,6 +167,19 @@ function renderNetScript(session) {
   panel.style.display = '';
 }
 
+// For an activation session, Net Control is tracked as its own tactical position
+// (auto-created at session start) and can hand off mid-activation the same way any
+// other position does — so the duty bar and net script should reflect whoever
+// currently holds it, not the day's schedule sign-up baked into the session at start
+// (issue #21 follow-up). Falls back to the session's own ncs fields until tactical
+// positions have loaded, and for non-activation/routine sessions, unchanged.
+function effectiveSession(s) {
+  if (!currentSessionIsActivation) return s;
+  const ncPosition = tacticalPositions.find(p => p.is_net_control);
+  if (!ncPosition) return s;
+  return { ...s, ncs_callsign: ncPosition.current_callsign || null, ncs_name: ncPosition.current_name || null };
+}
+
 function renderDutyBar(s) {
   const bar = document.getElementById('duty-bar');
   const ncEl = document.getElementById('duty-nc');
@@ -185,15 +198,6 @@ function renderDutyBar(s) {
     bcEl.style.display = 'none';
   }
   bar.style.display = (s.ncs_callsign || s.broadcaster_callsign) ? '' : 'none';
-
-  // Static Net Control reference on the Station Schedule tab (issue #21) — read-only,
-  // no separate endpoint, same ncs_callsign/ncs_name already on the session object.
-  const ncLine = document.getElementById('schedule-net-control-line');
-  if (ncLine) {
-    ncLine.querySelector('strong').textContent = s.ncs_callsign
-      ? (s.ncs_name ? `${s.ncs_callsign} — ${s.ncs_name}` : s.ncs_callsign)
-      : '—';
-  }
 }
 
 // Session-mode tabs (issue #21) — hides the currently-visible "Check-In"
@@ -347,8 +351,13 @@ async function loadSessionLive(sessionId) {
     document.getElementById('station-schedule-panel').style.display = 'none';
     document.getElementById('session-tab-checkin-btn').classList.add('active');
     document.getElementById('session-tab-schedule-btn').classList.remove('active');
-    renderDutyBar(s);
-    renderNetScript(s);
+    currentSessionData = s;
+    // Load tactical positions up front (not just when the Schedule tab/Tactical
+    // Assignments panel is opened) so the duty bar/net script show the live Net
+    // Control handoff state from the very first paint (issue #21 follow-up).
+    if (currentSessionIsActivation) await loadTacticalPositions(); else tacticalPositions = [];
+    renderDutyBar(effectiveSession(s));
+    renderNetScript(effectiveSession(s));
     if (!ended) startClock(s.started_at); else stopClock();
     trafficMessages = [];
     renderTrafficMessages();

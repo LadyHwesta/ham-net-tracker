@@ -130,6 +130,12 @@ class TacticalPosition(Base):
     location = Column(String(200), nullable=True)
     assigned_callsign = Column(String(12), nullable=True)    # planned/expected operator
     assigned_name = Column(String(100), nullable=True)
+    scheduled_start = Column(DateTime(timezone=True), nullable=True)   # planned shift sign-on time
+    # Auto-created (one per activation session) to track Net Control itself through the
+    # same sign-on/off/shift-history mechanism as any other position — NCS commonly hands
+    # off mid-activation, unlike the single day-level schedule sign-up routine sessions use.
+    # Not user-creatable and not deletable; enforced in main.py, not here.
+    is_net_control = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
     session = relationship("NetSession", back_populates="tactical_positions")

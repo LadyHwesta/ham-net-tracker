@@ -63,6 +63,15 @@
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
 
           <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-21 — Scheduled Sign-On + Net Control Handoff (v2.0.1)</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>Tactical positions on the Station Schedule tab gained an optional <strong>Scheduled Sign-On</strong> time. A vacant position past that time is flagged with a "Due since" badge in Tactical Assignments; one still ahead of schedule shows "Due" instead.</li>
+              <li><strong>Net Control is now tracked as a position of its own</strong> — auto-created and staffed the moment an activation session starts (whoever's scheduled for Net Control that day, or whoever started the session if nobody was), pinned to the top of the Station Schedule and Tactical Assignments lists. From there it hands off exactly like any other position — <strong>Sign Off & Replace</strong> to pass it to someone else mid-activation — with a full shift history and the duty bar/net script updating immediately to show whoever currently holds it. It can't be removed, only handed off.</li>
+              <li>Requires a database migration — two new columns on <code style="background:var(--surface);padding:1px 5px;border-radius:3px">tactical_positions</code>. <code style="background:var(--surface);padding:1px 5px;border-radius:3px">./deploy.sh</code> runs it automatically.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-20 — Enhanced ARES/ACES Activation Mode (v2.0.0)</div>
             <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
               <li>An ARES/ACES net's <strong>▶ Start New Session</strong> form gained an optional <strong>🚨 ARES/ACES Activation</strong> checkbox. Leave it unchecked and a session behaves exactly as before — evacuation zone field, historical Expected Stations, normal roster. Check it and the session switches into activation mode for tactical operations.</li>
@@ -594,7 +603,7 @@ python3 /opt/netcontrol/gmrs_sync.py --mode update</pre>
     </div>
   </main>
 </div>
-  <script src="/static/js/state.js?v=7"></script>
+  <script src="/static/js/state.js?v=8"></script>
   <script src="/static/js/utils.js?v=7"></script>
   <script src="/static/js/auth.js?v=9"></script>
   <script src="/static/js/theme.js?v=1"></script>

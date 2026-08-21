@@ -588,6 +588,13 @@ async function loadTacticalPositions() {
   }
   renderStationSchedule();
   renderExpectedList();
+  // Net Control hands off through this same tactical position (issue #21 follow-up)
+  // — refresh the duty bar/net script so a handoff shows up immediately everywhere
+  // it's displayed, not just in this panel.
+  if (currentSessionData) {
+    renderDutyBar(effectiveSession(currentSessionData));
+    renderNetScript(effectiveSession(currentSessionData));
+  }
 }
 
 async function addTacticalPosition() {
@@ -595,16 +602,19 @@ async function addTacticalPosition() {
   const location = document.getElementById('tac-pos-location').value.trim() || null;
   const assigned_callsign = document.getElementById('tac-pos-assigned-callsign').value.trim().toUpperCase() || null;
   const assigned_name = document.getElementById('tac-pos-assigned-name').value.trim() || null;
+  const scheduledRaw = document.getElementById('tac-pos-scheduled').value;
+  const scheduled_start = scheduledRaw ? new Date(scheduledRaw).toISOString() : null;
   if (!tactical_callsign) return toast('Tactical callsign required', 'error');
   try {
     await apiFetch(`/sessions/${currentSessionId}/tactical-positions`, {
       method: 'POST',
-      body: JSON.stringify({ tactical_callsign, location, assigned_callsign, assigned_name }),
+      body: JSON.stringify({ tactical_callsign, location, assigned_callsign, assigned_name, scheduled_start }),
     });
     document.getElementById('tac-pos-callsign').value = '';
     document.getElementById('tac-pos-location').value = '';
     document.getElementById('tac-pos-assigned-callsign').value = '';
     document.getElementById('tac-pos-assigned-name').value = '';
+    document.getElementById('tac-pos-scheduled').value = '';
     toast('Position added', 'success');
     await loadTacticalPositions();
   } catch (e) { toast(e.message, 'error'); }
@@ -628,16 +638,19 @@ function renderStationSchedule() {
     return;
   }
   listEl.innerHTML = tacticalPositions.map(p => `
-    <div class="card" style="padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <div class="card" style="padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;gap:12px;flex-wrap:wrap${p.is_net_control ? ';border-color:var(--lc-orange)' : ''}">
       <div style="flex:1;min-width:160px">
-        <span class="callsign">${esc(p.tactical_callsign)}</span>
+        <span class="callsign">${p.is_net_control ? '🎙 ' : ''}${esc(p.tactical_callsign)}</span>
         ${p.location ? `<span class="text-muted" style="font-size:12px;margin-left:8px">📍 ${esc(p.location)}</span>` : ''}
         ${p.assigned_callsign ? `<div class="text-muted" style="font-size:11px;margin-top:2px">Planned: ${esc(p.assigned_callsign)}${p.assigned_name ? ' — ' + esc(p.assigned_name) : ''}</div>` : ''}
+        ${p.scheduled_start ? `<div class="text-muted" style="font-size:11px;margin-top:2px">🕐 Sign-on: ${fmt(p.scheduled_start)}</div>` : ''}
       </div>
       <span style="font-size:12px;color:${p.current_callsign ? 'var(--lc-green)' : 'var(--text-muted)'};white-space:nowrap">
         ${p.current_callsign ? `🟢 ${esc(p.current_callsign)}${p.current_name ? ' — ' + esc(p.current_name) : ''}` : '⚪ Vacant'}
       </span>
-      <button type="button" class="btn btn-danger btn-sm" onclick="removeTacticalPosition(${p.id})">✕ Remove</button>
+      ${p.is_net_control
+        ? '<span class="text-muted" style="font-size:10px;white-space:nowrap">Hands off below ↓</span>'
+        : `<button type="button" class="btn btn-danger btn-sm" onclick="removeTacticalPosition(${p.id})">✕ Remove</button>`}
     </div>`).join('');
 }
 
@@ -652,15 +665,21 @@ function renderTacticalAssignments() {
   }
   listEl.innerHTML = tacticalPositions.map(p => {
     const occupied = !!p.current_callsign;
-    return `<div class="exp-row" style="display:block;padding:8px 0;border-bottom:1px solid var(--border)">
+    let dueBadge = '';
+    if (!occupied && p.scheduled_start) {
+      const overdue = new Date(p.scheduled_start) <= new Date();
+      dueBadge = `<span style="font-size:10px;color:${overdue ? 'var(--lc-red)' : 'var(--lc-blue)'};white-space:nowrap">⏰ ${overdue ? 'Due since' : 'Due'} ${fmt(p.scheduled_start)}</span>`;
+    }
+    return `<div class="exp-row" style="display:block;padding:8px 0;border-bottom:1px solid var(--border)${p.is_net_control ? ';background:rgba(255,153,0,0.06)' : ''}">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <span class="callsign">${esc(p.tactical_callsign)}</span>
+        <span class="callsign">${p.is_net_control ? '🎙 ' : ''}${esc(p.tactical_callsign)}</span>
         ${p.location ? `<span class="text-muted" style="font-size:11px">📍 ${esc(p.location)}</span>` : ''}
         <span style="flex:1;min-width:140px;font-size:12px;color:${occupied ? 'var(--lc-green)' : 'var(--text-muted)'}">
           ${occupied
             ? `🟢 ${esc(p.current_callsign)}${p.current_name ? ' — ' + esc(p.current_name) : ''} <span class="text-muted" style="font-size:10px">since ${fmt(p.signed_on_at)}</span>`
             : '⚪ Vacant'}
         </span>
+        ${dueBadge}
         <button type="button" class="btn btn-ghost btn-sm" style="font-size:10px;padding:1px 6px" onclick="toggleShiftHistory(${p.id})">🕐 History</button>
         ${occupied
           ? `<button type="button" class="btn btn-ghost btn-sm" onclick="toggleSignOnForm(${p.id})">↻ Sign Off &amp; Replace</button>

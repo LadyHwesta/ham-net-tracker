@@ -98,13 +98,15 @@ class TestTacticalPositionCreation:
         assert resp.status_code == 422
 
     def test_list_positions_ordered_by_creation(self, client, admin_headers):
+        # NET CONTROL is auto-created at session start and always sorts first
+        # (issue #21 follow-up) -- user-created positions follow in creation order.
         anet = _ares_net(client, admin_headers)
         activation = _activation_session(client, admin_headers, anet["id"])
         client.post(f"/sessions/{activation['id']}/tactical-positions", json={"tactical_callsign": "COMMAND"}, headers=admin_headers)
         client.post(f"/sessions/{activation['id']}/tactical-positions", json={"tactical_callsign": "SHELTER 1"}, headers=admin_headers)
         resp = client.get(f"/sessions/{activation['id']}/tactical-positions", headers=admin_headers)
         assert resp.status_code == 200
-        assert [p["tactical_callsign"] for p in resp.json()] == ["COMMAND", "SHELTER 1"]
+        assert [p["tactical_callsign"] for p in resp.json()] == ["NET CONTROL", "COMMAND", "SHELTER 1"]
 
 
 class TestSignOnOff:
@@ -123,8 +125,9 @@ class TestSignOnOff:
         assert checkin["signed_off_at"] is None
 
         positions = client.get(f"/sessions/{activation['id']}/tactical-positions", headers=admin_headers).json()
-        assert positions[0]["current_callsign"] == "W1ABC"
-        assert positions[0]["current_checkin_id"] == checkin["id"]
+        shelter1 = next(p for p in positions if p["id"] == position["id"])
+        assert shelter1["current_callsign"] == "W1ABC"
+        assert shelter1["current_checkin_id"] == checkin["id"]
 
     def test_signing_on_again_signs_off_previous_occupant(self, client, admin_headers):
         _anet, activation, position = _position(client, admin_headers)
@@ -138,7 +141,8 @@ class TestSignOnOff:
         assert second_after["signed_off_at"] is None
 
         positions = client.get(f"/sessions/{activation['id']}/tactical-positions", headers=admin_headers).json()
-        assert positions[0]["current_callsign"] == "W2DEF"
+        shelter1 = next(p for p in positions if p["id"] == position["id"])
+        assert shelter1["current_callsign"] == "W2DEF"
 
     def test_sign_off_vacates_with_no_new_checkin(self, client, admin_headers):
         _anet, activation, position = _position(client, admin_headers)
@@ -153,7 +157,8 @@ class TestSignOnOff:
         assert after_count == before_count  # no new checkin created on sign-off
 
         positions = client.get(f"/sessions/{activation['id']}/tactical-positions", headers=admin_headers).json()
-        assert positions[0]["current_callsign"] is None
+        shelter1 = next(p for p in positions if p["id"] == position["id"])
+        assert shelter1["current_callsign"] is None
 
     def test_sign_off_when_already_vacant_404s(self, client, admin_headers):
         _anet, _activation, position = _position(client, admin_headers)
@@ -217,8 +222,11 @@ class TestDeletePosition:
         kept = next(c for c in checkins if c["id"] == checkin["id"])
         assert kept["callsign"] == "W1ABC"
 
+        # NET CONTROL (auto-created) remains -- only the user-created position was removed.
         resp = client.get(f"/sessions/{activation['id']}/tactical-positions", headers=admin_headers)
-        assert resp.json() == []
+        remaining = resp.json()
+        assert len(remaining) == 1
+        assert remaining[0]["is_net_control"] is True
 
 
 class TestListCheckinsIncludesTactical:
@@ -293,3 +301,95 @@ class TestPermissions:
         activation = _activation_session(client, admin_headers, anet["id"])
         resp = client.get(f"/sessions/{activation['id']}/tactical-positions", headers=user_headers)
         assert resp.status_code == 403
+
+
+class TestScheduledStart:
+    def test_scheduled_start_stored_and_returned(self, client, admin_headers):
+        _anet, _activation, position = _position(
+            client, admin_headers, scheduled_start="2026-09-01T14:00:00Z",
+        )
+        assert position["scheduled_start"] is not None
+        assert position["scheduled_start"].startswith("2026-09-01T14:00:00")
+
+    def test_scheduled_start_optional(self, client, admin_headers):
+        _anet, _activation, position = _position(client, admin_headers)
+        assert position["scheduled_start"] is None
+
+
+class TestNetControlPosition:
+    """Net Control is auto-created as a tactical position at activation session
+    start and hands off through the same sign-on/off flow as any other position
+    (issue #21 follow-up: a single day-level NCS wasn't enough once Net Control
+    itself rotates mid-activation)."""
+
+    def test_auto_created_on_activation_session_start(self, client, admin_headers):
+        anet = _ares_net(client, admin_headers)
+        activation = _activation_session(client, admin_headers, anet["id"])
+        positions = client.get(f"/sessions/{activation['id']}/tactical-positions", headers=admin_headers).json()
+        assert len(positions) == 1
+        nc = positions[0]
+        assert nc["is_net_control"] is True
+        assert nc["tactical_callsign"] == "NET CONTROL"
+
+    def test_auto_signed_on_from_session_starter_when_no_schedule_signup(self, client, admin_headers):
+        # No schedule sign-up exists, so _duty_labels_for_session falls back to
+        # whoever started the session (W1ADMIN) -- Net Control should already be
+        # live the moment the activation begins, not sitting vacant.
+        anet = _ares_net(client, admin_headers)
+        activation = _activation_session(client, admin_headers, anet["id"])
+        positions = client.get(f"/sessions/{activation['id']}/tactical-positions", headers=admin_headers).json()
+        nc = positions[0]
+        assert nc["current_callsign"] == "W1ADMIN"
+        assert nc["current_checkin_id"] is not None
+
+    def test_not_created_for_routine_session(self, client, admin_headers):
+        anet = _ares_net(client, admin_headers)
+        routine = _routine_session(client, admin_headers, anet["id"])
+        # No tactical-positions access at all on a routine session (400), so there's
+        # no way a NET CONTROL position could have been created for it either.
+        resp = client.get(f"/sessions/{routine['id']}/tactical-positions", headers=admin_headers)
+        assert resp.status_code == 400
+
+    def test_cannot_be_deleted(self, client, admin_headers):
+        anet = _ares_net(client, admin_headers)
+        activation = _activation_session(client, admin_headers, anet["id"])
+        positions = client.get(f"/sessions/{activation['id']}/tactical-positions", headers=admin_headers).json()
+        nc = positions[0]
+        resp = client.delete(f"/tactical-positions/{nc['id']}", headers=admin_headers)
+        assert resp.status_code == 400
+
+    def test_sorted_first_regardless_of_creation_order(self, client, admin_headers):
+        anet = _ares_net(client, admin_headers)
+        activation = _activation_session(client, admin_headers, anet["id"])
+        client.post(f"/sessions/{activation['id']}/tactical-positions", json={"tactical_callsign": "SHELTER 1"}, headers=admin_headers)
+        client.post(f"/sessions/{activation['id']}/tactical-positions", json={"tactical_callsign": "COMMAND"}, headers=admin_headers)
+        positions = client.get(f"/sessions/{activation['id']}/tactical-positions", headers=admin_headers).json()
+        assert positions[0]["is_net_control"] is True
+        assert [p["tactical_callsign"] for p in positions[1:]] == ["SHELTER 1", "COMMAND"]
+
+    def test_hands_off_via_sign_on_like_any_other_position(self, client, admin_headers):
+        anet = _ares_net(client, admin_headers)
+        activation = _activation_session(client, admin_headers, anet["id"])
+        positions = client.get(f"/sessions/{activation['id']}/tactical-positions", headers=admin_headers).json()
+        nc = positions[0]
+        assert nc["current_callsign"] == "W1ADMIN"
+
+        resp = client.post(f"/tactical-positions/{nc['id']}/sign-on", json={"callsign": "W2NEXT"}, headers=admin_headers)
+        assert resp.status_code == 201
+
+        positions = client.get(f"/sessions/{activation['id']}/tactical-positions", headers=admin_headers).json()
+        nc = positions[0]
+        assert nc["current_callsign"] == "W2NEXT"
+
+        shifts = client.get(f"/tactical-positions/{nc['id']}/shifts", headers=admin_headers).json()
+        assert [s["callsign"] for s in shifts] == ["W1ADMIN", "W2NEXT"]
+        assert shifts[0]["signed_off_at"] is not None
+        assert shifts[1]["signed_off_at"] is None
+
+    def test_list_checkins_includes_net_control_signon(self, client, admin_headers):
+        anet = _ares_net(client, admin_headers)
+        activation = _activation_session(client, admin_headers, anet["id"])
+        checkins = client.get(f"/sessions/{activation['id']}/checkins", headers=admin_headers).json()
+        assert len(checkins) == 1
+        assert checkins[0]["callsign"] == "W1ADMIN"
+        assert checkins[0]["tactical_callsign"] == "NET CONTROL"
