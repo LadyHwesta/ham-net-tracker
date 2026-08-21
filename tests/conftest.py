@@ -181,6 +181,45 @@ def pushed_nets(monkeypatch):
     return calls
 
 
+@pytest.fixture
+def pushed_nets_and_stats(monkeypatch):
+    """Like pushed_nets, but the fake response carries a settable status_code
+    (default 201) so tests can simulate Net Repository's 404 ("not published
+    there yet") response for POST /nets/stats without a real network call.
+    Records every httpx.post call regardless of URL (both /nets/submit and
+    /nets/stats go through this), same as pushed_nets."""
+    import httpx
+
+    class CallList(list):
+        """Plain list can't take arbitrary attributes -- subclass so
+        set_status can be attached to the returned calls list."""
+        pass
+
+    calls = CallList()
+    status = {"code": 201}
+
+    class FakeResponse:
+        def __init__(self, status_code):
+            self.status_code = status_code
+
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                raise httpx.HTTPStatusError(
+                    "error", request=httpx.Request("POST", "http://x"), response=self,
+                )
+
+        def json(self):
+            return {"submission_id": 1, "message": "ok", "id": 1}
+
+    def fake_post(url, json=None, headers=None, timeout=None):
+        calls.append({"url": url, "json": json, "headers": headers})
+        return FakeResponse(status["code"])
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    calls.set_status = lambda code: status.update(code=code)
+    return calls
+
+
 # ── Composite fixtures ───────────────────────────────────────────────────────
 
 @pytest.fixture

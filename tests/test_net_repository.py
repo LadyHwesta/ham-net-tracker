@@ -139,6 +139,77 @@ class TestPushNetFunction:
         assert net_repository.net_repository_configured(db) is False
 
 
+class TestSessionStatsPush:
+    """Ending a session on a public-listed net logs its stats to Net
+    Repository via POST /nets/stats (matched by source_net_id, same as
+    push_net()) — session count/avg check-ins/last-session-date roll up
+    into that net's directory listing there."""
+
+    def test_pushes_stats_on_session_end(self, client, admin_headers, net_repo_configured, pushed_nets_and_stats):
+        net_resp = client.post("/nets", json={"name": "Stats Net", "public_listed": True}, headers=admin_headers)
+        net_id = net_resp.json()["id"]
+        session_resp = client.post(f"/nets/{net_id}/sessions", json={}, headers=admin_headers)
+        session_id = session_resp.json()["id"]
+        client.post(f"/sessions/{session_id}/checkins", json={"callsign": "W1AAA"}, headers=admin_headers)
+        client.post(f"/sessions/{session_id}/checkins", json={"callsign": "W2BBB"}, headers=admin_headers)
+
+        resp = client.patch(f"/sessions/{session_id}/end", headers=admin_headers)
+        assert resp.status_code == 200
+
+        stats_calls = [c for c in pushed_nets_and_stats if c["url"].endswith("/nets/stats")]
+        assert len(stats_calls) == 1
+        payload = stats_calls[0]["json"]
+        assert payload["source_net_id"] == net_id
+        assert payload["checkin_count"] == 2
+        assert "session_date" in payload
+        assert stats_calls[0]["headers"] == {"Authorization": "Bearer nr_testkey"}
+
+    def test_no_stats_push_when_not_configured(self, client, admin_headers, pushed_nets_and_stats):
+        net_resp = client.post("/nets", json={"name": "Stats Net", "public_listed": True}, headers=admin_headers)
+        net_id = net_resp.json()["id"]
+        session_resp = client.post(f"/nets/{net_id}/sessions", json={}, headers=admin_headers)
+        client.patch(f"/sessions/{session_resp.json()['id']}/end", headers=admin_headers)
+        assert pushed_nets_and_stats == []
+
+    def test_no_stats_push_when_net_not_public(self, client, admin_headers, net_repo_configured, pushed_nets_and_stats):
+        net_resp = client.post("/nets", json={"name": "Private Net", "public_listed": False}, headers=admin_headers)
+        net_id = net_resp.json()["id"]
+        session_resp = client.post(f"/nets/{net_id}/sessions", json={}, headers=admin_headers)
+        client.patch(f"/sessions/{session_resp.json()['id']}/end", headers=admin_headers)
+        assert pushed_nets_and_stats == []
+
+    def test_session_end_succeeds_even_when_net_not_yet_published(
+        self, client, admin_headers, net_repo_configured, pushed_nets_and_stats,
+    ):
+        """A 404 from Net Repository (net not approved/published there yet)
+        must not disrupt ending the session locally."""
+        net_resp = client.post("/nets", json={"name": "Stats Net", "public_listed": True}, headers=admin_headers)
+        net_id = net_resp.json()["id"]
+        session_resp = client.post(f"/nets/{net_id}/sessions", json={}, headers=admin_headers)
+        session_id = session_resp.json()["id"]
+
+        pushed_nets_and_stats.set_status(404)
+        resp = client.patch(f"/sessions/{session_id}/end", headers=admin_headers)
+        assert resp.status_code == 200
+        assert resp.json()["checkin_count"] == 0
+
+    def test_stats_push_fails_gracefully_on_http_error(self, client, admin_headers, net_repo_configured, monkeypatch):
+        """A Net Repository outage must not break ending a session locally."""
+        import httpx
+
+        net_resp = client.post("/nets", json={"name": "Stats Net", "public_listed": True}, headers=admin_headers)
+        net_id = net_resp.json()["id"]
+        session_resp = client.post(f"/nets/{net_id}/sessions", json={}, headers=admin_headers)
+        session_id = session_resp.json()["id"]
+
+        def fake_post(*args, **kwargs):
+            raise httpx.ConnectError("connection refused")
+
+        monkeypatch.setattr(httpx, "post", fake_post)
+        resp = client.patch(f"/sessions/{session_id}/end", headers=admin_headers)
+        assert resp.status_code == 200
+
+
 class TestAdminStatusEndpoint:
     def test_status_when_nothing_configured(self, client, admin_headers):
         resp = client.get("/admin/net-repository/status", headers=admin_headers)

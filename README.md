@@ -217,6 +217,8 @@ Either way, the key's `instance_url` (configured on Net Repository's side, eithe
 
 **Optional directory metadata** — all preferred, none required, available on the Edit form: **Band** (e.g. "2m"), **Mode** (e.g. "FM"), **CTCSS Tone**, **Region** (e.g. a county or metro area), **State**, and a **Website**. Leaving Website blank falls back to the org-wide website set in Admin → Branding.
 
+**Session stats** — ending a session on a public-listed net also logs that session's check-in count and date to Net Repository (`POST /nets/stats`), the same fire-and-forget way as the net listing push itself. Net Repository rolls these up into each net's session count, average check-ins, and last-session date on its directory page. Only meaningful once the net is actually published there — if it's still pending moderation (or the push hasn't happened yet), Net Repository returns a 404 that's logged quietly and never surfaces to the user or blocks ending the session.
+
 **Backfilling nets that existed before this integration:**
 
 ```bash

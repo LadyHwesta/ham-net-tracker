@@ -303,7 +303,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="Ham Radio Net Tracker", version="1.20.0", lifespan=lifespan)
+app = FastAPI(title="Ham Radio Net Tracker", version="1.21.0", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -1466,6 +1466,9 @@ def end_session(session_id: int, current_user: User = Depends(get_current_user),
     db.commit()
     db.refresh(session)
     count = db.query(func.count(Checkin.id)).filter(Checkin.session_id == session.id).scalar()
+    net = db.query(Net).filter(Net.id == session.net_id).first()
+    if net:
+        net_repository.push_session_stats(net, session, count, db)
     out = SessionOut.model_validate(session)
     out.checkin_count = count
     return out

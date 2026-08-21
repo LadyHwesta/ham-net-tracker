@@ -63,6 +63,15 @@
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
 
           <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-20 — Session Stats Sent to Net Repository (v1.21.0)</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>Ending a session on a public-listed net now also logs its check-in count and date to Net Repository, which rolls these up into each net's session count, average check-ins, and last-session date on its directory page.</li>
+              <li>Same fire-and-forget behavior as the existing net listing push — a Net Repository outage, misconfiguration, or a net not yet approved/published there never blocks ending a session locally.</li>
+              <li>No database migration — nothing new is stored locally.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-20 — Mobile Fixes: No More Auto-Zoom, Remark Editor Overflow (v1.20.0)</div>
             <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
               <li>Fixed iOS Safari zooming the page in every time you tapped a form field on mobile (Signal, Comments, Evac Zone, Talk Group, Expected Stations filters, etc.) — every field now renders at a large enough size that Safari doesn't feel the need to zoom for you.</li>

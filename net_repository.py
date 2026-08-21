@@ -152,6 +152,46 @@ def push_net(net, db) -> bool:
         return False
 
 
+def push_session_stats(net, session, checkin_count: int, db) -> bool:
+    """POST a closed session's stats to Net Repository (POST /nets/stats) —
+    session count, average check-ins, and last-session date roll up into
+    that net's public directory listing there. Only meaningful for a net
+    already published on Net Repository's side (matched by source_net_id,
+    same as push_net()) — a 404 there just means it hasn't been approved
+    yet, which is expected and logged quietly rather than as a warning.
+    Never raises — a Net Repository outage or misconfiguration must not
+    block ending a session locally."""
+    if not net_repository_configured(db):
+        return False
+    if not net.public_listed:
+        return False
+
+    payload = {
+        "source_net_id": net.id,
+        "checkin_count": checkin_count,
+        "session_date": session.started_at.isoformat(),
+    }
+    try:
+        resp = httpx.post(
+            f"{NET_REPOSITORY_URL}/nets/stats",
+            json=payload,
+            headers={"Authorization": f"Bearer {get_api_key(db)}"},
+            timeout=10,
+        )
+        if resp.status_code == 404:
+            _log.info(
+                "Skipped Net Repository session stats for net %r (id=%s) — not published there yet.",
+                net.name, net.id,
+            )
+            return False
+        resp.raise_for_status()
+        _log.info("Logged session stats for net %r (id=%s) to Net Repository.", net.name, net.id)
+        return True
+    except Exception as exc:
+        _log.warning("Failed to log session stats for net %r (id=%s) to Net Repository: %s", net.name, net.id, exc)
+        return False
+
+
 # ---------------------------------------------------------------------------
 # Self-service API key requests
 # ---------------------------------------------------------------------------
