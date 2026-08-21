@@ -43,9 +43,18 @@ async function openNet(netId) {
   document.getElementById('live-session-panel').style.display = 'none';
   document.getElementById('sessions-list-container').style.display = '';
   document.getElementById('session-tab-bar').style.display = '';
+  document.getElementById('back-to-sessions-btn').style.display = 'none';
   showView('session');
   switchSubTab('sessions');
   await loadSessions();
+}
+
+// Step back from a live session to this net's Sessions list, without ending
+// the session or leaving the net entirely (issue #19).
+function backToSessions() {
+  stopClock();
+  stopDmrPolling();
+  openNet(currentNetId);
 }
 
 function toggleNetScriptPanel() {
@@ -272,6 +281,7 @@ async function loadSessionLive(sessionId) {
     // to cut clutter; restore them once it ends (helpful when reviewing a closed session).
     document.getElementById('session-tab-bar').style.display = ended ? '' : 'none';
     document.getElementById('sessions-panel').style.display = ended ? '' : 'none';
+    document.getElementById('back-to-sessions-btn').style.display = ended ? 'none' : '';
     document.getElementById('schedule-panel').style.display = 'none';
     if (ended) {
       document.getElementById('sub-tab-sessions').classList.add('active');

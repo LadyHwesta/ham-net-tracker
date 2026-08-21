@@ -391,6 +391,10 @@
       <!-- SESSION VIEW -->
       <div id="view-session" style="display:none">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+          <!-- Only shown while viewing a live (not yet ended) session, where the sessions
+               list is hidden to cut clutter — lets you step back one level to see other
+               sessions or make changes, instead of leaving the net entirely (issue #19). -->
+          <button class="btn btn-ghost btn-sm" id="back-to-sessions-btn" style="display:none" onclick="backToSessions()">← Back to Sessions</button>
           <button class="btn btn-ghost btn-sm" onclick="showView('nets')">← Back to Nets</button>
           <h2 class="section-title mb-0" id="session-net-name"></h2>
         </div>
@@ -835,7 +839,7 @@
   <script src="/static/js/branding.js?v=20"></script>
   <script src="/static/js/report.js?v=20"></script>
   <script src="/static/js/nets.js?v=20"></script>
-  <script src="/static/js/sessions.js?v=21"></script>
+  <script src="/static/js/sessions.js?v=22"></script>
   <script src="/static/js/checkins.js?v=25"></script>
   <script src="/static/js/history.js?v=20"></script>
   <script src="/static/js/admin.js?v=21"></script>
