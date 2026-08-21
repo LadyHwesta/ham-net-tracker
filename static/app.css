@@ -439,15 +439,18 @@
     .script-var-row { display: flex; align-items: center; gap: 10px; padding: 3px 0; flex-wrap: wrap; }
     .script-var-row .btn { font-size: 11px; padding: 1px 8px; white-space: nowrap; }
 
-    /* Net Script editor (issue #24 follow-up) — variable reference sits beside
-       the editor, bottom-aligned so a tall editor (long script) doesn't push it
-       out of reach the way a stacked-above panel would. */
-    .script-editor-columns { display: flex; gap: 16px; align-items: flex-end; }
-    .script-editor-main { flex: 1; min-width: 0; }
-    .script-editor-vars { flex: 0 0 280px; }
+    /* Net Script editor (issue #24 follow-up) — write on the left (toolbar,
+       variable reference, textarea), see the rendered result on the right. The
+       textarea's height is set via JS to track the preview's rendered height
+       (renderScriptPreview() in nets.js) so the two panes grow together. */
+    .script-editor-columns { display: flex; gap: 16px; align-items: flex-start; }
+    .script-editor-left { flex: 1; min-width: 0; }
+    .script-editor-right { flex: 0 0 340px; }
+    #net-script { resize: none; overflow-y: auto; transition: height .08s ease-out; }
     @media (max-width: 860px) {
       .script-editor-columns { flex-direction: column; align-items: stretch; }
-      .script-editor-vars { flex: 1 1 auto; width: 100%; }
+      .script-editor-right { flex: 1 1 auto; width: 100%; }
+      #net-script { height: auto !important; }
     }
 
     /* ===== CALLSIGN LOOKUP ===== */

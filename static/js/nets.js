@@ -124,7 +124,7 @@ function switchNetFormTab(tab) {
   document.getElementById('net-form-tab-script-btn').classList.toggle('active', tab === 'script');
   // The Details tab was designed/laid out at a narrower width; give the script
   // editor (toolbar + big textarea + preview) more room to breathe.
-  document.getElementById('net-form-card').style.maxWidth = tab === 'script' ? '920px' : '500px';
+  document.getElementById('net-form-card').style.maxWidth = tab === 'script' ? '960px' : '500px';
   if (tab === 'script') renderScriptPreview();
 }
 
@@ -213,19 +213,26 @@ const NET_SCRIPT_PREVIEW_VARS = {
 // Renders the textarea's current content through the same {{variable}}
 // substitution + markup pipeline the live session uses (escapeHtml /
 // scriptBlockFormat, defined in sessions.js — loaded on this page too).
+const NET_SCRIPT_MIN_HEIGHT = 240; // px — floor so the editor doesn't collapse when the script is short/empty
+
 function renderScriptPreview() {
   const previewEl = document.getElementById('net-script-preview');
-  if (!previewEl) return;
-  const text = document.getElementById('net-script').value;
+  const ta = document.getElementById('net-script');
+  if (!previewEl || !ta) return;
+  const text = ta.value;
   if (!text.trim()) {
     previewEl.innerHTML = '<p class="text-muted" style="font-size:12px;margin:0">Nothing to preview yet — start typing above.</p>';
-    return;
+  } else {
+    const netName = document.getElementById('net-name').value.trim() || 'Your Net';
+    const vars = { net_name: netName, ...NET_SCRIPT_PREVIEW_VARS };
+    let escaped = escapeHtml(text);
+    escaped = escaped.replace(/\{\{\s*(\w+)\s*\}\}/g, (match, key) => (key in vars ? escapeHtml(vars[key]) : match));
+    previewEl.innerHTML = scriptBlockFormat(escaped);
   }
-  const netName = document.getElementById('net-name').value.trim() || 'Your Net';
-  const vars = { net_name: netName, ...NET_SCRIPT_PREVIEW_VARS };
-  let escaped = escapeHtml(text);
-  escaped = escaped.replace(/\{\{\s*(\w+)\s*\}\}/g, (match, key) => (key in vars ? escapeHtml(vars[key]) : match));
-  previewEl.innerHTML = scriptBlockFormat(escaped);
+  // Match the editor's height to the preview's rendered height (issue #24
+  // follow-up) so the write/see-result panes grow together as you type,
+  // instead of the textarea staying a fixed size while the preview grows.
+  ta.style.height = Math.max(previewEl.scrollHeight, NET_SCRIPT_MIN_HEIGHT) + 'px';
 }
 
 function cancelNetForm() {
