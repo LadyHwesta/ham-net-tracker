@@ -586,7 +586,14 @@ async function loadTacticalPositions() {
   } catch {
     tacticalPositions = [];
   }
+  try {
+    netControlShifts = await apiFetch(`/sessions/${currentSessionId}/net-control-shifts`);
+  } catch {
+    netControlShifts = [];
+  }
   renderStationSchedule();
+  renderNetControlStatusCard();
+  renderNetControlShifts();
   renderExpectedList();
   // Net Control hands off through this same tactical position (issue #21 follow-up)
   // — refresh the duty bar/net script so a handoff shows up immediately everywhere
@@ -623,12 +630,67 @@ async function addTacticalPosition() {
     document.getElementById('tac-pos-location').value = '';
     document.getElementById('tac-pos-assigned-callsign').value = '';
     document.getElementById('tac-pos-assigned-name').value = '';
-    document.getElementById('tac-pos-scheduled-month').value = '';
-    document.getElementById('tac-pos-scheduled-day').value = '';
+    setDefaultMonthDay('tac-pos-scheduled-month', 'tac-pos-scheduled-day');
     document.getElementById('tac-pos-scheduled-time').value = '';
     toast('Position added', 'success');
     await loadTacticalPositions();
   } catch (e) { toast(e.message, 'error'); }
+}
+
+// ── Net Control rotation schedule (issue #21 follow-up) ────────────────────
+// A forward-looking queue of planned Net Control shifts, separate from a
+// tactical station's single "planned operator" — Net Control classically
+// hands off on a fixed cadence throughout a long activation, so it gets its
+// own rotation plan rather than one "who's next" slot.
+async function addNetControlShift() {
+  const callsign = document.getElementById('nc-shift-callsign').value.trim().toUpperCase();
+  const name = document.getElementById('nc-shift-name').value.trim() || null;
+  const month = document.getElementById('nc-shift-month').value;
+  const day = document.getElementById('nc-shift-day').value;
+  const time = document.getElementById('nc-shift-time').value;
+  if (!callsign) return toast('Callsign required', 'error');
+  if (!month || !day) return toast('Scheduled sign-on date required', 'error');
+  const year = new Date().getFullYear();
+  const scheduled_start = new Date(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${time || '00:00'}`).toISOString();
+  try {
+    await apiFetch(`/sessions/${currentSessionId}/net-control-shifts`, {
+      method: 'POST',
+      body: JSON.stringify({ callsign, name, scheduled_start }),
+    });
+    document.getElementById('nc-shift-callsign').value = '';
+    document.getElementById('nc-shift-name').value = '';
+    document.getElementById('nc-shift-time').value = '';
+    setDefaultMonthDay('nc-shift-month', 'nc-shift-day');
+    toast('Shift added', 'success');
+    await loadTacticalPositions();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function removeNetControlShift(id) {
+  try {
+    await apiFetch(`/net-control-shifts/${id}`, { method: 'DELETE' });
+    toast('Shift removed', 'success');
+    await loadTacticalPositions();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function renderNetControlShifts() {
+  const listEl = document.getElementById('net-control-shifts-list');
+  if (!listEl) return;
+  if (!netControlShifts.length) {
+    listEl.innerHTML = '<p class="text-muted" style="font-size:12px;margin:0">No planned shifts yet — add one above to queue up the next handoff.</p>';
+    return;
+  }
+  const sorted = [...netControlShifts].sort((a, b) => new Date(a.scheduled_start) - new Date(b.scheduled_start));
+  listEl.innerHTML = sorted.map((s, i) => `
+    <div class="card" style="padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;gap:12px;flex-wrap:wrap${i === 0 ? ';border-color:var(--lc-blue)' : ''}">
+      <div style="flex:1;min-width:160px">
+        ${i === 0 ? '<div class="text-muted" style="font-size:10px;color:var(--lc-blue)">NEXT UP</div>' : ''}
+        <span class="callsign">${esc(s.callsign)}</span>${s.name ? ` <span class="text-muted" style="font-size:12px">— ${esc(s.name)}</span>` : ''}
+      </div>
+      <span style="font-size:12px;color:var(--text-muted);white-space:nowrap">🕐 ${fmt(s.scheduled_start)}</span>
+      <button type="button" class="btn btn-danger btn-sm" onclick="removeNetControlShift(${s.id})">✕ Remove</button>
+    </div>`).join('');
 }
 
 async function removeTacticalPosition(id) {
@@ -647,19 +709,23 @@ async function removeTacticalPosition(id) {
 // own (it's auto-created at session start), so this tab is the only place
 // its plan can be set, and operators look here first to hand it off too
 // (issue #21 follow-up: a plain pointer to the other tab wasn't enough).
+// Tactical Stations sub-tab — one-off field positions only. Net Control lives
+// on its own sub-tab (renderNetControlStatusCard, below) with its own rotation
+// schedule instead of a single planned-operator field (issue #21 follow-up).
 function renderStationSchedule() {
   const listEl = document.getElementById('tactical-schedule-list');
   if (!listEl) return;
-  if (!tacticalPositions.length) {
+  const positions = tacticalPositions.filter(p => !p.is_net_control);
+  if (!positions.length) {
     listEl.innerHTML = '<p class="text-muted" style="font-size:12px;margin:0">No tactical positions yet — add one above.</p>';
     return;
   }
-  listEl.innerHTML = tacticalPositions.map(p => {
+  listEl.innerHTML = positions.map(p => {
     const occupied = !!p.current_callsign;
-    return `<div class="card" style="padding:10px 12px;margin-bottom:8px${p.is_net_control ? ';border-color:var(--lc-orange)' : ''}">
+    return `<div class="card" style="padding:10px 12px;margin-bottom:8px">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
         <div style="flex:1;min-width:160px">
-          <span class="callsign">${p.is_net_control ? '🎙 ' : ''}${esc(p.tactical_callsign)}</span>
+          <span class="callsign">${esc(p.tactical_callsign)}</span>
           ${p.location ? `<span class="text-muted" style="font-size:12px;margin-left:8px">📍 ${esc(p.location)}</span>` : ''}
           ${p.assigned_callsign ? `<div class="text-muted" style="font-size:11px;margin-top:2px">Planned: ${esc(p.assigned_callsign)}${p.assigned_name ? ' — ' + esc(p.assigned_name) : ''}</div>` : ''}
           ${p.scheduled_start ? `<div class="text-muted" style="font-size:11px;margin-top:2px">🕐 Sign-on: ${fmt(p.scheduled_start)}</div>` : ''}
@@ -668,20 +734,40 @@ function renderStationSchedule() {
           ${occupied ? `🟢 ${esc(p.current_callsign)}${p.current_name ? ' — ' + esc(p.current_name) : ''}` : '⚪ Vacant'}
         </span>
         <button type="button" class="btn btn-ghost btn-sm" onclick="toggleEditPositionForm(${p.id})">✏️ Edit</button>
-        ${p.is_net_control
-          ? `<button type="button" class="btn btn-ghost btn-sm" style="font-size:10px;padding:1px 6px" onclick="toggleShiftHistory(${p.id}, 'schedule')">🕐 History</button>
-             ${occupied
-               ? `<button type="button" class="btn btn-ghost btn-sm" onclick="toggleSignOnForm(${p.id}, 'schedule')">🔄 Hand Off Net Control</button>
-                  <button type="button" class="btn btn-danger btn-sm" onclick="signOffPosition(${p.id})">Sign Off</button>`
-               : `<button type="button" class="btn btn-primary btn-sm" onclick="toggleSignOnForm(${p.id}, 'schedule')">Sign On Net Control</button>`}`
-          : `<button type="button" class="btn btn-danger btn-sm" onclick="removeTacticalPosition(${p.id})">✕ Remove</button>`}
+        <button type="button" class="btn btn-danger btn-sm" onclick="removeTacticalPosition(${p.id})">✕ Remove</button>
       </div>
       <div id="tac-edit-form-${p.id}" style="display:none;margin-top:8px"></div>
-      ${p.is_net_control ? `
-      <div id="tac-signon-form-schedule-${p.id}" style="display:none;margin-top:8px"></div>
-      <div id="tac-history-schedule-${p.id}" style="display:none;margin-top:8px;font-size:11px"></div>` : ''}
     </div>`;
   }).join('');
+}
+
+// Net Control sub-tab — the live status/handoff card. Hand Off Net Control
+// auto-fills from the next planned shift in netControlShifts (issue #21
+// follow-up), handled in toggleSignOnForm below.
+function renderNetControlStatusCard() {
+  const container = document.getElementById('net-control-status-card');
+  if (!container) return;
+  const p = tacticalPositions.find(x => x.is_net_control);
+  if (!p) { container.innerHTML = ''; return; }
+  const occupied = !!p.current_callsign;
+  container.innerHTML = `
+    <div class="card" style="padding:10px 12px;margin-bottom:12px;border-color:var(--lc-orange)">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:160px">
+          <span class="callsign">🎙 NET CONTROL</span>
+        </div>
+        <span style="font-size:12px;color:${occupied ? 'var(--lc-green)' : 'var(--text-muted)'};white-space:nowrap">
+          ${occupied ? `🟢 ${esc(p.current_callsign)}${p.current_name ? ' — ' + esc(p.current_name) : ''}` : '⚪ Vacant'}
+        </span>
+        <button type="button" class="btn btn-ghost btn-sm" style="font-size:10px;padding:1px 6px" onclick="toggleShiftHistory(${p.id}, 'schedule')">🕐 History</button>
+        ${occupied
+          ? `<button type="button" class="btn btn-ghost btn-sm" onclick="toggleSignOnForm(${p.id}, 'schedule')">🔄 Hand Off Net Control</button>
+             <button type="button" class="btn btn-danger btn-sm" onclick="signOffPosition(${p.id})">Sign Off</button>`
+          : `<button type="button" class="btn btn-primary btn-sm" onclick="toggleSignOnForm(${p.id}, 'schedule')">Sign On Net Control</button>`}
+      </div>
+      <div id="tac-signon-form-schedule-${p.id}" style="display:none;margin-top:8px"></div>
+      <div id="tac-history-schedule-${p.id}" style="display:none;margin-top:8px;font-size:11px"></div>
+    </div>`;
 }
 
 // Tactical Assignments panel (lives in the Check-In tab's Expected Stations
@@ -734,24 +820,36 @@ function toggleSignOnForm(positionId, scope = 'assign') {
   if (!container) return;
   if (container.style.display !== 'none') { container.style.display = 'none'; container.innerHTML = ''; return; }
   const position = tacticalPositions.find(p => p.id === positionId);
-  // Pre-fill from the planned operator if one was set — fully editable,
-  // covering "override the scheduled station" (issue #21).
-  const defaultCallsign = (position && position.assigned_callsign) || '';
-  const defaultName = (position && position.assigned_name) || '';
+  let defaultCallsign = (position && position.assigned_callsign) || '';
+  let defaultName = (position && position.assigned_name) || '';
+  let sourceShift = null;
+  // Net Control auto-fills from the next planned shift in its rotation
+  // schedule (soonest scheduled_start) rather than a single planned-operator
+  // field -- still fully editable in case of a last-minute change (issue #21
+  // follow-up).
+  if (position && position.is_net_control && netControlShifts.length) {
+    sourceShift = [...netControlShifts].sort((a, b) => new Date(a.scheduled_start) - new Date(b.scheduled_start))[0];
+    defaultCallsign = sourceShift.callsign;
+    defaultName = sourceShift.name || '';
+  }
   container.style.display = '';
+  container.dataset.sourceShiftId = sourceShift ? sourceShift.id : '';
   container.innerHTML = `
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
       <input class="form-control mono" id="tac-signon-callsign-${scope}-${positionId}" placeholder="Callsign" value="${esc(defaultCallsign)}" style="width:110px;text-transform:uppercase;font-size:12px" />
       <input class="form-control" id="tac-signon-name-${scope}-${positionId}" placeholder="Name (optional)" value="${esc(defaultName)}" style="width:140px;font-size:12px" />
       <button class="btn btn-primary btn-sm" onclick="signOnPosition(${positionId}, '${scope}')">Confirm</button>
       <button class="btn btn-ghost btn-sm" onclick="toggleSignOnForm(${positionId}, '${scope}')">Cancel</button>
-    </div>`;
+    </div>
+    ${sourceShift ? `<div class="text-muted" style="font-size:10px;margin-top:4px">Auto-filled from the next scheduled shift (${fmt(sourceShift.scheduled_start)}) — edit if plans changed.</div>` : ''}`;
   document.getElementById(`tac-signon-callsign-${scope}-${positionId}`).focus();
 }
 
 async function signOnPosition(positionId, scope = 'assign') {
   const callsignEl = document.getElementById(`tac-signon-callsign-${scope}-${positionId}`);
   const nameEl = document.getElementById(`tac-signon-name-${scope}-${positionId}`);
+  const container = document.getElementById(`tac-signon-form-${scope}-${positionId}`);
+  const sourceShiftId = container ? container.dataset.sourceShiftId : '';
   const callsign = callsignEl.value.trim().toUpperCase();
   const name = nameEl.value.trim() || null;
   if (!callsign) return toast('Callsign required', 'error');
@@ -760,6 +858,12 @@ async function signOnPosition(positionId, scope = 'assign') {
       method: 'POST',
       body: JSON.stringify({ callsign, name }),
     });
+    // The consumed shift's scheduled slot has now passed regardless of who
+    // actually signed on (the auto-fill may have been overridden) -- clear it
+    // so "next" always points at the following planned shift.
+    if (sourceShiftId) {
+      try { await apiFetch(`/net-control-shifts/${sourceShiftId}`, { method: 'DELETE' }); } catch {}
+    }
     toast(`${callsign} signed on`, 'success');
     await loadTacticalPositions();
     await loadCheckins();

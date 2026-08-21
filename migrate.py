@@ -317,6 +317,16 @@ MIGRATIONS = [
      "ALTER TABLE tactical_positions ADD COLUMN IF NOT EXISTS scheduled_start TIMESTAMPTZ"),
     ("tactical_positions: net control flag",
      "ALTER TABLE tactical_positions ADD COLUMN IF NOT EXISTS is_net_control BOOLEAN NOT NULL DEFAULT FALSE"),
+
+    # ── Net Control rotation schedule (issue #21 follow-up) ───────────────────
+    ("table: net_control_shifts",
+     """CREATE TABLE IF NOT EXISTS net_control_shifts (
+         id SERIAL PRIMARY KEY,
+         session_id INTEGER NOT NULL REFERENCES net_sessions(id) ON DELETE CASCADE,
+         callsign VARCHAR(12) NOT NULL,
+         name VARCHAR(100),
+         scheduled_start TIMESTAMPTZ NOT NULL,
+         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())"""),
 ]
 
 # ---------------------------------------------------------------------------

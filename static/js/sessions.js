@@ -215,6 +215,9 @@ function switchSessionTab(tab) {
       }
     });
     document.getElementById('station-schedule-panel').style.display = '';
+    switchStationScheduleSubTab('tactical');
+    setDefaultMonthDay('tac-pos-scheduled-month', 'tac-pos-scheduled-day');
+    setDefaultMonthDay('nc-shift-month', 'nc-shift-day');
     loadTacticalPositions();
   } else {
     contentEls.forEach(el => {
@@ -227,6 +230,27 @@ function switchSessionTab(tab) {
   }
   document.getElementById('session-tab-checkin-btn').classList.toggle('active', tab === 'checkin');
   document.getElementById('session-tab-schedule-btn').classList.toggle('active', tab === 'schedule');
+}
+
+// Station Schedule sub-tabs (issue #21 follow-up): Tactical Stations (one-off
+// field positions) vs. Net Control (its own rotation schedule) — Net Control
+// classically hands off on a fixed cadence throughout an activation, unlike a
+// typical tactical station, so it gets a separate planning queue.
+function switchStationScheduleSubTab(tab) {
+  document.getElementById('tactical-stations-subpanel').style.display = tab === 'tactical' ? '' : 'none';
+  document.getElementById('net-control-subpanel').style.display = tab === 'netcontrol' ? '' : 'none';
+  document.getElementById('schedule-subtab-tactical-btn').classList.toggle('active', tab === 'tactical');
+  document.getElementById('schedule-subtab-netcontrol-btn').classList.toggle('active', tab === 'netcontrol');
+}
+
+// Defaults a Scheduled Sign-On month/day pair to today (issue #21 follow-up) —
+// used for both the tactical-position and Net Control shift "add" forms.
+function setDefaultMonthDay(monthId, dayId) {
+  const now = new Date();
+  const monthEl = document.getElementById(monthId);
+  const dayEl = document.getElementById(dayId);
+  if (monthEl) monthEl.value = String(now.getMonth() + 1);
+  if (dayEl) dayEl.value = String(now.getDate());
 }
 
 async function loadSessions() {

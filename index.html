@@ -519,62 +519,115 @@
                 <button class="tab-btn" id="session-tab-schedule-btn" onclick="switchSessionTab('schedule')">🗓 Station Schedule</button>
               </div>
 
-              <!-- Station Schedule tab content — setup/definition only; sign-on/off
-                   actions live in the Tactical Assignments panel (Check-In tab, below). -->
+              <!-- Station Schedule tab content — setup/definition, split into Tactical
+                   Stations (one-off field positions) and Net Control (its own rotation
+                   schedule — Net Control classically hands off on a fixed cadence, unlike
+                   a tactical station, so it gets a separate planning queue, issue #21
+                   follow-up). Live sign-on/off for tactical stations also lives in the
+                   Tactical Assignments panel (Check-In tab); Net Control's controls live
+                   right here too, not just there. -->
               <div id="station-schedule-panel" style="display:none">
-                <!-- Net Control is listed as the first entry in #tactical-schedule-list below
-                     (auto-created, pinned to the top) rather than a separate static line here —
-                     it hands off through the same sign-on/off flow as any other position. -->
-                <div class="card" style="margin-bottom:12px;padding:12px">
-                  <div style="font-size:12px;font-weight:700;color:var(--lc-orange);letter-spacing:.05em;margin-bottom:8px">+ ADD TACTICAL POSITION</div>
-                  <div class="form-row">
-                    <div class="form-group mb-0">
-                      <label style="font-size:11px">Tactical Callsign *</label>
-                      <input class="form-control mono" id="tac-pos-callsign" placeholder="SHELTER 1" style="text-transform:uppercase;font-size:13px" />
-                    </div>
-                    <div class="form-group mb-0">
-                      <label style="font-size:11px">Location</label>
-                      <input class="form-control" id="tac-pos-location" placeholder="Optional" style="font-size:13px" />
-                    </div>
-                  </div>
-                  <div class="form-row" style="margin-top:8px">
-                    <div class="form-group mb-0">
-                      <label style="font-size:11px">Assigned Operator Callsign</label>
-                      <input class="form-control mono" id="tac-pos-assigned-callsign" placeholder="Optional — who's planned for this" style="text-transform:uppercase;font-size:13px" />
-                    </div>
-                    <div class="form-group mb-0">
-                      <label style="font-size:11px">Assigned Operator Name</label>
-                      <input class="form-control" id="tac-pos-assigned-name" placeholder="Optional" style="font-size:13px" />
-                    </div>
-                  </div>
-                  <div class="form-row" style="margin-top:8px">
-                    <div class="form-group mb-0">
-                      <label style="font-size:11px">Scheduled Sign-On <span class="text-muted">(this year)</span></label>
-                      <div style="display:flex;gap:6px">
-                        <select class="form-control" id="tac-pos-scheduled-month" style="font-size:13px;width:78px">
-                          <option value="">Month</option>
-                          <option value="1">Jan</option><option value="2">Feb</option><option value="3">Mar</option>
-                          <option value="4">Apr</option><option value="5">May</option><option value="6">Jun</option>
-                          <option value="7">Jul</option><option value="8">Aug</option><option value="9">Sep</option>
-                          <option value="10">Oct</option><option value="11">Nov</option><option value="12">Dec</option>
-                        </select>
-                        <select class="form-control" id="tac-pos-scheduled-day" style="font-size:13px;width:66px">
-                          <option value="">Day</option>
-                          <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option>
-                          <option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option>
-                          <option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option>
-                          <option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option>
-                          <option value="21">21</option><option value="22">22</option><option value="23">23</option><option value="24">24</option><option value="25">25</option>
-                          <option value="26">26</option><option value="27">27</option><option value="28">28</option><option value="29">29</option><option value="30">30</option>
-                          <option value="31">31</option>
-                        </select>
-                        <input class="form-control" type="time" id="tac-pos-scheduled-time" style="font-size:13px;width:110px" />
+                <div class="tab-bar" id="station-schedule-subtab-bar">
+                  <button class="tab-btn active" id="schedule-subtab-tactical-btn" onclick="switchStationScheduleSubTab('tactical')">🎯 Tactical Stations</button>
+                  <button class="tab-btn" id="schedule-subtab-netcontrol-btn" onclick="switchStationScheduleSubTab('netcontrol')">🎙 Net Control</button>
+                </div>
+
+                <div id="tactical-stations-subpanel">
+                  <div class="card" style="margin-bottom:12px;padding:12px">
+                    <div style="font-size:12px;font-weight:700;color:var(--lc-orange);letter-spacing:.05em;margin-bottom:8px">+ ADD TACTICAL POSITION</div>
+                    <div class="form-row">
+                      <div class="form-group mb-0">
+                        <label style="font-size:11px">Tactical Callsign *</label>
+                        <input class="form-control mono" id="tac-pos-callsign" placeholder="SHELTER 1" style="text-transform:uppercase;font-size:13px" />
+                      </div>
+                      <div class="form-group mb-0">
+                        <label style="font-size:11px">Location</label>
+                        <input class="form-control" id="tac-pos-location" placeholder="Optional" style="font-size:13px" />
                       </div>
                     </div>
+                    <div class="form-row" style="margin-top:8px">
+                      <div class="form-group mb-0">
+                        <label style="font-size:11px">Assigned Operator Callsign</label>
+                        <input class="form-control mono" id="tac-pos-assigned-callsign" placeholder="Optional — who's planned for this" style="text-transform:uppercase;font-size:13px" />
+                      </div>
+                      <div class="form-group mb-0">
+                        <label style="font-size:11px">Assigned Operator Name</label>
+                        <input class="form-control" id="tac-pos-assigned-name" placeholder="Optional" style="font-size:13px" />
+                      </div>
+                    </div>
+                    <div class="form-row" style="margin-top:8px">
+                      <div class="form-group mb-0">
+                        <label style="font-size:11px">Scheduled Sign-On <span class="text-muted">(this year)</span></label>
+                        <div style="display:flex;gap:6px">
+                          <select class="form-control" id="tac-pos-scheduled-month" style="font-size:13px;width:78px">
+                            <option value="">Month</option>
+                            <option value="1">Jan</option><option value="2">Feb</option><option value="3">Mar</option>
+                            <option value="4">Apr</option><option value="5">May</option><option value="6">Jun</option>
+                            <option value="7">Jul</option><option value="8">Aug</option><option value="9">Sep</option>
+                            <option value="10">Oct</option><option value="11">Nov</option><option value="12">Dec</option>
+                          </select>
+                          <select class="form-control" id="tac-pos-scheduled-day" style="font-size:13px;width:66px">
+                            <option value="">Day</option>
+                            <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option>
+                            <option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option>
+                            <option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option>
+                            <option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option>
+                            <option value="21">21</option><option value="22">22</option><option value="23">23</option><option value="24">24</option><option value="25">25</option>
+                            <option value="26">26</option><option value="27">27</option><option value="28">28</option><option value="29">29</option><option value="30">30</option>
+                            <option value="31">31</option>
+                          </select>
+                          <input class="form-control" type="time" id="tac-pos-scheduled-time" style="font-size:13px;width:110px" />
+                        </div>
+                      </div>
+                    </div>
+                    <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="addTacticalPosition()">+ Add Position</button>
                   </div>
-                  <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="addTacticalPosition()">+ Add Position</button>
+                  <div id="tactical-schedule-list"></div>
                 </div>
-                <div id="tactical-schedule-list"></div>
+
+                <div id="net-control-subpanel" style="display:none">
+                  <div id="net-control-status-card"></div>
+                  <div class="card" style="margin-bottom:12px;padding:12px">
+                    <div style="font-size:12px;font-weight:700;color:var(--lc-orange);letter-spacing:.05em;margin-bottom:8px">+ ADD PLANNED SHIFT</div>
+                    <div class="form-row">
+                      <div class="form-group mb-0">
+                        <label style="font-size:11px">Callsign *</label>
+                        <input class="form-control mono" id="nc-shift-callsign" placeholder="W1ABC" style="text-transform:uppercase;font-size:13px" />
+                      </div>
+                      <div class="form-group mb-0">
+                        <label style="font-size:11px">Name</label>
+                        <input class="form-control" id="nc-shift-name" placeholder="Optional" style="font-size:13px" />
+                      </div>
+                    </div>
+                    <div class="form-row" style="margin-top:8px">
+                      <div class="form-group mb-0">
+                        <label style="font-size:11px">Scheduled Sign-On <span class="text-muted">(this year)</span></label>
+                        <div style="display:flex;gap:6px">
+                          <select class="form-control" id="nc-shift-month" style="font-size:13px;width:78px">
+                            <option value="">Month</option>
+                            <option value="1">Jan</option><option value="2">Feb</option><option value="3">Mar</option>
+                            <option value="4">Apr</option><option value="5">May</option><option value="6">Jun</option>
+                            <option value="7">Jul</option><option value="8">Aug</option><option value="9">Sep</option>
+                            <option value="10">Oct</option><option value="11">Nov</option><option value="12">Dec</option>
+                          </select>
+                          <select class="form-control" id="nc-shift-day" style="font-size:13px;width:66px">
+                            <option value="">Day</option>
+                            <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option>
+                            <option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option>
+                            <option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option>
+                            <option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option>
+                            <option value="21">21</option><option value="22">22</option><option value="23">23</option><option value="24">24</option><option value="25">25</option>
+                            <option value="26">26</option><option value="27">27</option><option value="28">28</option><option value="29">29</option><option value="30">30</option>
+                            <option value="31">31</option>
+                          </select>
+                          <input class="form-control" type="time" id="nc-shift-time" style="font-size:13px;width:110px" />
+                        </div>
+                      </div>
+                    </div>
+                    <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="addNetControlShift()">+ Add Shift</button>
+                  </div>
+                  <div id="net-control-shifts-list"></div>
+                </div>
               </div>
 
               <!-- Quick checkin form — kept inside the sticky header so it's reachable
@@ -907,7 +960,7 @@
   </main>
 </div><!-- /app -->
 
-  <script src="/static/js/state.js?v=21"></script>
+  <script src="/static/js/state.js?v=22"></script>
   <script src="/static/js/utils.js?v=20"></script>
   <script src="/static/js/offline-queue.js?v=2"></script>
   <script src="/static/js/auth.js?v=22"></script>
@@ -916,8 +969,8 @@
   <script src="/static/js/branding.js?v=20"></script>
   <script src="/static/js/report.js?v=20"></script>
   <script src="/static/js/nets.js?v=20"></script>
-  <script src="/static/js/sessions.js?v=24"></script>
-  <script src="/static/js/checkins.js?v=29"></script>
+  <script src="/static/js/sessions.js?v=25"></script>
+  <script src="/static/js/checkins.js?v=30"></script>
   <script src="/static/js/history.js?v=20"></script>
   <script src="/static/js/admin.js?v=21"></script>
   <script src="/static/js/schedules.js?v=21"></script>

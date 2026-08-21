@@ -73,7 +73,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from database import get_db, init_db
-from models import ApiToken, CallsignCache, Checkin, DmrConfig, EvacZone, GmrsLicense, Net, NetControlSignup, NetSchedule, NetSession, NetShare, StationRemark, SystemSetting, TacticalPosition, TrafficMessage, User, utcnow
+from models import ApiToken, CallsignCache, Checkin, DmrConfig, EvacZone, GmrsLicense, Net, NetControlShift, NetControlSignup, NetSchedule, NetSession, NetShare, StationRemark, SystemSetting, TacticalPosition, TrafficMessage, User, utcnow
 import net_repository
 
 load_dotenv()
@@ -303,7 +303,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="Ham Radio Net Tracker", version="2.0.3", lifespan=lifespan)
+app = FastAPI(title="Ham Radio Net Tracker", version="2.1.0", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -666,6 +666,31 @@ class TacticalSignOn(BaseModel):
         if not v:
             raise ValueError("callsign is required")
         return v
+
+
+class NetControlShiftCreate(BaseModel):
+    callsign: str
+    name: Optional[str] = None
+    scheduled_start: datetime
+
+    @field_validator("callsign")
+    @classmethod
+    def callsign_upper(cls, v):
+        v = v.strip().upper()
+        if not v:
+            raise ValueError("callsign is required")
+        return v
+
+
+class NetControlShiftOut(BaseModel):
+    id: int
+    session_id: int
+    callsign: str
+    name: Optional[str]
+    scheduled_start: datetime
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
 
 
 class DmrConfigCreate(BaseModel):
@@ -2193,6 +2218,60 @@ def sign_off_tactical_position(position_id: int, current_user: User = Depends(ge
     out = CheckinOut.model_validate(outgoing)
     out.tactical_callsign = position.tactical_callsign
     return out
+
+
+# ---------------------------------------------------------------------------
+# Net Control rotation schedule (issue #21 follow-up)
+#
+# A forward-looking queue of planned future Net Control shifts, kept separate
+# from tactical positions' single assigned_callsign/scheduled_start -- Net
+# Control classically rotates on a fixed cadence throughout a long activation,
+# so operators plan a whole rotation ahead of time rather than just "who's
+# next". Handing off Net Control (sign-on to the is_net_control position)
+# pre-fills from whichever shift here is scheduled earliest; the frontend
+# removes that entry once the handoff is confirmed.
+# ---------------------------------------------------------------------------
+
+def _get_shift_for_user(shift_id: int, user: User, db: Session) -> NetControlShift:
+    shift = db.query(NetControlShift).filter(NetControlShift.id == shift_id).first()
+    if not shift:
+        raise HTTPException(404, "Shift not found")
+    _get_session_for_user(shift.session_id, user, db)  # raises 403/404 if no access
+    return shift
+
+
+@app.get("/sessions/{session_id}/net-control-shifts", response_model=list[NetControlShiftOut])
+def list_net_control_shifts(session_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    session = _get_activation_session(session_id, current_user, db)
+    shifts = (
+        db.query(NetControlShift)
+        .filter(NetControlShift.session_id == session.id)
+        .order_by(NetControlShift.scheduled_start)
+        .all()
+    )
+    return [NetControlShiftOut.model_validate(s) for s in shifts]
+
+
+@app.post("/sessions/{session_id}/net-control-shifts", response_model=NetControlShiftOut, status_code=201)
+def create_net_control_shift(session_id: int, data: NetControlShiftCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    session = _get_activation_session(session_id, current_user, db)
+    shift = NetControlShift(
+        session_id=session.id,
+        callsign=data.callsign,
+        name=(data.name or "").strip() or None,
+        scheduled_start=data.scheduled_start,
+    )
+    db.add(shift)
+    db.commit()
+    db.refresh(shift)
+    return NetControlShiftOut.model_validate(shift)
+
+
+@app.delete("/net-control-shifts/{shift_id}", status_code=204)
+def delete_net_control_shift(shift_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    shift = _get_shift_for_user(shift_id, current_user, db)
+    db.delete(shift)
+    db.commit()
 
 
 # ---------------------------------------------------------------------------

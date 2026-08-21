@@ -125,6 +125,7 @@ class NetSession(Base):
     checkins = relationship("Checkin", back_populates="session", cascade="all, delete-orphan")
     traffic_messages = relationship("TrafficMessage", back_populates="session", cascade="all, delete-orphan")
     tactical_positions = relationship("TacticalPosition", back_populates="session", cascade="all, delete-orphan")
+    net_control_shifts = relationship("NetControlShift", back_populates="session", cascade="all, delete-orphan")
 
     @property
     def is_active(self):
@@ -160,6 +161,31 @@ class TacticalPosition(Base):
 
     def __repr__(self):
         return f"<TacticalPosition {self.tactical_callsign}>"
+
+
+class NetControlShift(Base):
+    """A planned future Net Control shift for one activation session (issue #21
+    follow-up). Kept separate from TacticalPosition.assigned_callsign/scheduled_start
+    (a single "planned next" value) because Net Control classically rotates on a
+    fixed cadence throughout a long activation -- operators want a whole rotation
+    queued up in advance, not just one "who's next" slot. Handing off Net Control
+    (via the auto-created is_net_control TacticalPosition's sign-on) pre-fills from
+    whichever shift here has the earliest scheduled_start, then removes it -- this
+    table is a forward-looking queue, not a permanent log; the actual handoff, and
+    its history, lives on the TacticalPosition/Checkin side as always."""
+    __tablename__ = "net_control_shifts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey("net_sessions.id", ondelete="CASCADE"), nullable=False)
+    callsign = Column(String(12), nullable=False)
+    name = Column(String(100), nullable=True)
+    scheduled_start = Column(UTCDateTime, nullable=False)
+    created_at = Column(UTCDateTime, default=utcnow, nullable=False)
+
+    session = relationship("NetSession", back_populates="net_control_shifts")
+
+    def __repr__(self):
+        return f"<NetControlShift {self.callsign} at {self.scheduled_start}>"
 
 
 class Checkin(Base):

@@ -448,3 +448,106 @@ class TestNetControlPosition:
         assert len(checkins) == 1
         assert checkins[0]["callsign"] == "W1ADMIN"
         assert checkins[0]["tactical_callsign"] == "NET CONTROL"
+
+
+class TestNetControlShifts:
+    """A forward-looking rotation queue for Net Control specifically, separate
+    from a tactical station's single planned-operator field (issue #21 follow-up:
+    Net Control classically hands off on its own cadence, so it gets its own
+    schedule the frontend auto-fills the next handoff from)."""
+
+    def test_create_shift(self, client, admin_headers):
+        anet = _ares_net(client, admin_headers)
+        activation = _activation_session(client, admin_headers, anet["id"])
+        resp = client.post(
+            f"/sessions/{activation['id']}/net-control-shifts",
+            json={"callsign": "w2next", "name": "Next NCS", "scheduled_start": "2026-09-01T14:00:00Z"},
+            headers=admin_headers,
+        )
+        assert resp.status_code == 201, resp.text
+        shift = resp.json()
+        assert shift["callsign"] == "W2NEXT"
+        assert shift["name"] == "Next NCS"
+        assert shift["scheduled_start"].startswith("2026-09-01T14:00:00")
+
+    def test_scheduled_start_required(self, client, admin_headers):
+        anet = _ares_net(client, admin_headers)
+        activation = _activation_session(client, admin_headers, anet["id"])
+        resp = client.post(
+            f"/sessions/{activation['id']}/net-control-shifts",
+            json={"callsign": "W2NEXT"},
+            headers=admin_headers,
+        )
+        assert resp.status_code == 422
+
+    def test_create_shift_requires_activation_session(self, client, admin_headers):
+        anet = _ares_net(client, admin_headers)
+        routine = _routine_session(client, admin_headers, anet["id"])
+        resp = client.post(
+            f"/sessions/{routine['id']}/net-control-shifts",
+            json={"callsign": "W2NEXT", "scheduled_start": "2026-09-01T14:00:00Z"},
+            headers=admin_headers,
+        )
+        assert resp.status_code == 400
+
+    def test_list_shifts_ordered_by_scheduled_start(self, client, admin_headers):
+        anet = _ares_net(client, admin_headers)
+        activation = _activation_session(client, admin_headers, anet["id"])
+        client.post(
+            f"/sessions/{activation['id']}/net-control-shifts",
+            json={"callsign": "W3THIRD", "scheduled_start": "2026-09-01T18:00:00Z"},
+            headers=admin_headers,
+        )
+        client.post(
+            f"/sessions/{activation['id']}/net-control-shifts",
+            json={"callsign": "W1FIRST", "scheduled_start": "2026-09-01T10:00:00Z"},
+            headers=admin_headers,
+        )
+        client.post(
+            f"/sessions/{activation['id']}/net-control-shifts",
+            json={"callsign": "W2SECOND", "scheduled_start": "2026-09-01T14:00:00Z"},
+            headers=admin_headers,
+        )
+        resp = client.get(f"/sessions/{activation['id']}/net-control-shifts", headers=admin_headers)
+        assert resp.status_code == 200
+        assert [s["callsign"] for s in resp.json()] == ["W1FIRST", "W2SECOND", "W3THIRD"]
+
+    def test_delete_shift(self, client, admin_headers):
+        anet = _ares_net(client, admin_headers)
+        activation = _activation_session(client, admin_headers, anet["id"])
+        shift = client.post(
+            f"/sessions/{activation['id']}/net-control-shifts",
+            json={"callsign": "W2NEXT", "scheduled_start": "2026-09-01T14:00:00Z"},
+            headers=admin_headers,
+        ).json()
+        resp = client.delete(f"/net-control-shifts/{shift['id']}", headers=admin_headers)
+        assert resp.status_code == 204
+        remaining = client.get(f"/sessions/{activation['id']}/net-control-shifts", headers=admin_headers).json()
+        assert remaining == []
+
+    def test_non_member_cannot_create_shift(self, client, admin_headers, user_headers):
+        anet = _ares_net(client, admin_headers)
+        activation = _activation_session(client, admin_headers, anet["id"])
+        resp = client.post(
+            f"/sessions/{activation['id']}/net-control-shifts",
+            json={"callsign": "W2NEXT", "scheduled_start": "2026-09-01T14:00:00Z"},
+            headers=user_headers,
+        )
+        assert resp.status_code == 403
+
+    def test_non_member_cannot_list_shifts(self, client, admin_headers, user_headers):
+        anet = _ares_net(client, admin_headers)
+        activation = _activation_session(client, admin_headers, anet["id"])
+        resp = client.get(f"/sessions/{activation['id']}/net-control-shifts", headers=user_headers)
+        assert resp.status_code == 403
+
+    def test_non_member_cannot_delete_shift(self, client, admin_headers, user_headers):
+        anet = _ares_net(client, admin_headers)
+        activation = _activation_session(client, admin_headers, anet["id"])
+        shift = client.post(
+            f"/sessions/{activation['id']}/net-control-shifts",
+            json={"callsign": "W2NEXT", "scheduled_start": "2026-09-01T14:00:00Z"},
+            headers=admin_headers,
+        ).json()
+        resp = client.delete(f"/net-control-shifts/{shift['id']}", headers=user_headers)
+        assert resp.status_code == 403

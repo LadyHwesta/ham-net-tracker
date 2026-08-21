@@ -18,6 +18,7 @@ let currentSessionIsActivation = false;   // ARES/ACES activation session (issue
 let tacticalPositions = [];   // loaded from /sessions/{id}/tactical-positions when on that tab
 let currentSessionData = null;   // last-fetched session object; re-used to re-render the duty
                                   // bar/net script when a Net Control handoff changes who's on (issue #21 follow-up)
+let netControlShifts = [];   // planned Net Control rotation, loaded from /sessions/{id}/net-control-shifts
 let activeView = 'nets';
 let historyData = [];
 let editNetId = null;
