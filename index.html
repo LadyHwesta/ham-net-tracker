@@ -120,8 +120,9 @@
             </label>
           </div>
           <input class="form-control" id="reg-org-name" placeholder="e.g. Snohomish County ARES" />
+          <input class="form-control" id="reg-org-website" placeholder="Organization website URL" style="margin-top:8px" />
           <select class="form-control" id="reg-org-select" style="display:none"></select>
-          <p id="reg-org-hint" style="margin:6px 0 0;font-size:11px;color:var(--text-muted)">You'll be this organization's admin, approved immediately.</p>
+          <p id="reg-org-hint" style="margin:6px 0 0;font-size:11px;color:var(--text-muted)">You'll be this organization's admin, pending a super admin's approval before you can log in.</p>
         </div>
         <button class="btn btn-primary" style="width:100%" onclick="doRegister(this)">Create Account</button>
       </div>
@@ -1097,7 +1098,7 @@
   <script src="/static/js/state.js?v=22"></script>
   <script src="/static/js/utils.js?v=20"></script>
   <script src="/static/js/offline-queue.js?v=2"></script>
-  <script src="/static/js/auth.js?v=23"></script>
+  <script src="/static/js/auth.js?v=24"></script>
   <script src="/static/js/theme.js?v=1"></script>
   <script src="/static/js/views.js?v=19"></script>
   <script src="/static/js/branding.js?v=20"></script>

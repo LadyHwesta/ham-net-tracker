@@ -396,6 +396,13 @@ MIGRATIONS = [
     # and a brand-new instance (nets table is still empty at this point).
     ("nets: organization is required",
      "ALTER TABLE nets ALTER COLUMN org_id SET NOT NULL"),
+
+    # ── Organization website URL, required for new orgs (issue #1 follow-up) ──
+    # Nullable at the DB level -- the pre-existing "Default Organization"
+    # backfilled above predates this requirement and has no value. Required
+    # for any org created from here on is enforced in main.py.
+    ("organizations: website URL",
+     "ALTER TABLE organizations ADD COLUMN IF NOT EXISTS website_url VARCHAR(300)"),
 ]
 
 # ---------------------------------------------------------------------------

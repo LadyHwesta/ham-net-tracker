@@ -75,6 +75,12 @@ class Organization(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(200), nullable=False)
     slug = Column(String(100), unique=True, nullable=False, index=True)  # URL-safe, used in /directory/{slug}, /live/{slug}
+    # Required when creating a new org (enforced in main.py, not here) so a
+    # super admin reviewing a founding registration has something to verify
+    # the org against. Nullable at the DB level only so the pre-existing
+    # "Default Organization" from the backward-compat migration doesn't need
+    # a fabricated value.
+    website_url = Column(String(300), nullable=True)
     created_at = Column(UTCDateTime, default=utcnow, nullable=False)
 
     memberships = relationship("OrganizationMembership", back_populates="org", cascade="all, delete-orphan")

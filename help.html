@@ -63,9 +63,19 @@
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
 
           <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-22 — Organizations Require Super Admin Approval (v2.4.1, issue #1 follow-up)</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>Founding a new organization at registration no longer logs you straight in — a <strong>Super Admin</strong> now has to approve it first, the same way joining an existing organization always required that organization's own admin to approve it. There was previously no oversight at all on brand-new organizations.</li>
+              <li>Creating a new organization now also requires a <strong>website URL</strong>, so whoever approves it has something to verify it against.</li>
+              <li>Fixed: registering with an email address that's already in use failed with no visible explanation — the error banner's CSS was never actually being made visible. Now shows "Email already registered" like any other registration error.</li>
+              <li>No database migration for the approval-flow change; one new nullable column (<code style="background:var(--surface);padding:1px 5px;border-radius:3px">organizations.website_url</code>) for the website requirement. <code style="background:var(--surface);padding:1px 5px;border-radius:3px">./deploy.sh</code> runs it automatically.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-21 — Multi-Tenancy: Organizations (v2.4.0, issue #1)</div>
             <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
-              <li>The registration form now asks you to <strong>create a new organization</strong> or <strong>join an existing one</strong>. Creating one makes you its admin immediately; joining one requires approval from that organization's own admin before you can log in.</li>
+              <li>The registration form now asks you to <strong>create a new organization</strong> or <strong>join an existing one</strong>. Creating one makes you its admin, pending approval; joining one requires approval from that organization's own admin before you can log in.</li>
               <li>Nets, sessions, and check-ins are now scoped to one organization at a time — operators in different organizations sharing the same install no longer see each other's nets. An org switcher appears in the header for anyone who belongs to more than one.</li>
               <li>Organization admins get a scoped view of the <strong>Admin</strong> page — approve or reject pending members of their own organization. This is separate from (and smaller than) the existing site-wide <strong>Super Admin</strong> role, which is unchanged and still sees and manages everything across every organization.</li>
               <li>The public <strong>/directory</strong> and <strong>/live</strong> pages are now per-organization — each gets its own URL (<code style="background:var(--surface);padding:1px 5px;border-radius:3px">/directory/&lt;org&gt;</code>, <code style="background:var(--surface);padding:1px 5px;border-radius:3px">/live/&lt;org&gt;</code>); visiting either with no organization in the URL shows a picker instead of one global list.</li>
@@ -519,7 +529,7 @@
 
         <div class="card" style="margin-bottom:16px">
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">ORGANIZATIONS</h3>
-          <p style="margin:0 0 8px">Every account belongs to at least one <strong>Organization</strong> — nets, sessions, and check-ins are scoped to it, so two organizations sharing the same install never see each other's nets. When registering, choose <strong>Create new</strong> (you become that organization's admin immediately) or <strong>Join existing</strong> (an admin of that organization must approve you before you can log in).</p>
+          <p style="margin:0 0 8px">Every account belongs to at least one <strong>Organization</strong> — nets, sessions, and check-ins are scoped to it, so two organizations sharing the same install never see each other's nets. When registering, choose <strong>Create new</strong> (enter a name and website URL — you become its admin, pending a <strong>Super Admin</strong>'s approval) or <strong>Join existing</strong> (that organization's own admin must approve you). Either way you can't log in until approved.</p>
           <p style="margin:0 0 8px">Belong to more than one organization? A switcher appears next to your callsign in the header — pick which one you're working as, and the net list updates to match. To join an additional organization later, ask its admin how to request access.</p>
           <p style="margin:0">An organization's admin can approve or reject pending members from a scoped view of the <strong>Admin</strong> page — separate from, and smaller than, the site-wide <strong>Super Admin</strong> role, which can still see and manage everything across every organization.</p>
         </div>
@@ -700,8 +710,8 @@ Thank you all for checking in. This net is now closed.</pre>
 
         <div id="help-admin-section" class="card" style="margin-bottom:16px">
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">ADMIN PANEL</h3>
-          <p style="margin:0 0 8px">The very first user to ever register on an instance automatically becomes <strong>Super Admin</strong> — sees and manages every organization. Every other new registration either creates its own organization (becoming that organization's admin immediately) or requests to join an existing one, which needs approval from that organization's own admin before login is permitted.</p>
-          <p style="margin:0 0 8px">An organization admin gets a scoped Admin page — approve/reject pending members of their own organization only. A Super Admin's Admin page is unchanged: approve/deactivate any account, grant Super Admin, delete accounts, and opt in to <strong>email notifications</strong> for new registrations using the ✉/📧 toggle in the Notify column.</p>
+          <p style="margin:0 0 8px">The very first user to ever register on an instance automatically becomes <strong>Super Admin</strong> — sees and manages every organization, and is the only registration that skips approval entirely (there's no one else to ask). Every other new registration either founds its own organization — pending a Super Admin's approval, shown in their Admin panel's Pending Approval list — or requests to join an existing one, which needs approval from that organization's own admin instead.</p>
+          <p style="margin:0 0 8px">An organization admin gets a scoped Admin page — approve/reject pending members of their own organization only (this does not cover approving a brand-new organization's founder, which only a Super Admin can do). A Super Admin's Admin page is unchanged: approve/deactivate any account, grant Super Admin, delete accounts, and opt in to <strong>email notifications</strong> for new registrations using the ✉/📧 toggle in the Notify column.</p>
           <p style="margin:0">Newly approved operators receive an automatic confirmation email if SMTP is configured in <code style="background:var(--surface);padding:1px 5px;border-radius:3px">.env</code>.</p>
         </div>
 
@@ -736,7 +746,7 @@ python3 /opt/netcontrol/gmrs_sync.py --mode update</pre>
 </div>
   <script src="/static/js/state.js?v=9"></script>
   <script src="/static/js/utils.js?v=7"></script>
-  <script src="/static/js/auth.js?v=10"></script>
+  <script src="/static/js/auth.js?v=11"></script>
   <script src="/static/js/theme.js?v=1"></script>
   <script src="/static/js/branding.js?v=7"></script>
   <script src="/static/js/pwa.js?v=1"></script>

@@ -27,9 +27,10 @@ async function loadRegOrgPicker() {
 function updateRegOrgChoice() {
   const create = document.querySelector('input[name="reg-org-action"]:checked').value === 'create';
   document.getElementById('reg-org-name').style.display = create ? '' : 'none';
+  document.getElementById('reg-org-website').style.display = create ? '' : 'none';
   document.getElementById('reg-org-select').style.display = create ? 'none' : '';
   document.getElementById('reg-org-hint').textContent = create
-    ? "You'll be this organization's admin, approved immediately."
+    ? "You'll be this organization's admin, pending a super admin's approval before you can log in."
     : "An admin of that organization must approve you before you can log in.";
 }
 
@@ -66,7 +67,10 @@ async function doRegister(btn) {
   if (creatingOrg) {
     const orgName = document.getElementById('reg-org-name').value.trim();
     if (!orgName) return showAuthError('Enter a name for your new organization');
+    const orgWebsite = document.getElementById('reg-org-website').value.trim();
+    if (!orgWebsite) return showAuthError("Enter your new organization's website URL");
     body.org_name = orgName;
+    body.org_website_url = orgWebsite;
   } else {
     const orgSlug = document.getElementById('reg-org-select').value;
     if (!orgSlug) return showAuthError('Select an organization to join, or switch to "Create new"');
@@ -77,9 +81,9 @@ async function doRegister(btn) {
     const newUser = await apiFetch('/auth/register', { method: 'POST', body: JSON.stringify(body) });
     btnLoading(btn, false);
     if (newUser.is_active) {
-      // Auto-approved: either the instance's first-ever user, or creating a
-      // brand new org (its founding admin needs no one else's approval) —
-      // go straight to login
+      // Only the instance's literal first-ever user is auto-approved — there's
+      // no one else to ask. Everyone else (including a new org's founder) needs
+      // approval first — go straight to login
       toast('Account created — please log in', 'success');
       switchAuthTab('login');
       document.getElementById('login-user').value = callsign;
@@ -109,7 +113,10 @@ async function doRegister(btn) {
 function showAuthError(msg) {
   const el = document.getElementById('auth-error');
   el.textContent = msg;
-  el.style.display = '';
+  // #auth-error's base CSS rule is `display: none` -- clearing the inline
+  // style (display = '') just falls back to that, so the element never
+  // actually becomes visible. Needs an explicit override.
+  el.style.display = 'block';
 }
 function clearAuthError() { document.getElementById('auth-error').style.display = 'none'; }
 

@@ -119,8 +119,13 @@ class TestPublicDirectoryOrgScoping:
         second = client.post("/auth/register", json={
             "callsign": "W2SECOND", "name": "Second", "email": "second@example.com",
             "password": "testpass123", "org_slug": "second-org", "org_name": "Second Org",
+            "org_website_url": "https://second.example.org",
         })
         assert second.status_code == 201
+        # Founding a new org needs a super admin's sign-off before login (issue #1
+        # follow-up) -- admin_headers' owner is the instance's first-ever user.
+        approve = client.patch(f"/admin/users/{second.json()['id']}/approve", headers=admin_headers)
+        assert approve.status_code == 200
         token = client.post("/auth/login", data={"username": "W2SECOND", "password": "testpass123"}).json()["access_token"]
         second_headers = {"Authorization": f"Bearer {token}"}
         second_net = _public_net(client, second_headers, name="Second Org Net")

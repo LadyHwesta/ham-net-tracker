@@ -304,7 +304,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="Ham Radio Net Tracker", version="2.4.0", lifespan=lifespan)
+app = FastAPI(title="Ham Radio Net Tracker", version="2.4.1", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -400,14 +400,17 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
     # Multi-tenancy (issue #1) — which organization to join, keyed by slug. If the
-    # slug doesn't exist yet it's created (with org_name as its display name) and
-    # this user becomes its approved admin; if it already exists, this creates a
-    # pending membership an admin of that org must approve. Omitted entirely means
-    # "join-or-create the default org" — preserves the old single-tenant bootstrap
-    # (first-ever registration creates it and becomes admin; everyone after that
-    # requests to join it).
+    # slug doesn't exist yet it's created (with org_name as its display name,
+    # org_website_url required) and this user becomes its admin, pending a
+    # super admin's approval before they can log in; if it already exists,
+    # this creates a pending membership an admin of that org must approve
+    # instead. Omitted entirely means "join-or-create the default org" —
+    # preserves the old single-tenant bootstrap (first-ever registration
+    # creates it and is immediately active; everyone after that requests to
+    # join it).
     org_slug: Optional[str] = None
     org_name: Optional[str] = None
+    org_website_url: Optional[str] = None
 
     @field_validator("callsign")
     @classmethod
@@ -436,6 +439,7 @@ class OrganizationOut(BaseModel):
     id: int
     name: str
     slug: str
+    website_url: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -956,21 +960,28 @@ def _slugify(text: str) -> str:
     return slug or "org"
 
 
-def _get_or_create_org(org_slug: Optional[str], org_name: Optional[str], db: Session) -> tuple[Organization, bool]:
+def _get_or_create_org(
+    org_slug: Optional[str], org_name: Optional[str], org_website_url: Optional[str], db: Session,
+) -> tuple[Organization, bool]:
     """Multi-tenancy (issue #1) join-or-create: resolves the org for a slug,
     creating it if it doesn't exist yet. Returns (org, created) — the caller
     uses `created` to decide whether this registrant becomes that org's
-    immediately-approved admin (new org, no one else to approve them) or a
-    pending member (existing org, its own admin must approve). Omitting both
-    slug and name resolves to the "default" org — the pre-multi-tenancy
-    single-tenant bootstrap path: first-ever registration creates it, everyone
-    after that requests to join it."""
+    (pending-super-admin-approval) admin or a pending member of an existing
+    org instead (its own admin must approve). Omitting slug/name entirely
+    resolves to the "default" org — the pre-multi-tenancy single-tenant
+    bootstrap path: first-ever registration creates it, everyone after that
+    requests to join it. A real "create a new org" request (org_slug or
+    org_name given) requires a website URL so a super admin reviewing it has
+    something to verify it against; the bare default-org bootstrap path does
+    not, since nothing about it was actually requested by the caller."""
     slug = org_slug or (_slugify(org_name) if org_name else "default")
     org = db.query(Organization).filter(Organization.slug == slug).first()
     if org:
         return org, False
+    if (org_slug or org_name) and not (org_website_url or "").strip():
+        raise HTTPException(400, "Organization website URL is required when creating a new organization")
     name = org_name or (_get_setting("org_name", db) if slug == "default" else None) or slug.replace("-", " ").title()
-    org = Organization(name=name, slug=slug)
+    org = Organization(name=name, slug=slug, website_url=(org_website_url or "").strip() or None)
     db.add(org)
     db.flush()
     return org, True
@@ -995,19 +1006,23 @@ def register(request: Request, data: UserCreate, db: Session = Depends(get_db)):
     verification_token = secrets.token_urlsafe(32) if needs_verification else None
     verification_token_hash = hashlib.sha256(verification_token.encode()).hexdigest() if verification_token else None
 
-    # Multi-tenancy (issue #1). Creating a brand new org makes this user its
-    # approved admin immediately; joining an existing one leaves them pending
-    # until that org's own admin approves — same shape as the old global
-    # pending-approval flow, just scoped to one org instead of the whole instance.
-    org, org_created = _get_or_create_org(data.org_slug, data.org_name, db)
-    user_active_via_org = is_first_user or org_created
+    # Multi-tenancy (issue #1). Founding a brand new org makes this user its
+    # admin immediately (no one else could approve that membership); joining
+    # an existing one leaves the membership pending until that org's own
+    # admin approves it — unchanged. Either way, actually being able to LOG
+    # IN (is_active) now always needs a super admin's sign-off, since an org
+    # founder approving themselves would be no approval at all — except the
+    # instance's literal first-ever user, who has no one else to ask.
+    org, org_created = _get_or_create_org(data.org_slug, data.org_name, data.org_website_url, db)
+    membership_approved = is_first_user or org_created
+    user_is_active = is_first_user
 
     user = User(
         callsign=data.callsign,
         name=data.name,
         email=data.email,
         hashed_password=hash_password(data.password),
-        is_active=user_active_via_org,
+        is_active=user_is_active,
         is_admin=is_first_user,
         email_verified=not needs_verification,
         verification_token=verification_token_hash,
@@ -1022,7 +1037,7 @@ def register(request: Request, data: UserCreate, db: Session = Depends(get_db)):
         org_id=org.id,
         user_id=user.id,
         role="admin" if org_created else "member",
-        approved=user_active_via_org,
+        approved=membership_approved,
     ))
     db.commit()
 
@@ -1047,28 +1062,65 @@ def register(request: Request, data: UserCreate, db: Session = Depends(get_db)):
             ),
         )
 
-    # Notify this org's own opted-in admins about the new registration — skip
-    # when no approval is actually needed (a brand new org, or the instance's
-    # bootstrap user). Scoped to org admins rather than every super admin, since
-    # approval of a pending membership is an org-admin action (issue #1).
-    if not user_active_via_org:
-        notify_admins = (
-            db.query(User)
-            .join(OrganizationMembership, OrganizationMembership.user_id == User.id)
-            .filter(
-                OrganizationMembership.org_id == org.id,
-                OrganizationMembership.role == "admin",
-                OrganizationMembership.approved == True,
-                User.notify_new_registrations == True,
-                User.is_active == True,
+    # Notify whoever can actually approve this registration — skip only for
+    # the instance's bootstrap user, who has no one else to ask (issue #1).
+    if not is_first_user:
+        if org_created:
+            # Founding a brand new org: there's no other org admin yet, so a
+            # super admin has to review it via the existing global
+            # /admin/users/{id}/approve (membership itself is already
+            # approved — only is_active is still gated).
+            notify_admins = (
+                db.query(User)
+                .filter(User.is_admin == True, User.notify_new_registrations == True, User.is_active == True)
+                .all()
             )
-            .all()
-        )
-        if notify_admins:
-            send_email(
-                to=[a.email for a in notify_admins],
-                subject=f"[Ham Net Tracker] New Registration: {user.callsign}",
-                body_html=f"""<div style="font-family:sans-serif;max-width:520px">
+            if notify_admins:
+                send_email(
+                    to=[a.email for a in notify_admins],
+                    subject=f"[Ham Net Tracker] New Organization Pending Approval: {org.name}",
+                    body_html=f"""<div style="font-family:sans-serif;max-width:520px">
+  <h2 style="color:#FF9900">New Organization Registration</h2>
+  <p>A new user has registered, founding a new organization, and is awaiting your approval:</p>
+  <table style="border-collapse:collapse;width:100%">
+    <tr><td style="padding:6px 12px 6px 0;font-weight:bold">Organization</td><td>{html.escape(org.name)}</td></tr>
+    <tr><td style="padding:6px 12px 6px 0;font-weight:bold">Website</td><td>{html.escape(org.website_url or '')}</td></tr>
+    <tr><td style="padding:6px 12px 6px 0;font-weight:bold">Callsign</td><td>{user.callsign}</td></tr>
+    <tr><td style="padding:6px 12px 6px 0;font-weight:bold">Name</td><td>{user.name}</td></tr>
+    <tr><td style="padding:6px 12px 6px 0;font-weight:bold">Email</td><td>{user.email}</td></tr>
+    <tr><td style="padding:6px 12px 6px 0;font-weight:bold">Registered</td><td>{user.created_at.strftime('%Y-%m-%d %H:%M UTC')}</td></tr>
+  </table>
+  <p style="margin-top:16px">Log in to the <strong>Admin</strong> panel to approve or reject this account.</p>
+</div>""",
+                    body_text=(
+                        f"New organization pending approval:\n"
+                        f"  Organization : {org.name}\n"
+                        f"  Website      : {org.website_url or ''}\n"
+                        f"  Callsign     : {user.callsign}\n"
+                        f"  Name         : {user.name}\n"
+                        f"  Email        : {user.email}\n\n"
+                        f"Log in to the Admin panel to approve or reject this account."
+                    ),
+                )
+        else:
+            # Joining an existing org: that org's own admins approve it.
+            notify_admins = (
+                db.query(User)
+                .join(OrganizationMembership, OrganizationMembership.user_id == User.id)
+                .filter(
+                    OrganizationMembership.org_id == org.id,
+                    OrganizationMembership.role == "admin",
+                    OrganizationMembership.approved == True,
+                    User.notify_new_registrations == True,
+                    User.is_active == True,
+                )
+                .all()
+            )
+            if notify_admins:
+                send_email(
+                    to=[a.email for a in notify_admins],
+                    subject=f"[Ham Net Tracker] New Registration: {user.callsign}",
+                    body_html=f"""<div style="font-family:sans-serif;max-width:520px">
   <h2 style="color:#FF9900">New Operator Registration</h2>
   <p>A new user has requested to join <strong>{html.escape(org.name)}</strong> and is awaiting your approval:</p>
   <table style="border-collapse:collapse;width:100%">
@@ -1079,14 +1131,14 @@ def register(request: Request, data: UserCreate, db: Session = Depends(get_db)):
   </table>
   <p style="margin-top:16px">Log in to the <strong>Admin</strong> panel to approve or reject this account.</p>
 </div>""",
-                body_text=(
-                    f"New registration pending approval to join {org.name}:\n"
-                    f"  Callsign : {user.callsign}\n"
-                    f"  Name     : {user.name}\n"
-                    f"  Email    : {user.email}\n\n"
-                    f"Log in to the Admin panel to approve or reject this account."
-                ),
-            )
+                    body_text=(
+                        f"New registration pending approval to join {org.name}:\n"
+                        f"  Callsign : {user.callsign}\n"
+                        f"  Name     : {user.name}\n"
+                        f"  Email    : {user.email}\n\n"
+                        f"Log in to the Admin panel to approve or reject this account."
+                    ),
+                )
 
     return user
 
@@ -1211,20 +1263,25 @@ def list_my_orgs(current_user: User = Depends(get_current_user), db: Session = D
         .order_by(Organization.name)
         .all()
     )
-    return [MyOrgOut(id=org.id, name=org.name, slug=org.slug, role=role) for org, role in rows]
+    return [MyOrgOut(id=org.id, name=org.name, slug=org.slug, website_url=org.website_url, role=role) for org, role in rows]
 
 
 class OrgJoinRequest(BaseModel):
     org_slug: Optional[str] = None
     org_name: Optional[str] = None
+    org_website_url: Optional[str] = None
 
 
 @app.post("/orgs/join", response_model=OrganizationOut, status_code=201)
 def join_org(data: OrgJoinRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Already-logged-in self-service: request to join an additional org (or
-    create a new one), same join-or-create semantics as registration. Does not
-    touch is_active — the caller is already active via an existing org."""
-    org, org_created = _get_or_create_org(data.org_slug, data.org_name, db)
+    create a new one), same join-or-create semantics as registration. Does
+    not touch is_active — the caller is already active via an existing org.
+    Unlike registration, a newly founded org here is ALWAYS pending (never
+    self-approved) — the caller being active elsewhere doesn't make them a
+    trustworthy org founder; a super admin still needs to sign off via the
+    existing /admin/users/{id}/approve (issue #1 follow-up)."""
+    org, org_created = _get_or_create_org(data.org_slug, data.org_name, data.org_website_url, db)
     existing = db.query(OrganizationMembership).filter(
         OrganizationMembership.org_id == org.id, OrganizationMembership.user_id == current_user.id,
     ).first()
@@ -1234,10 +1291,8 @@ def join_org(data: OrgJoinRequest, current_user: User = Depends(get_current_user
         org_id=org.id,
         user_id=current_user.id,
         role="admin" if org_created else "member",
-        approved=org_created,
+        approved=False,
     ))
-    if org_created:
-        current_user.current_org_id = org.id
     db.commit()
     return org
 
