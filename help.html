@@ -63,6 +63,15 @@
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
 
           <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-22 — Rename an Organization; Fix a Registration Hang (v2.4.7)</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>There was previously no way to fix an organization's name or website after it was created — changing the instance-wide <strong>Branding</strong> settings doesn't rename any organization, since an org's identity is now its own property, independent of site-wide branding. The Admin panel's Operators tab now has a <strong>Your Organization</strong> card to edit both, for org admins and Super Admins alike.</li>
+              <li>Fixed: registering under an existing organization could hang and silently fail if the server's SMTP connection was slow or unreachable — email sends had no timeout at all, so a bad mail-server config would stall the whole registration request instead of just failing that one notification email. New <code style="background:var(--surface);padding:1px 5px;border-radius:3px">SMTP_TIMEOUT_SECONDS</code> setting (default 10s) in <code style="background:var(--surface);padding:1px 5px;border-radius:3px">.env</code>.</li>
+              <li>No database migration — backend and admin UI changes only.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-22 — Login Screen Redesign (v2.4.6)</div>
             <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
               <li>The login screen is now a single centered column instead of two side-by-side panels. The logo, name, and a new tagline ("A free, open-source net check-in logger built for net control operators") form a proper page header, with the <strong>Live Net Status</strong>, <strong>GitHub</strong>, and a new <strong>Net Directory</strong> link underneath.</li>

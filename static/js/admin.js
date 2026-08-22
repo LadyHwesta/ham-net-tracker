@@ -1,6 +1,39 @@
 // ============================================================
 // ADMIN
 // ============================================================
+
+// ============================================================
+// YOUR ORGANIZATION (issue #1 follow-up)
+// ============================================================
+// Previously there was no way to rename an org (or fix its website) after
+// creation at all -- changing the instance-wide Branding settings doesn't
+// retroactively rename any org, since an org's name is its own property now.
+async function loadOrgEditForm() {
+  try {
+    const orgs = await apiFetch('/orgs');
+    const org = orgs.find(o => o.id === currentUser.current_org_id);
+    if (!org) return;
+    document.getElementById('org-edit-name').value = org.name;
+    document.getElementById('org-edit-website').value = org.website_url || '';
+    document.getElementById('org-edit-name').dataset.orgId = org.id;
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function saveOrgEdit() {
+  const orgId = document.getElementById('org-edit-name').dataset.orgId;
+  if (!orgId) return;
+  const name = document.getElementById('org-edit-name').value.trim();
+  if (!name) return toast('Organization name is required', 'error');
+  const websiteUrl = document.getElementById('org-edit-website').value.trim();
+  try {
+    await apiFetch(`/orgs/${orgId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name, website_url: websiteUrl || null }),
+    });
+    toast('Organization saved', 'success');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
 async function loadAdminUsers() {
   // Load email status and users in parallel
   const [users, emailStatus] = await Promise.all([

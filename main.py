@@ -112,6 +112,11 @@ SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMTP_FROM     = os.getenv("SMTP_FROM", "")        # e.g. "Ham Net Tracker <noreply@example.com>"
 SMTP_USE_TLS  = os.getenv("SMTP_USE_TLS", "true").lower() == "true"   # STARTTLS (port 587)
 SMTP_USE_SSL  = os.getenv("SMTP_USE_SSL", "false").lower() == "true"  # SSL/TLS (port 465)
+# smtplib has NO timeout by default (blocks forever on a dead/unreachable
+# host) -- every email send happens synchronously inside a request handler,
+# so a bad SMTP config wouldn't just fail an email, it'd hang that request
+# (registration, approval, etc.) indefinitely instead of erroring quickly.
+SMTP_TIMEOUT_SECONDS = int(os.getenv("SMTP_TIMEOUT_SECONDS", "10"))
 ADMIN_CONTACT_EMAIL = os.getenv("ADMIN_CONTACT_EMAIL", "")  # shown in approval emails as human contact
 APP_BASE_URL = os.getenv("APP_BASE_URL", "").rstrip("/")    # e.g. https://netcontrol.example.org — used for links in emails
 VERIFICATION_TOKEN_TTL_DAYS = 7
@@ -181,11 +186,11 @@ def send_email(
 
     try:
         if SMTP_USE_SSL:
-            with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT) as srv:
+            with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS) as srv:
                 srv.login(SMTP_USER, SMTP_PASSWORD)
                 srv.sendmail(from_addr, to, msg.as_string())
         else:
-            with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as srv:
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS) as srv:
                 if SMTP_USE_TLS:
                     srv.starttls()
                 srv.login(SMTP_USER, SMTP_PASSWORD)
@@ -304,7 +309,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="Ham Radio Net Tracker", version="2.4.6", lifespan=lifespan)
+app = FastAPI(title="Ham Radio Net Tracker", version="2.4.7", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -1328,6 +1333,35 @@ def list_my_orgs(current_user: User = Depends(get_current_user), db: Session = D
         .all()
     )
     return [MyOrgOut(id=org.id, name=org.name, slug=org.slug, website_url=org.website_url, role=role) for org, role in rows]
+
+
+class OrganizationUpdate(BaseModel):
+    name: str
+    website_url: Optional[str] = None
+
+
+@app.patch("/orgs/{org_id}", response_model=OrganizationOut)
+def update_org(org_id: int, data: OrganizationUpdate, admin: User = Depends(require_org_admin), db: Session = Depends(get_db)):
+    """Rename an org / fix its website — previously there was no way to do
+    this at all once created (issue #1 follow-up; an org's name is its own
+    property, independent of the instance-wide Branding settings, so
+    changing Branding doesn't retroactively rename any org). Slug is
+    intentionally not editable here — it's baked into public
+    /directory/<slug> and /live/<slug> URLs."""
+    org = db.query(Organization).filter(Organization.id == org_id).first()
+    if not org:
+        raise HTTPException(404, "Organization not found")
+    name = data.name.strip()
+    if not name:
+        raise HTTPException(400, "Organization name is required")
+    website = (data.website_url or "").strip()
+    if website and not re.match(r"^https?://", website, re.IGNORECASE):
+        raise HTTPException(400, "Organization website URL must start with http:// or https://")
+    org.name = name
+    org.website_url = website or None
+    db.commit()
+    db.refresh(org)
+    return org
 
 
 class OrgJoinRequest(BaseModel):

@@ -168,6 +168,97 @@ class TestRegistrationOrgFlow:
         login(client, "W2JOIN")  # no longer blocked
 
 
+class TestOrgEditing:
+    """PATCH /orgs/{id} — previously there was no way to rename an org (or fix
+    its website) after creation at all (issue #1 follow-up)."""
+
+    def test_org_admin_can_rename_their_org(self, client):
+        register(client, "W1OWN", "Owner", "owner@example.com")  # first-ever user, "default" org
+        token = login(client, "W1OWN")
+        org_id = client.get("/auth/me", headers=auth(token)).json()["current_org_id"]
+
+        resp = client.patch(f"/orgs/{org_id}", json={
+            "name": "Renamed Org", "website_url": "https://renamed.example.org",
+        }, headers=auth(token))
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["name"] == "Renamed Org"
+        assert data["website_url"] == "https://renamed.example.org"
+
+        # Persisted -- shows up for a fresh lookup too, e.g. the join picker
+        orgs = client.get("/orgs").json()
+        assert any(o["name"] == "Renamed Org" for o in orgs)
+
+    def test_renaming_org_does_not_change_its_slug(self, client):
+        register(client, "W1OWN", "Owner", "owner@example.com")
+        token = login(client, "W1OWN")
+        org_id = client.get("/auth/me", headers=auth(token)).json()["current_org_id"]
+        client.patch(f"/orgs/{org_id}", json={"name": "Renamed Org"}, headers=auth(token))
+
+        orgs = client.get("/orgs").json()
+        row = next(o for o in orgs if o["id"] == org_id)
+        assert row["slug"] == "default"
+
+    def test_org_edit_requires_name(self, client):
+        register(client, "W1OWN", "Owner", "owner@example.com")
+        token = login(client, "W1OWN")
+        org_id = client.get("/auth/me", headers=auth(token)).json()["current_org_id"]
+
+        resp = client.patch(f"/orgs/{org_id}", json={"name": "  "}, headers=auth(token))
+        assert resp.status_code == 400
+
+    def test_org_edit_website_must_be_http_or_https(self, client):
+        register(client, "W1OWN", "Owner", "owner@example.com")
+        token = login(client, "W1OWN")
+        org_id = client.get("/auth/me", headers=auth(token)).json()["current_org_id"]
+
+        resp = client.patch(f"/orgs/{org_id}", json={
+            "name": "Owner Org", "website_url": "javascript:alert(1)",
+        }, headers=auth(token))
+        assert resp.status_code == 400
+
+    def test_org_edit_website_can_be_cleared(self, client):
+        register(client, "W1OWN", "Owner", "owner@example.com")
+        token = login(client, "W1OWN")
+        org_id = client.get("/auth/me", headers=auth(token)).json()["current_org_id"]
+
+        resp = client.patch(f"/orgs/{org_id}", json={"name": "Owner Org", "website_url": ""}, headers=auth(token))
+        assert resp.status_code == 200
+        assert resp.json()["website_url"] is None
+
+    def test_non_admin_member_cannot_edit_org(self, client):
+        register(client, "W1OWN", "Owner", "owner@example.com")
+        owner_token = login(client, "W1OWN")
+        org_id = client.get("/auth/me", headers=auth(owner_token)).json()["current_org_id"]
+
+        register(client, "W2MEMBER", "Member", "member@example.com")
+        pending = client.get(f"/orgs/{org_id}/pending-members", headers=auth(owner_token)).json()
+        member_id = next(m["user_id"] for m in pending if m["callsign"] == "W2MEMBER")
+        client.patch(f"/orgs/{org_id}/members/{member_id}/approve", headers=auth(owner_token))
+        member_token = login(client, "W2MEMBER")
+
+        resp = client.patch(f"/orgs/{org_id}", json={"name": "Hijacked Name"}, headers=auth(member_token))
+        assert resp.status_code == 403
+
+    def test_org_admin_cannot_edit_a_different_org(self, client):
+        super_token = _bootstrap_super_admin(client)
+        token_a = _org_owner(client, super_token, "W1AORG", "org-a", "Org A")
+        token_b = _org_owner(client, super_token, "W1BORG", "org-b", "Org B")
+        org_b_id = client.get("/auth/me", headers=auth(token_b)).json()["current_org_id"]
+
+        resp = client.patch(f"/orgs/{org_b_id}", json={"name": "Hijacked"}, headers=auth(token_a))
+        assert resp.status_code == 403
+
+    def test_super_admin_can_edit_any_org(self, client):
+        super_token = _bootstrap_super_admin(client)
+        token_a = _org_owner(client, super_token, "W1AORG", "org-a", "Org A")
+        org_a_id = client.get("/auth/me", headers=auth(token_a)).json()["current_org_id"]
+
+        resp = client.patch(f"/orgs/{org_a_id}", json={"name": "Fixed by Super Admin"}, headers=auth(super_token))
+        assert resp.status_code == 200
+        assert resp.json()["name"] == "Fixed by Super Admin"
+
+
 class TestOrgSwitching:
     def test_orgs_mine_lists_approved_orgs(self, client):
         register(client, "W1OWN", "Owner", "owner@example.com")
