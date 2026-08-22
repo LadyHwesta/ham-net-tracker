@@ -393,29 +393,20 @@
           </div><!-- /net-form-details-panel -->
 
           <div id="net-form-script-panel" style="display:none">
-            <!-- Editor + live preview stack on the left; the variable reference
-                 floats in a sticky column on the right (issue #24 follow-up) so it
-                 stays in view as the auto-growing editor pushes the page taller,
-                 instead of scrolling out of reach at the top. -->
+            <!-- Editor + live preview stack on the left; the formatting toolbar and
+                 variable reference both live in a sticky column on the right (issue
+                 #24/#25 follow-ups) so they stay in view together as the auto-growing
+                 editor pushes the page taller, instead of scrolling out of reach at
+                 the top. -->
             <div class="script-editor-columns">
               <div class="script-editor-main">
-                <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
-                  <button type="button" class="btn btn-ghost btn-sm" onclick="wrapScriptSelection('**','**')" title="Bold"><strong>B</strong></button>
-                  <button type="button" class="btn btn-ghost btn-sm" onclick="wrapScriptSelection('*','*')" title="Italic"><em>I</em></button>
-                  <button type="button" class="btn btn-ghost btn-sm" onclick="insertScriptLinePrefix('# ')" title="Heading 1">H1</button>
-                  <button type="button" class="btn btn-ghost btn-sm" onclick="insertScriptLinePrefix('## ')" title="Heading 2">H2</button>
-                  <button type="button" class="btn btn-ghost btn-sm" onclick="insertScriptLinePrefix('### ')" title="Heading 3">H3</button>
-                  <button type="button" class="btn btn-ghost btn-sm" onclick="insertScriptLinePrefix('- ')" title="Bullet list">• List</button>
-                  <button type="button" class="btn btn-ghost btn-sm" onclick="insertScriptRule()" title="Horizontal rule">— Rule</button>
-                </div>
-
                 <textarea class="form-control mono" id="net-script" rows="16" placeholder="Optional — paste your net control script here" oninput="renderScriptPreview()"></textarea>
                 <div style="font-size:11px;color:var(--text-muted);margin-top:4px">
                   Markup: <code style="background:var(--surface);padding:1px 4px;border-radius:3px">**bold**</code>
                   <code style="background:var(--surface);padding:1px 4px;border-radius:3px">*italic*</code>
                   <code style="background:var(--surface);padding:1px 4px;border-radius:3px"># heading</code>
                   <code style="background:var(--surface);padding:1px 4px;border-radius:3px">- list</code>
-                  <code style="background:var(--surface);padding:1px 4px;border-radius:3px">---</code> rule — use the toolbar above or type them directly.
+                  <code style="background:var(--surface);padding:1px 4px;border-radius:3px">---</code> rule — use the Format tools alongside the editor or type them directly.
                 </div>
 
                 <div style="margin-top:14px">
@@ -425,6 +416,19 @@
               </div>
 
               <div class="script-editor-vars">
+                <div style="border:1px solid var(--lc-blue);border-radius:8px;padding:10px 12px;margin-bottom:10px">
+                  <div style="font-size:12px;font-weight:700;color:var(--lc-blue);letter-spacing:.05em;margin-bottom:8px">✏️ FORMAT</div>
+                  <div style="display:flex;gap:6px;flex-wrap:wrap">
+                    <button type="button" class="btn btn-ghost btn-sm" onclick="wrapScriptSelection('**','**')" title="Bold"><strong>B</strong></button>
+                    <button type="button" class="btn btn-ghost btn-sm" onclick="wrapScriptSelection('*','*')" title="Italic"><em>I</em></button>
+                    <button type="button" class="btn btn-ghost btn-sm" onclick="insertScriptLinePrefix('# ')" title="Heading 1">H1</button>
+                    <button type="button" class="btn btn-ghost btn-sm" onclick="insertScriptLinePrefix('## ')" title="Heading 2">H2</button>
+                    <button type="button" class="btn btn-ghost btn-sm" onclick="insertScriptLinePrefix('### ')" title="Heading 3">H3</button>
+                    <button type="button" class="btn btn-ghost btn-sm" onclick="insertScriptLinePrefix('- ')" title="Bullet list">• List</button>
+                    <button type="button" class="btn btn-ghost btn-sm" onclick="insertScriptRule()" title="Horizontal rule">— Rule</button>
+                  </div>
+                </div>
+
                 <button type="button" onclick="toggleScriptVarsPanel()" style="width:100%;background:var(--surface);border:1px solid var(--lc-blue);border-radius:8px 8px 0 0;color:var(--lc-blue);padding:8px 12px;text-align:left;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700;letter-spacing:.05em;display:flex;align-items:center;justify-content:space-between">
                   <span>🔤 INSERT A VARIABLE</span>
                   <span id="script-vars-toggle-icon">▶</span>
