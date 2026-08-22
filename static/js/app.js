@@ -61,6 +61,9 @@ function restoreNetControlMode() {
 // Auto-login if token stored
 if (token) enterApp();
 
+// Cloudflare Turnstile (issue #1 follow-up) — no-op if not configured
+initTurnstile();
+
 // Enter to submit login
 document.getElementById('login-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 document.getElementById('login-user').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });

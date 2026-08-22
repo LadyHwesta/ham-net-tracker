@@ -140,6 +140,43 @@ def sent_emails(monkeypatch):
     return calls
 
 
+# ── Cloudflare Turnstile ─────────────────────────────────────────────────────
+
+@pytest.fixture
+def turnstile_configured(monkeypatch):
+    """Makes _turnstile_configured() return True, for tests exercising the
+    Turnstile-gated code paths on /auth/register and /auth/login. Pair with
+    turnstile_verify so no real network call is attempted."""
+    import main
+    monkeypatch.setattr(main, "TURNSTILE_SITE_KEY", "1x00000000000000000000AA")
+    monkeypatch.setattr(main, "TURNSTILE_SECRET_KEY", "1x0000000000000000000000000000000AA")
+
+
+@pytest.fixture
+def turnstile_verify(monkeypatch):
+    """Intercepts main._verify_turnstile() so tests control pass/fail without
+    a real call to Cloudflare. Defaults to always passing; call
+    calls.set_result(False) to simulate a failed challenge."""
+    import main
+
+    class CallList(list):
+        """Plain list can't take arbitrary attributes -- subclass so
+        set_result can be attached to the returned calls list (same pattern
+        as pushed_nets_and_stats' CallList above)."""
+        pass
+
+    calls = CallList()
+    result = {"ok": True}
+
+    def fake_verify(token, remote_ip):
+        calls.append({"token": token, "remote_ip": remote_ip})
+        return result["ok"]
+
+    monkeypatch.setattr(main, "_verify_turnstile", fake_verify)
+    calls.set_result = lambda ok: result.update(ok=ok)
+    return calls
+
+
 # ── Net Repository ───────────────────────────────────────────────────────────
 
 @pytest.fixture

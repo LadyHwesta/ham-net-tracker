@@ -34,13 +34,42 @@ function updateRegOrgChoice() {
     : "An admin of that organization must approve you before you can log in.";
 }
 
+// ============================================================
+// CLOUDFLARE TURNSTILE (bot protection on login/register)
+// ============================================================
+// Opt-in server-side (see /auth/config) — the widgets stay hidden and no
+// script is ever loaded from Cloudflare unless an admin has actually
+// configured TURNSTILE_SITE_KEY/SECRET_KEY.
+let turnstileLoginWidgetId = null;
+let turnstileRegWidgetId = null;
+
+async function initTurnstile() {
+  let config;
+  try { config = await apiFetch('/auth/config'); } catch { return; }
+  if (!config.turnstile_enabled) return;
+
+  window._onTurnstileLoad = () => {
+    turnstileLoginWidgetId = turnstile.render('#login-turnstile', { sitekey: config.turnstile_site_key });
+    turnstileRegWidgetId = turnstile.render('#reg-turnstile', { sitekey: config.turnstile_site_key });
+    document.getElementById('login-turnstile').style.display = '';
+    document.getElementById('reg-turnstile').style.display = '';
+  };
+  const script = document.createElement('script');
+  script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?onload=_onTurnstileLoad&render=explicit';
+  script.async = true;
+  script.defer = true;
+  document.head.appendChild(script);
+}
+
 async function doLogin() {
   clearAuthError();
   const user = document.getElementById('login-user').value.trim();
   const pass = document.getElementById('login-pass').value;
   if (!user || !pass) return showAuthError('Fill in all fields');
   try {
-    const form = new URLSearchParams({ username: user, password: pass });
+    const params = { username: user, password: pass };
+    if (turnstileLoginWidgetId !== null) params.turnstile_token = turnstile.getResponse(turnstileLoginWidgetId) || '';
+    const form = new URLSearchParams(params);
     const res = await fetch(API + '/auth/login', {
       method: 'POST', body: form,
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
@@ -51,7 +80,11 @@ async function doLogin() {
     currentUser = data.user;
     localStorage.setItem('nt_token', token);
     enterApp();
-  } catch (e) { showAuthError(e.message); }
+  } catch (e) {
+    showAuthError(e.message);
+    // Turnstile tokens are single-use -- must reset before another attempt.
+    if (turnstileLoginWidgetId !== null) turnstile.reset(turnstileLoginWidgetId);
+  }
 }
 
 async function doRegister(btn) {
@@ -76,6 +109,7 @@ async function doRegister(btn) {
     if (!orgSlug) return showAuthError('Select an organization to join, or switch to "Create new"');
     body.org_slug = orgSlug;
   }
+  if (turnstileRegWidgetId !== null) body.turnstile_token = turnstile.getResponse(turnstileRegWidgetId) || '';
   btnLoading(btn, true);
   try {
     const newUser = await apiFetch('/auth/register', { method: 'POST', body: JSON.stringify(body) });
@@ -107,6 +141,8 @@ async function doRegister(btn) {
   } catch (e) {
     showAuthError(e.message);
     btnLoading(btn, false);
+    // Turnstile tokens are single-use -- must reset before another attempt.
+    if (turnstileRegWidgetId !== null) turnstile.reset(turnstileRegWidgetId);
   }
 }
 

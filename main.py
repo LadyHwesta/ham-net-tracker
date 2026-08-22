@@ -59,7 +59,7 @@ from typing import Optional, Literal
 import httpx
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, File, HTTPException, Query, Request, Response, UploadFile, status
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, Response, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -122,6 +122,43 @@ APP_BASE_URL = os.getenv("APP_BASE_URL", "").rstrip("/")    # e.g. https://netco
 VERIFICATION_TOKEN_TTL_DAYS = 7
 
 _email_log = logging.getLogger("ham_net_tracker.email")
+
+# ---------------------------------------------------------------------------
+# Cloudflare Turnstile (bot protection on registration/login)
+# ---------------------------------------------------------------------------
+# Opt-in, same "leave blank to disable" convention as SMTP above — with
+# neither var set, the widget never renders and no verification is required,
+# so an existing deployment's registration/login flow is unaffected until
+# an admin deliberately sets these up.
+TURNSTILE_SITE_KEY = os.getenv("TURNSTILE_SITE_KEY", "")      # public — safe to expose to the frontend
+TURNSTILE_SECRET_KEY = os.getenv("TURNSTILE_SECRET_KEY", "")  # private — server-side verification only
+TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+
+_turnstile_log = logging.getLogger("ham_net_tracker.turnstile")
+
+
+def _turnstile_configured() -> bool:
+    return bool(TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY)
+
+
+def _verify_turnstile(token: Optional[str], remote_ip: Optional[str]) -> bool:
+    """Verifies a Turnstile response token with Cloudflare. Fails closed —
+    any error (missing token, network failure, Cloudflare rejecting it)
+    returns False, since this only ever runs when Turnstile is actually
+    configured (the caller checks _turnstile_configured() first) and a
+    silent bypass would defeat the point."""
+    if not token:
+        return False
+    try:
+        payload = {"secret": TURNSTILE_SECRET_KEY, "response": token}
+        if remote_ip:
+            payload["remoteip"] = remote_ip
+        resp = httpx.post(TURNSTILE_VERIFY_URL, data=payload, timeout=10)
+        resp.raise_for_status()
+        return bool(resp.json().get("success"))
+    except Exception as exc:
+        _turnstile_log.warning("Turnstile verification failed: %s", exc)
+        return False
 
 
 def _smtp_configured() -> bool:
@@ -309,7 +346,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="Ham Radio Net Tracker", version="2.4.9", lifespan=lifespan)
+app = FastAPI(title="Ham Radio Net Tracker", version="2.5.0", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -465,6 +502,7 @@ class UserCreate(BaseModel):
     org_slug: Optional[str] = None
     org_name: Optional[str] = None
     org_website_url: Optional[str] = None
+    turnstile_token: Optional[str] = None  # Cloudflare Turnstile response, required only if configured
 
     @field_validator("callsign")
     @classmethod
@@ -1077,6 +1115,8 @@ def _delete_orphaned_orgs(org_ids: set[int], db: Session) -> None:
 @app.post("/auth/register", response_model=UserOut, status_code=201)
 @limiter.limit("5/minute")
 def register(request: Request, data: UserCreate, db: Session = Depends(get_db)):
+    if _turnstile_configured() and not _verify_turnstile(data.turnstile_token, get_remote_address(request)):
+        raise HTTPException(400, "Verification failed — please try again.")
     if db.query(User).filter(User.callsign == data.callsign).first():
         raise HTTPException(400, "Callsign already registered")
     if db.query(User).filter(User.email == data.email).first():
@@ -1255,7 +1295,15 @@ def verify_email(token: str, db: Session = Depends(get_db)):
 
 @app.post("/auth/login", response_model=Token)
 @limiter.limit("10/minute")
-def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+def login(
+    request: Request,
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    turnstile_token: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+):
+    if _turnstile_configured() and not _verify_turnstile(turnstile_token, get_remote_address(request)):
+        _log_auth_fail(request, f"turnstile_failed username={form_data.username!r}")
+        raise HTTPException(status_code=400, detail="Verification failed — please try again.")
     # Accept callsign or email as username
     user = (
         db.query(User).filter(User.callsign == form_data.username.upper()).first()
@@ -1276,6 +1324,17 @@ def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db
         timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
     )
     return {"access_token": token, "token_type": "bearer", "user": user}
+
+
+@app.get("/auth/config")
+def auth_config():
+    """Public, unauthenticated — tells the login/register page whether to
+    render a Turnstile widget and, if so, which site key to use (the site
+    key is meant to be public; only TURNSTILE_SECRET_KEY is sensitive)."""
+    return {
+        "turnstile_enabled": _turnstile_configured(),
+        "turnstile_site_key": TURNSTILE_SITE_KEY if _turnstile_configured() else None,
+    }
 
 
 @app.get("/auth/me", response_model=UserOut)
