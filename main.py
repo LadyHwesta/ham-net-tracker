@@ -304,7 +304,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="Ham Radio Net Tracker", version="2.4.1", lifespan=lifespan)
+app = FastAPI(title="Ham Radio Net Tracker", version="2.4.2", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -388,6 +388,55 @@ def serve_service_worker():
     its default registration scope is "/" and it can control every page."""
     content = (STATIC_DIR / "sw.js").read_text(encoding="utf-8")
     return Response(content=content, media_type="application/javascript")
+
+
+def _public_base_url(request: Request) -> str:
+    """APP_BASE_URL if configured (same convention as email links via
+    _app_url()) so a reverse-proxied instance's public URL is reflected
+    correctly; otherwise derived from the request itself."""
+    return APP_BASE_URL or str(request.base_url).rstrip("/")
+
+
+@app.get("/robots.txt", include_in_schema=False)
+def robots_txt(request: Request):
+    """Everything here requires a login except the public /directory and
+    /live pages (org-scoped net info) — steer crawlers to just those, and
+    point them at the sitemap for the actual per-org URLs to index."""
+    lines = [
+        "User-agent: *",
+        "Allow: /directory",
+        "Allow: /live",
+        "Disallow: /",
+        "",
+        f"Sitemap: {_public_base_url(request)}/sitemap.xml",
+    ]
+    return Response(content="\n".join(lines) + "\n", media_type="text/plain")
+
+
+@app.get("/sitemap.xml", include_in_schema=False)
+def sitemap_xml(request: Request, db: Session = Depends(get_db)):
+    """Lists each organization's public directory/live pages (issue #1) — the
+    same set /public/organizations already computes: orgs with at least one
+    net actually opted into the public directory, so nothing thin or private
+    gets listed."""
+    base = _public_base_url(request)
+    orgs = (
+        db.query(Organization)
+        .join(Net, Net.org_id == Organization.id)
+        .filter(Net.public_listed == True)
+        .distinct()
+        .order_by(Organization.name)
+        .all()
+    )
+    entries = [(f"{base}/directory", "0.5", "weekly"), (f"{base}/live", "0.3", "daily")]
+    for org in orgs:
+        entries.append((f"{base}/directory/{org.slug}", "0.9", "weekly"))
+        entries.append((f"{base}/live/{org.slug}", "0.4", "hourly"))
+    body = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+    for loc, priority, changefreq in entries:
+        body.append(f"  <url><loc>{html.escape(loc)}</loc><changefreq>{changefreq}</changefreq><priority>{priority}</priority></url>")
+    body.append("</urlset>")
+    return Response(content="\n".join(body) + "\n", media_type="application/xml")
 
 
 # ---------------------------------------------------------------------------
@@ -1511,15 +1560,61 @@ def delete_api_token(
 # Public live page
 # ---------------------------------------------------------------------------
 
+def _inject_seo_meta(html_content: str, *, title: str, description: str, canonical_path: str, request: Request) -> str:
+    """Overwrite the placeholder SEO tags (see the id="seo-*" elements in
+    directory.html/public.html) with org-specific values before serving.
+    Done server-side, not by the pages' own client-side JS, because search
+    crawlers and link-preview bots (Slack, social media) generally read only
+    the initial HTML response and don't execute JavaScript — a client-side
+    document.title update alone would be invisible to them."""
+    canonical_url = str(request.base_url).rstrip("/") + canonical_path
+    esc_title = html.escape(title)
+    esc_desc = html.escape(description)
+    esc_url = html.escape(canonical_url)
+    replacements = {
+        '<title id="seo-title">Net Directory — Net Tracker</title>': f'<title id="seo-title">{esc_title}</title>',
+        '<title id="seo-title">Live Nets — Net Tracker</title>': f'<title id="seo-title">{esc_title}</title>',
+        'id="seo-description" name="description" content="Browse amateur radio and GMRS nets — schedules, frequencies, and how to check in."':
+            f'id="seo-description" name="description" content="{esc_desc}"',
+        'id="seo-description" name="description" content="See which amateur radio and GMRS nets are on the air right now, with live check-in rosters."':
+            f'id="seo-description" name="description" content="{esc_desc}"',
+        'id="seo-canonical" rel="canonical" href="/directory"': f'id="seo-canonical" rel="canonical" href="{esc_url}"',
+        'id="seo-canonical" rel="canonical" href="/live"': f'id="seo-canonical" rel="canonical" href="{esc_url}"',
+        'id="seo-og-title" property="og:title" content="Net Directory — Net Tracker"': f'id="seo-og-title" property="og:title" content="{esc_title}"',
+        'id="seo-og-title" property="og:title" content="Live Nets — Net Tracker"': f'id="seo-og-title" property="og:title" content="{esc_title}"',
+        'id="seo-og-description" property="og:description" content="Browse amateur radio and GMRS nets — schedules, frequencies, and how to check in."':
+            f'id="seo-og-description" property="og:description" content="{esc_desc}"',
+        'id="seo-og-description" property="og:description" content="See which amateur radio and GMRS nets are on the air right now, with live check-in rosters."':
+            f'id="seo-og-description" property="og:description" content="{esc_desc}"',
+        'id="seo-og-url" property="og:url" content="/directory"': f'id="seo-og-url" property="og:url" content="{esc_url}"',
+        'id="seo-og-url" property="og:url" content="/live"': f'id="seo-og-url" property="og:url" content="{esc_url}"',
+    }
+    for old, new in replacements.items():
+        html_content = html_content.replace(old, new)
+    return html_content
+
+
 @app.get("/live", response_class=HTMLResponse, include_in_schema=False)
 @app.get("/live/{org_slug}", response_class=HTMLResponse, include_in_schema=False)
-def public_live_page(org_slug: Optional[str] = None):
+def public_live_page(request: Request, org_slug: Optional[str] = None, db: Session = Depends(get_db)):
     """Serve the public live nets page. org_slug (issue #1), if present, is
     read client-side from the URL path — same SPA path-routing convention as
-    /directory/{slug} below. Bare /live with no slug renders an org picker."""
+    /directory/{slug} below. Bare /live with no slug renders an org picker.
+    Title/description/canonical are also injected server-side per org (see
+    _inject_seo_meta) for crawlers and link-preview bots that don't run JS."""
     import pathlib
-    p = pathlib.Path(__file__).parent / "public.html"
-    return HTMLResponse(p.read_text())
+    content = (pathlib.Path(__file__).parent / "public.html").read_text()
+    if org_slug:
+        org = db.query(Organization).filter(Organization.slug == org_slug).first()
+        if org:
+            content = _inject_seo_meta(
+                content,
+                title=f"Live Nets — {org.name}",
+                description=f"See which amateur radio and GMRS nets are on the air right now for {org.name}, with live check-in rosters.",
+                canonical_path=f"/live/{org_slug}",
+                request=request,
+            )
+    return HTMLResponse(content)
 
 
 @app.get("/public/active")
@@ -1593,12 +1688,38 @@ def public_session_detail(session_id: int, db: Session = Depends(get_db)):
 
 @app.get("/directory", response_class=HTMLResponse, include_in_schema=False)
 @app.get("/directory/{org_slug}", response_class=HTMLResponse, include_in_schema=False)
-def public_directory_page(org_slug: Optional[str] = None):
+def public_directory_page(request: Request, org_slug: Optional[str] = None, db: Session = Depends(get_db)):
     """Serve the public net directory page. org_slug (issue #1), if present,
     is read client-side from the URL path — the frontend calls
     /public/directory?org=<slug> accordingly. Bare /directory with no slug
-    renders an org picker (from /public/organizations) instead of a net list."""
-    return _serve_html("directory.html")
+    renders an org picker (from /public/organizations) instead of a net list.
+    Title/description/canonical are also injected server-side per org (see
+    _inject_seo_meta) for crawlers and link-preview bots that don't run JS."""
+    content = (_STATIC_DIR / "directory.html").read_text(encoding="utf-8")
+    if org_slug:
+        org = db.query(Organization).filter(Organization.slug == org_slug).first()
+        if org:
+            canonical_path = f"/directory/{org_slug}"
+            content = _inject_seo_meta(
+                content,
+                title=f"{org.name} Net Directory",
+                description=f"Amateur radio and GMRS net schedules for {org.name} — frequencies, meeting times, and how to check in.",
+                canonical_path=canonical_path,
+                request=request,
+            )
+            jsonld = {
+                "@context": "https://schema.org",
+                "@type": "Organization",
+                "name": org.name,
+                "url": org.website_url or (str(request.base_url).rstrip("/") + canonical_path),
+            }
+            # Escaping "</" within the JSON body (only) guards against the org
+            # name breaking out of the <script> tag if it ever contained that
+            # sequence — applied before wrapping, so the real closing tag is untouched.
+            jsonld_str = json.dumps(jsonld).replace("</", "<\\/")
+            script = f'<script type="application/ld+json">{jsonld_str}</script>'
+            content = content.replace("<!--SEO_JSONLD-->", script)
+    return HTMLResponse(content)
 
 
 @app.get("/public/organizations", response_model=list[OrganizationOut])

@@ -155,3 +155,61 @@ class TestPublicDirectoryOrgScoping:
         resp = client.get("/live/default")
         assert resp.status_code == 200
         assert "text/html" in resp.headers["content-type"]
+
+
+class TestSEO:
+    """robots.txt / sitemap.xml / per-org meta tag injection (issue #1 follow-up)."""
+
+    def test_robots_txt_allows_directory_and_live_disallows_everything_else(self, client):
+        resp = client.get("/robots.txt")
+        assert resp.status_code == 200
+        body = resp.text
+        assert "Allow: /directory" in body
+        assert "Allow: /live" in body
+        assert "Disallow: /" in body
+        assert "Sitemap:" in body and "/sitemap.xml" in body
+
+    def test_sitemap_lists_org_with_public_net(self, client, admin_headers):
+        _public_net(client, admin_headers)  # in the "default" org
+        resp = client.get("/sitemap.xml")
+        assert resp.status_code == 200
+        assert "application/xml" in resp.headers["content-type"]
+        assert "/directory/default" in resp.text
+        assert "/live/default" in resp.text
+
+    def test_sitemap_excludes_org_with_no_public_nets(self, client, admin_headers, net):
+        """The `net` fixture is not public_listed -- its org shouldn't appear."""
+        resp = client.get("/sitemap.xml")
+        assert "/directory/default" not in resp.text
+
+    def test_directory_slug_page_injects_org_specific_title_and_description(self, client, admin_headers):
+        _public_net(client, admin_headers, name="Weekly Chat Net")
+        resp = client.get("/directory/default")
+        assert 'id="seo-title"' in resp.text
+        assert "<title" in resp.text
+        # "default" org's display name defaults to the branding org_name (or
+        # "Default Organization") -- just confirm the placeholder default was
+        # actually overwritten, not left as the generic fallback.
+        assert "Net Directory — Net Tracker" not in resp.text
+        assert 'id="seo-canonical"' in resp.text
+        assert "/directory/default" in resp.text
+
+    def test_directory_slug_page_includes_organization_jsonld(self, client, admin_headers):
+        resp = client.get("/directory/default")
+        assert 'application/ld+json' in resp.text
+        assert '"@type": "Organization"' in resp.text
+
+    def test_directory_bare_page_has_no_jsonld(self, client):
+        resp = client.get("/directory")
+        assert "application/ld+json" not in resp.text
+
+    def test_directory_page_with_unknown_slug_falls_back_to_generic_meta(self, client):
+        resp = client.get("/directory/does-not-exist")
+        assert resp.status_code == 200
+        assert "Net Directory — Net Tracker" in resp.text
+
+    def test_live_slug_page_has_noindex_but_directory_does_not(self, client):
+        live_resp = client.get("/live/default")
+        dir_resp = client.get("/directory/default")
+        assert 'name="robots" content="noindex, follow"' in live_resp.text
+        assert 'name="robots" content="noindex' not in dir_resp.text

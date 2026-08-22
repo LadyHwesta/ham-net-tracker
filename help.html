@@ -63,6 +63,16 @@
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
 
           <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-22 — SEO for the Public Directory (v2.4.2)</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>Added <code style="background:var(--surface);padding:1px 5px;border-radius:3px">/robots.txt</code> and <code style="background:var(--surface);padding:1px 5px;border-radius:3px">/sitemap.xml</code> — search engines are steered toward each organization's public <strong>/directory/&lt;org&gt;</strong> page and away from everything that requires a login.</li>
+              <li>Each organization's <strong>/directory/&lt;org&gt;</strong> and <strong>/live/&lt;org&gt;</strong> page now gets its own page title, meta description, and social-media link preview (Open Graph tags), server-rendered with that organization's actual name — not just set after the page loads, so search engines and link-preview bots (Slack, Discord, etc.) see the real content immediately.</li>
+              <li>The directory page also includes structured data (schema.org <code style="background:var(--surface);padding:1px 5px;border-radius:3px">Organization</code> markup) describing the organization to search engines. The live page is marked <code style="background:var(--surface);padding:1px 5px;border-radius:3px">noindex</code> — real-time content that's stale within minutes isn't worth indexing.</li>
+              <li>No database migration — backend routing and template changes only.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-22 — Organizations Require Super Admin Approval (v2.4.1, issue #1 follow-up)</div>
             <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
               <li>Founding a new organization at registration no longer logs you straight in — a <strong>Super Admin</strong> now has to approve it first, the same way joining an existing organization always required that organization's own admin to approve it. There was previously no oversight at all on brand-new organizations.</li>
