@@ -63,6 +63,15 @@
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
 
           <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-23 — Fix Orphaned Organizations (v2.4.9)</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>Rejecting (or deleting) a user who had just founded a new organization deleted the account but left the organization behind with no members at all — a dead end that stayed visible in the "join an existing organization" picker at registration forever, with no one left who could ever approve a join request.</li>
+              <li>Fixed: an organization that ends up with zero members after a user is rejected or deleted is now cleaned up automatically. The "join an existing organization" list also now only shows organizations that actually have someone able to approve a join request, as a second line of defense.</li>
+              <li>No database migration — backend logic only.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-22 — New Logo (v2.4.8)</div>
             <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
               <li>Replaced the radio-tower favicon and the 📻 emoji used as the app's mark with a new hub-and-spoke network icon — a central Net Control node connected to three station nodes, which is a more literal picture of what a net actually is than a generic radio. Updated everywhere: the browser favicon, installed-app icons (including the maskable and Apple touch variants), and the header/login logo.</li>

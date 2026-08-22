@@ -309,7 +309,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="Ham Radio Net Tracker", version="2.4.8", lifespan=lifespan)
+app = FastAPI(title="Ham Radio Net Tracker", version="2.4.9", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -1056,6 +1056,24 @@ def _get_or_create_org(
     return org, True
 
 
+def _delete_orphaned_orgs(org_ids: set[int], db: Session) -> None:
+    """Deletes any of the given orgs that now have zero memberships — call
+    this AFTER deleting a user (with their org_ids captured beforehand),
+    since a rejected/deleted user could have been an org's only member (most
+    commonly its founder, still awaiting super admin approval). Otherwise
+    the org is orphaned forever: it keeps showing up in the "join an
+    existing organization" picker with no one left who could ever approve a
+    join request (issue #1 follow-up)."""
+    for org_id in org_ids:
+        remaining = db.query(func.count(OrganizationMembership.id)).filter(
+            OrganizationMembership.org_id == org_id
+        ).scalar()
+        if remaining == 0:
+            org = db.query(Organization).filter(Organization.id == org_id).first()
+            if org:
+                db.delete(org)
+
+
 @app.post("/auth/register", response_model=UserOut, status_code=201)
 @limiter.limit("5/minute")
 def register(request: Request, data: UserCreate, db: Session = Depends(get_db)):
@@ -1314,11 +1332,23 @@ def require_org_admin(org_id: int, current_user: User = Depends(get_current_user
 
 @app.get("/orgs", response_model=list[OrganizationOut])
 def list_orgs(db: Session = Depends(get_db)):
-    """Every organization on this instance, name+slug only — powers the
-    "join an existing organization" picker at registration. No auth required:
-    same trust level as callsign/name being visible in the registration form
-    itself, and an org's existence isn't sensitive."""
-    return db.query(Organization).order_by(Organization.name).all()
+    """Organizations that actually have someone who could approve a join
+    request — name+slug only — powers the "join an existing organization"
+    picker at registration. No auth required: same trust level as
+    callsign/name being visible in the registration form itself, and an
+    org's existence isn't sensitive. Excludes an org with no approved admin
+    (e.g. its founder was rejected/deleted before anyone else joined) —
+    _delete_orphaned_orgs() cleans those up outright, but this filter is a
+    second line of defense against ever listing a dead-end org (issue #1
+    follow-up)."""
+    return (
+        db.query(Organization)
+        .join(OrganizationMembership, OrganizationMembership.org_id == Organization.id)
+        .filter(OrganizationMembership.role == "admin", OrganizationMembership.approved == True)
+        .distinct()
+        .order_by(Organization.name)
+        .all()
+    )
 
 
 @app.get("/orgs/mine", response_model=list[MyOrgOut])
@@ -2383,7 +2413,10 @@ def admin_reject_user(user_id: int, body: RejectUserBody = RejectUserBody(), adm
         ),
     )
 
+    org_ids = {r[0] for r in db.query(OrganizationMembership.org_id).filter(OrganizationMembership.user_id == user.id).all()}
     db.delete(user)
+    db.flush()
+    _delete_orphaned_orgs(org_ids, db)
     db.commit()
 
 
@@ -2422,7 +2455,10 @@ def admin_delete_user(user_id: int, admin: User = Depends(require_admin), db: Se
         raise HTTPException(404, "User not found")
     if user.id == admin.id:
         raise HTTPException(400, "Cannot delete your own account")
+    org_ids = {r[0] for r in db.query(OrganizationMembership.org_id).filter(OrganizationMembership.user_id == user.id).all()}
     db.delete(user)
+    db.flush()
+    _delete_orphaned_orgs(org_ids, db)
     db.commit()
 
 

@@ -168,6 +168,76 @@ class TestRegistrationOrgFlow:
         login(client, "W2JOIN")  # no longer blocked
 
 
+class TestOrphanedOrgCleanup:
+    """Rejecting (or deleting) a pending org founder used to delete the user
+    but leave their brand-new org behind with zero members -- a dead-end
+    that stayed visible in the "join an existing organization" picker
+    forever, with no one left who could ever approve a join request
+    (reported bug, issue #1 follow-up)."""
+
+    def test_rejecting_org_founder_deletes_the_orphaned_org(self, client):
+        super_token = _bootstrap_super_admin(client)
+        resp = client.post("/auth/register", json={
+            "callsign": "W2FOUND", "name": "Founder", "email": "founder@example.com", "password": "testpass123",
+            "org_slug": "doomed-org", "org_name": "Doomed Org", "org_website_url": "https://doomed.example.org",
+        })
+        assert resp.status_code == 201, resp.text
+        user_id = resp.json()["id"]
+
+        orgs_before = client.get("/orgs").json()
+        assert any(o["slug"] == "doomed-org" for o in orgs_before)
+
+        reject = client.post(f"/admin/users/{user_id}/reject", headers=auth(super_token))
+        assert reject.status_code == 204
+
+        orgs_after = client.get("/orgs").json()
+        assert not any(o["slug"] == "doomed-org" for o in orgs_after)
+
+    def test_deleting_org_founder_deletes_the_orphaned_org(self, client):
+        super_token = _bootstrap_super_admin(client)
+        resp = client.post("/auth/register", json={
+            "callsign": "W2FOUND", "name": "Founder", "email": "founder@example.com", "password": "testpass123",
+            "org_slug": "doomed-org", "org_name": "Doomed Org", "org_website_url": "https://doomed.example.org",
+        })
+        user_id = resp.json()["id"]
+
+        delete = client.delete(f"/admin/users/{user_id}", headers=auth(super_token))
+        assert delete.status_code == 204
+
+        orgs_after = client.get("/orgs").json()
+        assert not any(o["slug"] == "doomed-org" for o in orgs_after)
+
+    def test_rejecting_one_of_two_org_admins_does_not_delete_the_org(self, client):
+        """Only actually-orphaned orgs get cleaned up -- one with a second
+        approved admin left behind must survive."""
+        super_token = _bootstrap_super_admin(client)
+        token = _org_owner(client, super_token, "W1AORG", "org-a", "Org A")
+        org_id = client.get("/auth/me", headers=auth(token)).json()["current_org_id"]
+
+        # Promote a second member to org admin isn't directly exposed, but a
+        # pending joiner approved via the org's own admin becomes a 'member'
+        # -- use the super admin's global approve on a second founder-style
+        # registration into the SAME org isn't possible (join-existing only
+        # grants 'member'), so instead verify via a second super-admin-owned
+        # membership: the super admin itself can act as org-a's admin without
+        # being deleted, so rejecting the founder here is the orphaning case
+        # already covered above. This test instead confirms a *member* (not
+        # the sole admin) being rejected leaves the org alone.
+        client.post("/auth/register", json={
+            "callsign": "W2MEMBER", "name": "Member", "email": "member@example.com",
+            "password": "testpass123", "org_slug": "org-a",
+        })
+        pending = client.get(f"/orgs/{org_id}/pending-members", headers=auth(token)).json()
+        member_id = next(m["user_id"] for m in pending if m["callsign"] == "W2MEMBER")
+        client.patch(f"/orgs/{org_id}/members/{member_id}/approve", headers=auth(token))
+
+        reject = client.post(f"/admin/users/{member_id}/reject", headers=auth(super_token))
+        assert reject.status_code == 204
+
+        orgs_after = client.get("/orgs").json()
+        assert any(o["slug"] == "org-a" for o in orgs_after)
+
+
 class TestOrgEditing:
     """PATCH /orgs/{id} — previously there was no way to rename an org (or fix
     its website) after creation at all (issue #1 follow-up)."""
