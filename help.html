@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Help — Net Tracker</title>
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230a0a1a'/%3E%3C!-- Tower base --%3E%3Crect x='15' y='20' width='2' height='8' fill='%23ff9900'/%3E%3Crect x='11' y='27' width='10' height='2' rx='1' fill='%23ff9900'/%3E%3C!-- Tower mast --%3E%3Crect x='15.5' y='6' width='1' height='14' fill='%23ff9900'/%3E%3C!-- Signal arcs --%3E%3Cpath d='M10 14 A8 8 0 0 1 22 14' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M7 18 A11 11 0 0 1 25 18' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round' opacity='0.6'/%3E%3Cpath d='M4 22 A14 14 0 0 1 28 22' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round' opacity='0.3'/%3E%3C!-- Tip dot --%3E%3Ccircle cx='16' cy='6' r='1.5' fill='%23ff9900'/%3E%3C/svg%3E" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%230a0a1a'/%3E%3Cline x1='256' y1='256' x2='256' y2='120' stroke='%230099ff' stroke-width='16' stroke-linecap='round'/%3E%3Cline x1='256' y1='256' x2='146' y2='336' stroke='%230099ff' stroke-width='16' stroke-linecap='round'/%3E%3Cline x1='256' y1='256' x2='366' y2='336' stroke='%230099ff' stroke-width='16' stroke-linecap='round'/%3E%3Ccircle cx='256' cy='120' r='34' fill='%230099ff'/%3E%3Ccircle cx='146' cy='336' r='34' fill='%230099ff'/%3E%3Ccircle cx='366' cy='336' r='34' fill='%230099ff'/%3E%3Ccircle cx='256' cy='256' r='52' fill='%23ff9900'/%3E%3Ccircle cx='256' cy='256' r='17' fill='%230a0a1a'/%3E%3C/svg%3E" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/app.css?v=15">
@@ -21,7 +21,7 @@
     <div class="header-lcars">
       <img id="header-logo" src="/logo" alt="" style="max-height:36px;max-width:120px;display:none;border-radius:4px;object-fit:contain"
         onerror="this.style.display='none'" onload="this.style.display=''" />
-      <span id="header-antenna" style="font-size:18px">📻</span>
+      <span id="header-antenna" style="font-size:18px"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%230a0a1a'/%3E%3Cline x1='256' y1='256' x2='256' y2='120' stroke='%230099ff' stroke-width='16' stroke-linecap='round'/%3E%3Cline x1='256' y1='256' x2='146' y2='336' stroke='%230099ff' stroke-width='16' stroke-linecap='round'/%3E%3Cline x1='256' y1='256' x2='366' y2='336' stroke='%230099ff' stroke-width='16' stroke-linecap='round'/%3E%3Ccircle cx='256' cy='120' r='34' fill='%230099ff'/%3E%3Ccircle cx='146' cy='336' r='34' fill='%230099ff'/%3E%3Ccircle cx='366' cy='336' r='34' fill='%230099ff'/%3E%3Ccircle cx='256' cy='256' r='52' fill='%23ff9900'/%3E%3Ccircle cx='256' cy='256' r='17' fill='%230a0a1a'/%3E%3C/svg%3E" width="18" height="18" style="display:block;border-radius:22%;vertical-align:middle" alt=""></span>
       <div>
         <h1 id="header-title"><span>Net</span> Tracker</h1>
         <div id="header-tagline" style="display:none;font-size:11px;color:rgba(0,0,0,0.6);font-weight:600;letter-spacing:.04em;margin-top:-2px"></div>
@@ -61,6 +61,15 @@
         <div id="help-panel-changelog" style="display:none">
         <div class="card" style="margin-bottom:16px">
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-22 — New Logo (v2.4.8)</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>Replaced the radio-tower favicon and the 📻 emoji used as the app's mark with a new hub-and-spoke network icon — a central Net Control node connected to three station nodes, which is a more literal picture of what a net actually is than a generic radio. Updated everywhere: the browser favicon, installed-app icons (including the maskable and Apple touch variants), and the header/login logo.</li>
+              <li>Decorative 📻 icons elsewhere in the app (DMR Integration, Check-In tab, etc.) are unchanged — this was specifically about the app's own brand mark.</li>
+              <li>No database migration — static assets and markup only.</li>
+            </ul>
+          </div>
 
           <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-22 — Rename an Organization; Fix a Registration Hang (v2.4.7)</div>

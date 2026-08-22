@@ -309,7 +309,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="Ham Radio Net Tracker", version="2.4.7", lifespan=lifespan)
+app = FastAPI(title="Ham Radio Net Tracker", version="2.4.8", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
