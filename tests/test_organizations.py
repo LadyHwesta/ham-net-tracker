@@ -55,6 +55,17 @@ class TestRegistrationOrgFlow:
         })
         assert resp.status_code == 400
 
+    def test_new_org_website_url_must_be_http_or_https(self, client):
+        """Rejects e.g. a javascript: URI -- this gets rendered as a clickable
+        link in the admin approval queue, so anything else is a stored-XSS
+        vector against whoever reviews it."""
+        resp = client.post("/auth/register", json={
+            "callsign": "W2BADURL", "name": "Bad URL", "email": "badurl@example.com", "password": "testpass123",
+            "org_slug": "bad-url-org", "org_name": "Bad URL Org",
+            "org_website_url": "javascript:alert(1)",
+        })
+        assert resp.status_code == 400
+
     def test_new_org_founder_is_not_active_until_super_admin_approves(self, client):
         super_token = _bootstrap_super_admin(client)
         resp = client.post("/auth/register", json={
@@ -72,6 +83,17 @@ class TestRegistrationOrgFlow:
         approve = client.patch(f"/admin/users/{data['id']}/approve", headers=auth(super_token))
         assert approve.status_code == 200
         login(client, "W2OWN")  # no longer blocked
+
+    def test_admin_users_list_includes_org_name_and_website_for_pending_founder(self, client):
+        super_token = _bootstrap_super_admin(client)
+        client.post("/auth/register", json={
+            "callsign": "W2OWN", "name": "Owner", "email": "owner@example.com", "password": "testpass123",
+            "org_slug": "acme-ares", "org_name": "ACME ARES", "org_website_url": "https://acme-ares.example.org",
+        })
+        users = client.get("/admin/users", headers=auth(super_token)).json()
+        row = next(u for u in users if u["callsign"] == "W2OWN")
+        assert row["org_name"] == "ACME ARES"
+        assert row["org_website_url"] == "https://acme-ares.example.org"
 
     def test_new_org_founder_membership_is_already_admin_role_once_approved(self, client):
         super_token = _bootstrap_super_admin(client)

@@ -63,6 +63,15 @@
           <h3 style="margin:0 0 12px;font-size:14px;color:var(--lc-orange);letter-spacing:.08em">CHANGELOG</h3>
 
           <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-22 — Verify an Org's Website From the Approval Queue (v2.4.3)</div>
+            <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+              <li>A pending registration that's founding a brand new organization now shows that organization's name and website — as a clickable link — right in the <strong>Admin</strong> panel's Pending Approval list, so you can verify it before approving instead of approving blind.</li>
+              <li>Organization website URLs must now start with <code style="background:var(--surface);padding:1px 5px;border-radius:3px">http://</code> or <code style="background:var(--surface);padding:1px 5px;border-radius:3px">https://</code> — closes a stored-XSS gap where anything else typed in at registration would have been rendered as a clickable link in this same admin-privileged page.</li>
+              <li>No database migration — backend response and admin UI changes only.</li>
+            </ul>
+          </div>
+
+          <div style="border-left:3px solid var(--lc-orange);padding-left:12px;margin-bottom:14px">
             <div style="font-size:12px;font-weight:700;color:var(--lc-orange);margin-bottom:4px">2026-08-22 — SEO for the Public Directory (v2.4.2)</div>
             <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7">
               <li>Added <code style="background:var(--surface);padding:1px 5px;border-radius:3px">/robots.txt</code> and <code style="background:var(--surface);padding:1px 5px;border-radius:3px">/sitemap.xml</code> — search engines are steered toward each organization's public <strong>/directory/&lt;org&gt;</strong> page and away from everything that requires a login.</li>
@@ -755,7 +764,7 @@ python3 /opt/netcontrol/gmrs_sync.py --mode update</pre>
   </main>
 </div>
   <script src="/static/js/state.js?v=9"></script>
-  <script src="/static/js/utils.js?v=7"></script>
+  <script src="/static/js/utils.js?v=8"></script>
   <script src="/static/js/auth.js?v=11"></script>
   <script src="/static/js/theme.js?v=1"></script>
   <script src="/static/js/branding.js?v=7"></script>

@@ -28,6 +28,15 @@ function esc(str) {
   return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// Returns true only for an http(s) URL — use before rendering any
+// user-supplied string as a clickable href (e.g. an org's website URL in the
+// admin panel). The backend already restricts these to http(s) at creation
+// time; this is a second line of defense so a stray javascript:/data: URI
+// never becomes a clickable link in a privileged page.
+function safeHttpUrl(url) {
+  return /^https?:\/\//i.test(String(url || ''));
+}
+
 function toggleSidebar() {
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('sidebar-overlay');

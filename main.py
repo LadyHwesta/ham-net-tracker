@@ -304,7 +304,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="Ham Radio Net Tracker", version="2.4.2", lifespan=lifespan)
+app = FastAPI(title="Ham Radio Net Tracker", version="2.4.3", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -482,6 +482,14 @@ class UserOut(BaseModel):
     current_org_id: Optional[int] = None
 
     model_config = {"from_attributes": True}
+
+
+class AdminUserOut(UserOut):
+    """UserOut plus the user's current org's name/website — lets a super
+    admin reviewing a pending registration (especially one founding a brand
+    new org) verify it without a separate lookup (issue #1 follow-up)."""
+    org_name: Optional[str] = None
+    org_website_url: Optional[str] = None
 
 
 class OrganizationOut(BaseModel):
@@ -1027,10 +1035,17 @@ def _get_or_create_org(
     org = db.query(Organization).filter(Organization.slug == slug).first()
     if org:
         return org, False
-    if (org_slug or org_name) and not (org_website_url or "").strip():
-        raise HTTPException(400, "Organization website URL is required when creating a new organization")
+    website = (org_website_url or "").strip()
+    if org_slug or org_name:
+        if not website:
+            raise HTTPException(400, "Organization website URL is required when creating a new organization")
+        # Restricted to http(s) — this gets rendered as a clickable link in the
+        # admin approval queue, so anything else (e.g. a javascript: URI) would
+        # be a stored-XSS vector against whoever reviews it.
+        if not re.match(r"^https?://", website, re.IGNORECASE):
+            raise HTTPException(400, "Organization website URL must start with http:// or https://")
     name = org_name or (_get_setting("org_name", db) if slug == "default" else None) or slug.replace("-", " ").title()
-    org = Organization(name=name, slug=slug, website_url=(org_website_url or "").strip() or None)
+    org = Organization(name=name, slug=slug, website_url=website or None)
     db.add(org)
     db.flush()
     return org, True
@@ -2211,10 +2226,26 @@ def require_admin(current_user: User = Depends(get_current_user)) -> User:
 # Admin routes
 # ---------------------------------------------------------------------------
 
-@app.get("/admin/users", response_model=list[UserOut])
+@app.get("/admin/users", response_model=list[AdminUserOut])
 def admin_list_users(admin: User = Depends(require_admin), db: Session = Depends(get_db)):
-    """List all users (active, pending, and inactive)."""
-    return db.query(User).order_by(User.created_at.desc()).all()
+    """List all users (active, pending, and inactive), with each user's
+    current org name/website attached (issue #1 follow-up) — lets a super
+    admin verify a pending registration, especially one founding a brand new
+    org, without a separate lookup."""
+    rows = (
+        db.query(User, Organization)
+        .outerjoin(Organization, Organization.id == User.current_org_id)
+        .order_by(User.created_at.desc())
+        .all()
+    )
+    return [
+        AdminUserOut(
+            **UserOut.model_validate(u).model_dump(),
+            org_name=org.name if org else None,
+            org_website_url=org.website_url if org else None,
+        )
+        for u, org in rows
+    ]
 
 
 @app.patch("/admin/users/{user_id}/approve", response_model=UserOut)

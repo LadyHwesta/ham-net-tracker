@@ -31,6 +31,18 @@ async function loadAdminUsers() {
       const verifiedBadge = u.email_verified
         ? '<span class="badge badge-green" title="Email address confirmed by the user">✓ Verified</span>'
         : '<span class="badge badge-gray" title="User has not yet clicked the verification link in their email">Unverified</span>';
+      // Organization (issue #1 follow-up) — shown so a super admin reviewing
+      // a registration that's founding a brand new org can verify its website
+      // before approving. safeHttpUrl() guards against a non-http(s) URL (the
+      // backend already rejects those at creation time, but this is a second
+      // line of defense against rendering something like a javascript: URI as
+      // a clickable link in an admin-privileged page).
+      const orgLine = u.org_name ? `
+        <div style="width:100%;font-size:11px;color:var(--text-muted);margin-top:2px">
+          Org: <strong>${esc(u.org_name)}</strong>${u.org_website_url && safeHttpUrl(u.org_website_url)
+            ? ` — <a href="${esc(u.org_website_url)}" target="_blank" rel="noopener noreferrer" style="color:var(--lc-blue)">${esc(u.org_website_url)}</a>`
+            : (u.org_website_url ? ` — ${esc(u.org_website_url)}` : '')}
+        </div>` : '';
       return `
       <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">
         <span class="callsign">${esc(u.callsign)}</span>
@@ -42,6 +54,7 @@ async function loadAdminUsers() {
           <button class="btn btn-primary btn-sm" onclick="adminApprove(${u.id}, this)">✓ Approve</button>
           <button class="btn btn-danger btn-sm" onclick="adminReject(${u.id}, '${esc(u.callsign)}')">✕ Reject</button>
         </div>
+        ${orgLine}
       </div>
     `;
     }).join('');
