@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Ham Net Tracker — DMR relay script
+NetControl Online — DMR relay script
 
 Polls a local WPSD, Pi-Star, or BrandMeister hotspot and forwards raw last-heard
-data to the Net Tracker backend.  All normalization happens server-side; this
+data to the NetControl Online backend.  All normalization happens server-side; this
 script is intentionally a thin fetch-and-forward proxy.
 
 Usage
@@ -11,7 +11,7 @@ Usage
     python3 dmr_relay.py [options]
 
 Required options (or set matching environment variables):
-    --server        Net Tracker base URL, e.g. https://netcontrol.meskis.net
+    --server        NetControl Online base URL, e.g. https://tracker.netcontrol.online
     --token         API token (create one under Account → API Tokens)
     --net-id        Net ID to push data to (shown in the net's URL)
     --hotspot-url   Full URL of the hotspot API endpoint
@@ -28,7 +28,7 @@ Environment variables
 Example
 -------
     python3 dmr_relay.py \\
-        --server https://netcontrol.meskis.net \\
+        --server https://tracker.netcontrol.online \\
         --token nt_abc123... \\
         --net-id 1 \\
         --hotspot-url http://wpsd.local/api/live/lastheard \\
@@ -56,7 +56,7 @@ log = logging.getLogger("dmr_relay")
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Ham Net Tracker DMR relay script")
+    p = argparse.ArgumentParser(description="NetControl Online DMR relay script")
     p.add_argument("--server",      default=os.getenv("NT_SERVER", ""))
     p.add_argument("--token",       default=os.getenv("NT_TOKEN", ""))
     p.add_argument("--net-id",      default=os.getenv("NT_NET_ID", ""), type=int)

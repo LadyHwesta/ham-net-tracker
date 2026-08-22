@@ -89,14 +89,14 @@ function downloadRelayScript() {
 
   const script = `#!/usr/bin/env python3
 """
-DMR Relay Script for Ham Net Tracker
+DMR Relay Script for NetControl Online
 Fetches last-heard data from your local hotspot and pushes it to the net tracker,
 bypassing browser CORS restrictions entirely.
 
 Requirements: pip install requests   (or: sudo apt install python3-requests)
 
 Setup:
-  1. Go to the Net Tracker → 🪙 API Tokens page and create a token labelled
+  1. Go to the NetControl Online → 🪙 API Tokens page and create a token labelled
      something like "DMR Relay - shack Pi".  Copy the token (shown only once).
   2. Paste the token into API_TOKEN below.
   3. Run: python3 dmr_relay.py

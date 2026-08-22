@@ -2,6 +2,11 @@
 // BRANDING
 // ============================================================
 let currentBranding = {};
+// Each page's own <title> (e.g. "Admin — NetControl Online") — captured once
+// before applyBranding() ever runs, so the no-custom-branding fallback below
+// restores the page's actual title instead of stomping it with a single
+// generic name every page would otherwise share.
+const _defaultPageTitle = document.title;
 
 async function loadBranding() {
   try { currentBranding = await apiFetch('/branding'); } catch { return; }
@@ -13,10 +18,10 @@ function applyBranding(b) {
   const titleEl = document.getElementById('header-title');
   if (b.org_name) {
     titleEl.innerHTML = `<span>${esc(b.org_name)}</span>`;
-    document.title = b.org_name + ' — Net Tracker';
+    document.title = b.org_name + ' — NetControl Online';
   } else {
-    titleEl.innerHTML = '<span>Net</span> Tracker';
-    document.title = 'Ham Radio Net Tracker';
+    titleEl.innerHTML = '<span>NetControl Online</span>';
+    document.title = _defaultPageTitle;
   }
   // Tagline
   const tagEl = document.getElementById('header-tagline');

@@ -1,5 +1,5 @@
 """
-Pytest configuration and shared fixtures for the Ham Net Tracker test suite.
+Pytest configuration and shared fixtures for the NetControl Online test suite.
 
 Strategy
 --------

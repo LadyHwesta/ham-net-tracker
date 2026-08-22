@@ -1,5 +1,5 @@
 """
-SQLAlchemy models for Ham Radio Net Tracker
+SQLAlchemy models for NetControl Online
 """
 
 from datetime import datetime, timezone

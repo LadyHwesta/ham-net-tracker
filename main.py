@@ -1,5 +1,5 @@
 """
-Ham Radio Net Tracker — FastAPI backend
+NetControl Online — FastAPI backend
 
 Endpoints
 ---------
@@ -109,7 +109,7 @@ SMTP_HOST     = os.getenv("SMTP_HOST", "")
 SMTP_PORT     = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER     = os.getenv("SMTP_USER", "")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
-SMTP_FROM     = os.getenv("SMTP_FROM", "")        # e.g. "Ham Net Tracker <noreply@example.com>"
+SMTP_FROM     = os.getenv("SMTP_FROM", "")        # e.g. "NetControl Online <noreply@example.com>"
 SMTP_USE_TLS  = os.getenv("SMTP_USE_TLS", "true").lower() == "true"   # STARTTLS (port 587)
 SMTP_USE_SSL  = os.getenv("SMTP_USE_SSL", "false").lower() == "true"  # SSL/TLS (port 465)
 # smtplib has NO timeout by default (blocks forever on a dead/unreachable
@@ -288,7 +288,7 @@ def _build_ics(net: "Net", schedule: "NetSchedule", signup: "NetControlSignup", 
     lines = [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
-        "PRODID:-//Ham Net Tracker//Ham Radio//EN",
+        "PRODID:-//NetControl Online//Ham Radio//EN",
         "METHOD:REQUEST",
         "BEGIN:VEVENT",
         f"UID:{uid}",
@@ -346,7 +346,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="Ham Radio Net Tracker", version="2.5.0", lifespan=lifespan)
+app = FastAPI(title="NetControl Online", version="2.6.0", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -406,10 +406,10 @@ def serve_manifest(db: Session = Depends(get_db)):
     file so name/short_name pick up the org's own Branding settings instead of
     a hardcoded name — icons stay fixed to the built-in mark (reliable/square)
     regardless of any uploaded club logo."""
-    org_name = _get_setting("org_name", db) or "Ham Radio Net Tracker"
+    org_name = _get_setting("org_name", db) or "NetControl Online"
     return {
         "name": org_name,
-        "short_name": org_name if len(org_name) <= 15 else "Net Tracker",
+        "short_name": org_name if len(org_name) <= 15 else "NetControl Online",
         "description": "Track amateur radio and GMRS net check-ins",
         "start_url": "/",
         "scope": "/",
@@ -1172,17 +1172,17 @@ def register(request: Request, data: UserCreate, db: Session = Depends(get_db)):
         verify_link = _app_url(f"/auth/verify-email?token={verification_token}")
         send_email(
             to=[user.email],
-            subject="[Ham Net Tracker] Verify Your Email",
+            subject="[NetControl Online] Verify Your Email",
             body_html=f"""<div style="font-family:sans-serif;max-width:520px">
   <h2 style="color:#FF9900">Verify Your Email</h2>
   <p>Hello <strong>{user.name}</strong> ({user.callsign}),</p>
-  <p>Thanks for registering with Ham Net Tracker. Please confirm this is your email address before an administrator can approve your account.</p>
+  <p>Thanks for registering with NetControl Online. Please confirm this is your email address before an administrator can approve your account.</p>
   {f'<p style="margin-top:16px"><a href="{verify_link}" style="background:#FF9900;color:#000;padding:10px 20px;text-decoration:none;border-radius:20px;font-weight:bold;display:inline-block">Verify Email</a></p>' if verify_link else '<p>Contact your administrator to have your account verified.</p>'}
   <p style="color:#888;font-size:12px">If you did not request this account, please disregard this message.</p>
 </div>""",
             body_text=(
                 f"Hello {user.name} ({user.callsign}),\n\n"
-                f"Thanks for registering with Ham Net Tracker. Please confirm this is your email "
+                f"Thanks for registering with NetControl Online. Please confirm this is your email "
                 f"address before an administrator can approve your account.\n\n"
                 + (f"Verify here: {verify_link}\n\n" if verify_link else "Contact your administrator to have your account verified.\n\n")
                 + "If you did not request this account, please disregard this message."
@@ -1205,7 +1205,7 @@ def register(request: Request, data: UserCreate, db: Session = Depends(get_db)):
             if notify_admins:
                 send_email(
                     to=[a.email for a in notify_admins],
-                    subject=f"[Ham Net Tracker] New Organization Pending Approval: {org.name}",
+                    subject=f"[NetControl Online] New Organization Pending Approval: {org.name}",
                     body_html=f"""<div style="font-family:sans-serif;max-width:520px">
   <h2 style="color:#FF9900">New Organization Registration</h2>
   <p>A new user has registered, founding a new organization, and is awaiting your approval:</p>
@@ -1246,7 +1246,7 @@ def register(request: Request, data: UserCreate, db: Session = Depends(get_db)):
             if notify_admins:
                 send_email(
                     to=[a.email for a in notify_admins],
-                    subject=f"[Ham Net Tracker] New Registration: {user.callsign}",
+                    subject=f"[NetControl Online] New Registration: {user.callsign}",
                     body_html=f"""<div style="font-family:sans-serif;max-width:520px">
   <h2 style="color:#FF9900">New Operator Registration</h2>
   <p>A new user has requested to join <strong>{html.escape(org.name)}</strong> and is awaiting your approval:</p>
@@ -1568,7 +1568,7 @@ def approve_org_member(org_id: int, user_id: int, admin: User = Depends(require_
         login_link = _app_url("/")
         send_email(
             to=[user.email],
-            subject="[Ham Net Tracker] Your Account Has Been Approved",
+            subject="[NetControl Online] Your Account Has Been Approved",
             body_html=f"""<div style="font-family:sans-serif;max-width:520px">
   <h2 style="color:#FF9900">Account Approved!</h2>
   <p>Hello <strong>{user.name}</strong> ({user.callsign}),</p>
@@ -1710,16 +1710,16 @@ def _inject_seo_meta(html_content: str, *, title: str, description: str, canonic
     esc_desc = html.escape(description)
     esc_url = html.escape(canonical_url)
     replacements = {
-        '<title id="seo-title">Net Directory — Net Tracker</title>': f'<title id="seo-title">{esc_title}</title>',
-        '<title id="seo-title">Live Nets — Net Tracker</title>': f'<title id="seo-title">{esc_title}</title>',
+        '<title id="seo-title">Net Directory — NetControl Online</title>': f'<title id="seo-title">{esc_title}</title>',
+        '<title id="seo-title">Live Nets — NetControl Online</title>': f'<title id="seo-title">{esc_title}</title>',
         'id="seo-description" name="description" content="Browse amateur radio and GMRS nets — schedules, frequencies, and how to check in."':
             f'id="seo-description" name="description" content="{esc_desc}"',
         'id="seo-description" name="description" content="See which amateur radio and GMRS nets are on the air right now, with live check-in rosters."':
             f'id="seo-description" name="description" content="{esc_desc}"',
         'id="seo-canonical" rel="canonical" href="/directory"': f'id="seo-canonical" rel="canonical" href="{esc_url}"',
         'id="seo-canonical" rel="canonical" href="/live"': f'id="seo-canonical" rel="canonical" href="{esc_url}"',
-        'id="seo-og-title" property="og:title" content="Net Directory — Net Tracker"': f'id="seo-og-title" property="og:title" content="{esc_title}"',
-        'id="seo-og-title" property="og:title" content="Live Nets — Net Tracker"': f'id="seo-og-title" property="og:title" content="{esc_title}"',
+        'id="seo-og-title" property="og:title" content="Net Directory — NetControl Online"': f'id="seo-og-title" property="og:title" content="{esc_title}"',
+        'id="seo-og-title" property="og:title" content="Live Nets — NetControl Online"': f'id="seo-og-title" property="og:title" content="{esc_title}"',
         'id="seo-og-description" property="og:description" content="Browse amateur radio and GMRS nets — schedules, frequencies, and how to check in."':
             f'id="seo-og-description" property="og:description" content="{esc_desc}"',
         'id="seo-og-description" property="og:description" content="See which amateur radio and GMRS nets are on the air right now, with live check-in rosters."':
@@ -2039,7 +2039,7 @@ def create_support_ticket(
     if not data.subject.strip() or not data.body.strip():
         raise HTTPException(400, "Subject and body are required")
 
-    subject = f"[Net Tracker] {data.type}: {data.subject.strip()}"
+    subject = f"[NetControl Online] {data.type}: {data.subject.strip()}"
     body_html = f"""
 <p><strong>From:</strong> {current_user.name} ({current_user.callsign})<br>
 <strong>Email:</strong> {current_user.email}<br>
@@ -2047,7 +2047,7 @@ def create_support_ticket(
 <hr>
 <p>{data.body.replace(chr(10), '<br>')}</p>
 <hr>
-<p style="color:#888;font-size:12px">Sent from Ham Radio Net Tracker by {current_user.callsign} — reply to this email to respond directly to the user.</p>
+<p style="color:#888;font-size:12px">Sent from NetControl Online by {current_user.callsign} — reply to this email to respond directly to the user.</p>
 """
     body_text = (
         f"From: {current_user.name} ({current_user.callsign})\n"
@@ -2398,18 +2398,18 @@ def admin_approve_user(user_id: int, admin: User = Depends(require_admin), db: S
     login_link = _app_url("/")
     send_email(
         to=[user.email],
-        subject="[Ham Net Tracker] Your Account Has Been Approved",
+        subject="[NetControl Online] Your Account Has Been Approved",
         body_html=f"""<div style="font-family:sans-serif;max-width:520px">
   <h2 style="color:#FF9900">Account Approved!</h2>
   <p>Hello <strong>{user.name}</strong> ({user.callsign}),</p>
-  <p>Your Ham Net Tracker account has been reviewed and approved. You can now log in and start using the system.</p>
+  <p>Your NetControl Online account has been reviewed and approved. You can now log in and start using the system.</p>
   {f'<p style="margin-top:16px"><a href="{login_link}" style="background:#FF9900;color:#000;padding:10px 20px;text-decoration:none;border-radius:20px;font-weight:bold;display:inline-block">Log In Now</a></p>' if login_link else ''}
   {f'<p style="color:#888;font-size:12px">This email box is not monitored. If you have any questions please email <a href="mailto:{ADMIN_CONTACT_EMAIL}" style="color:#FF9900">{ADMIN_CONTACT_EMAIL}</a>.</p>' if ADMIN_CONTACT_EMAIL else ''}
   <p style="color:#888;font-size:12px">If you did not request this account, please disregard this message.</p>
 </div>""",
         body_text=(
             f"Hello {user.name} ({user.callsign}),\n\n"
-            f"Your Ham Net Tracker account has been approved. You can now log in.\n\n"
+            f"Your NetControl Online account has been approved. You can now log in.\n\n"
             + (f"Log in here: {login_link}\n\n" if login_link else "")
             + (f"This email box is not monitored. If you have any questions please email {ADMIN_CONTACT_EMAIL}.\n\n" if ADMIN_CONTACT_EMAIL else "")
             + "If you did not request this account, please disregard this message."
@@ -2423,7 +2423,7 @@ class RejectUserBody(BaseModel):
     message: Optional[str] = None   # optional custom note to include in the rejection email
 
 
-GITHUB_URL = os.getenv("GITHUB_URL", "https://github.com/LadyHwesta/ham-net-tracker")
+GITHUB_URL = os.getenv("GITHUB_URL", "https://github.com/LadyHwesta/netcontrol-online")
 
 
 @app.post("/admin/users/{user_id}/reject", status_code=204)
@@ -2444,17 +2444,17 @@ def admin_reject_user(user_id: int, body: RejectUserBody = RejectUserBody(), adm
 
     github_block_html = (
         f'<p style="margin:12px 0;font-size:12px;color:#888">'
-        f'Ham Net Tracker is open source. If you\'d like to run your own instance, '
+        f'NetControl Online is open source. If you\'d like to run your own instance, '
         f'the code is available at <a href="{GITHUB_URL}" style="color:#FF9900">{GITHUB_URL}</a>.</p>'
     )
     github_block_text = (
-        f"\nHam Net Tracker is open source. If you'd like to run your own instance, "
+        f"\nNetControl Online is open source. If you'd like to run your own instance, "
         f"the code is available at {GITHUB_URL}.\n"
     )
 
     send_email(
         to=[user.email],
-        subject="[Ham Net Tracker] Registration Not Approved",
+        subject="[NetControl Online] Registration Not Approved",
         body_html=f"""<div style="font-family:sans-serif;max-width:520px">
   <h2 style="color:#FF9900">Registration Not Approved</h2>
   <p>Hello <strong>{user.name}</strong> ({user.callsign}),</p>
@@ -4585,7 +4585,7 @@ def create_signup(net_id: int, data: SignupCreate, current_user: User = Depends(
   {"<tr><td style='padding:6px 16px 6px 0;font-weight:bold'>Notes</td><td style='padding:6px 0'>" + signup.notes + "</td></tr>" if signup.notes else ""}
 </table>
 <p>A calendar event is attached — add it to your calendar to set a reminder.</p>
-<p style="color:#666;font-size:12px">73 de Ham Net Tracker</p>
+<p style="color:#666;font-size:12px">73 de NetControl Online</p>
 </body></html>"""
         body_text = (
             f"{net.name} – {role_label} Confirmation\n\n"
@@ -4595,7 +4595,7 @@ def create_signup(net_id: int, data: SignupCreate, current_user: User = Depends(
             f"  Time:      {sched.start_time} {sched.timezone}\n"
             + (f"  Frequency: {net.frequency}\n" if net.frequency else "")
             + (f"  Notes:     {signup.notes}\n" if signup.notes else "")
-            + "\nA calendar event (.ics) is attached.\n\n73 de Ham Net Tracker"
+            + "\nA calendar event (.ics) is attached.\n\n73 de NetControl Online"
         )
         try:
             ics = _build_ics(net, sched, signup, role_label=role_label)

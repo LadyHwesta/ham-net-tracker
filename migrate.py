@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Ham Net Tracker — database migration runner
+NetControl Online — database migration runner
 
 Applies all schema changes that SQLAlchemy's create_all() cannot handle
 (i.e. adding columns to existing tables).  Safe to re-run at any time;

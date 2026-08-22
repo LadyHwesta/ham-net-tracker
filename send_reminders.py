@@ -169,7 +169,7 @@ def send_due_reminders(db, now_utc: datetime = None) -> int:
                 f"starting at {local_time.strftime('%-I:%M %p %Z')} "
                 f"(in about {net.reminder_minutes_before} minutes).\n"
                 + (f"Frequency: {net.frequency}\n" if net.frequency else "")
-                + "\n73 de Ham Net Tracker"
+                + "\n73 de NetControl Online"
             )
             body_html = f"""
 <html><body style="font-family:sans-serif;color:#222;max-width:600px">
@@ -178,7 +178,7 @@ def send_due_reminders(db, now_utc: datetime = None) -> int:
 <p>Reminder — you're signed up as <strong>{role_label}</strong>, starting at
 <strong>{local_time.strftime('%-I:%M %p %Z')}</strong> (in about {net.reminder_minutes_before} minutes).</p>
 {f'<p>Frequency: {net.frequency}</p>' if net.frequency else ''}
-<p style="color:#666;font-size:12px">73 de Ham Net Tracker</p>
+<p style="color:#666;font-size:12px">73 de NetControl Online</p>
 </body></html>"""
             send_email(signup.email, subject, body_html, body_text)
             signup.reminder_sent_at = now_utc

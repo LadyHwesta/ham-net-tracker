@@ -190,7 +190,7 @@ class TestSEO:
         # "default" org's display name defaults to the branding org_name (or
         # "Default Organization") -- just confirm the placeholder default was
         # actually overwritten, not left as the generic fallback.
-        assert "Net Directory — Net Tracker" not in resp.text
+        assert "Net Directory — NetControl Online" not in resp.text
         assert 'id="seo-canonical"' in resp.text
         assert "/directory/default" in resp.text
 
@@ -206,7 +206,7 @@ class TestSEO:
     def test_directory_page_with_unknown_slug_falls_back_to_generic_meta(self, client):
         resp = client.get("/directory/does-not-exist")
         assert resp.status_code == 200
-        assert "Net Directory — Net Tracker" in resp.text
+        assert "Net Directory — NetControl Online" in resp.text
 
     def test_live_slug_page_has_noindex_but_directory_does_not(self, client):
         live_resp = client.get("/live/default")

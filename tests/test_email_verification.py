@@ -24,7 +24,7 @@ from helpers import register, auth
 
 
 def _extract_token_from_email(sent_emails):
-    verify_email = next(e for e in sent_emails if e["subject"] == "[Ham Net Tracker] Verify Your Email")
+    verify_email = next(e for e in sent_emails if e["subject"] == "[NetControl Online] Verify Your Email")
     match = re.search(r"token=([\w-]+)", verify_email["body_text"])
     assert match, "no token found in the verification email body -- is app_base_url fixture active?"
     return match.group(1)
@@ -49,14 +49,14 @@ class TestRegistrationWithSmtp:
         first-run lockout if the fresh SMTP config turns out to be wrong."""
         resp = register(client, "W1FIRST", "First User", "first@example.com")
         assert resp.json()["email_verified"] is True
-        assert not any(e["subject"] == "[Ham Net Tracker] Verify Your Email" for e in sent_emails)
+        assert not any(e["subject"] == "[NetControl Online] Verify Your Email" for e in sent_emails)
 
     def test_second_user_requires_verification(self, client, smtp_configured, sent_emails):
         register(client, "W1FIRST", "First User", "first@example.com")
         resp = register(client, "W2SECOND", "Second User", "second@example.com")
         assert resp.json()["email_verified"] is False
 
-        verify_emails = [e for e in sent_emails if e["subject"] == "[Ham Net Tracker] Verify Your Email"]
+        verify_emails = [e for e in sent_emails if e["subject"] == "[NetControl Online] Verify Your Email"]
         assert len(verify_emails) == 1
         assert verify_emails[0]["to"] == ["second@example.com"]
 

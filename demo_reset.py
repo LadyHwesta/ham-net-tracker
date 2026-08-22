@@ -6,7 +6,7 @@ Wipes all application data and recreates a clean database with a single
 demo admin account, then reloads the GMRS licence database from a local
 archive (faster than re-downloading 54 MB each time).
 
-Intended for the public demo site at nettrackerdemo.meskis.net.
+Intended for the public demo site at demo.netcontrol.online.
 
 Usage
 -----
@@ -50,7 +50,7 @@ PYTHON = sys.executable   # same virtualenv python
 # Demo admin credentials
 DEMO_CALLSIGN = "D3MO"
 DEMO_NAME     = "Demo Account"
-DEMO_EMAIL    = "demo@nettrackerdemo.meskis.net"
+DEMO_EMAIL    = "demo@demo.netcontrol.online"
 DEMO_PASSWORD = "Abcd1234"
 
 

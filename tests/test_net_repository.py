@@ -250,7 +250,7 @@ class TestRequestKeyEndpoint:
         monkeypatch.setattr(httpx, "post", fake_post)
 
         resp = client.post("/admin/net-repository/request-key", json={
-            "name": "My Ham Net Tracker Instance",
+            "name": "My NetControl Online Instance",
             "contact_callsign": "W7XYZ",
             "instance_url": "https://mytracker.example.com",
             "request_notes": "Please approve!",
@@ -262,7 +262,7 @@ class TestRequestKeyEndpoint:
         assert data["request_id"] == 7
 
         assert calls[0]["url"] == "https://netrepo.example.com/keys/request"
-        assert calls[0]["json"]["name"] == "My Ham Net Tracker Instance"
+        assert calls[0]["json"]["name"] == "My NetControl Online Instance"
         assert calls[0]["json"]["contact_callsign"] == "W7XYZ"
 
         status_resp = client.get("/admin/net-repository/status", headers=admin_headers)

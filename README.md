@@ -1,16 +1,16 @@
-# Ham Radio Net Tracker
+# NetControl Online
 
-A web-based net control logging application for amateur radio operators. Designed for Net Control Stations (NCS) to efficiently manage check-ins, track traffic, and log net sessions.
+A web-based net control logging application for amateur radio and GMRS operators. Designed for Net Control Stations (NCS) to efficiently manage check-ins, track traffic, and log net sessions.
 
 ![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)
 
 ## Live Demo
 
-A public demo is available at **[nettrackerdemo.meskis.net](https://nettrackerdemo.meskis.net)**. Feel free to explore all features — the database resets automatically every 4 hours.
+A public demo is available at **[demo.netcontrol.online](https://demo.netcontrol.online)**. Feel free to explore all features — the database resets automatically every 4 hours.
 
 | Field | Value |
 |-------|-------|
-| URL | https://nettrackerdemo.meskis.net |
+| URL | https://demo.netcontrol.online |
 | Callsign | `D3MO` |
 | Password | `Abcd1234` |
 
@@ -68,8 +68,8 @@ A public demo is available at **[nettrackerdemo.meskis.net](https://nettrackerde
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/LadyHwesta/ham-net-tracker.git
-cd ham-net-tracker
+git clone https://github.com/LadyHwesta/netcontrol-online.git
+cd netcontrol-online
 ```
 
 ### 2. Install Python dependencies
@@ -148,7 +148,7 @@ Create `/etc/systemd/system/nettracker.service`:
 
 ```ini
 [Unit]
-Description=Ham Radio Net Tracker
+Description=NetControl Online
 After=network.target postgresql.service
 
 [Service]
@@ -217,7 +217,7 @@ A public, unauthenticated directory of nets is available at `/directory` — for
 
 ## Net Repository Integration
 
-Nets opted into the Public Net Directory (above) can also be pushed to [Net Repository](https://github.com/LadyHwesta/Net-Repository) — a separate, community-run central directory that multiple Ham Net Tracker instances (and other tools) can publish to and be discovered from.
+Nets opted into the Public Net Directory (above) can also be pushed to [Net Repository](https://github.com/LadyHwesta/Net-Repository) — a separate, community-run central directory that multiple NetControl Online instances (and other tools) can publish to and be discovered from.
 
 **Setup** — set `NET_REPOSITORY_URL` in `.env` (see `.env.example`); this app has no way to request or use a key without knowing which instance to talk to. Leave it blank to disable the integration entirely; nothing is sent anywhere. For the API key, two options:
 
