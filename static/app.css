@@ -295,41 +295,48 @@
     .badge-blue   { background: var(--badge-blue-bg); color: var(--lc-blue); border: 1px solid var(--lc-blue); }
     .badge-orange { background: var(--badge-orange-bg); color: var(--lc-orange); border: 1px solid var(--lc-orange); }
 
-    /* ===== AUTH PAGE ===== */
+    /* ===== AUTH PAGE =====
+       Single centered column: header (logo/title/tagline/external links),
+       then the login/register panel with the org callout under it, then a
+       footer pinned to the bottom of the viewport (via margin-top:auto on
+       #auth-footer) when the page content is shorter than the screen, or
+       simply following the content otherwise — the standard no-JS CSS
+       sticky-footer pattern. */
     #auth-page {
-      display: flex; align-items: center; justify-content: center;
+      display: flex; flex-direction: column; align-items: center;
       min-height: 100vh; background: var(--bg);
-      padding: 32px 20px;
-    }
-    #auth-layout {
-      display: flex; gap: 40px; align-items: flex-start;
-      max-width: 820px; width: 100%;
+      padding: 40px 20px 0;
     }
 
-    /* ===== WELCOME PANEL ===== */
-    #auth-welcome {
-      flex: 1; min-width: 260px;
-      padding-top: 8px;
+    /* ===== HEADER =====
+       Overrides the generic header{display:flex;...} rule above (meant for
+       the logged-in app's own header bar) — #auth-header needs its children
+       to stack vertically, not sit in a row. */
+    #auth-header {
+      display: block;
+      width: 100%; max-width: 480px;
+      text-align: center;
+      margin-bottom: 36px;
     }
-    .auth-welcome-logo {
-      font-size: 52px; line-height: 1; margin-bottom: 10px;
+    .auth-header-logo {
+      font-size: 60px; line-height: 1; margin-bottom: 10px;
     }
-    .auth-welcome-title {
-      font-size: 28px; font-weight: 900; letter-spacing: 3px;
+    .auth-header-title {
+      font-size: 34px; font-weight: 900; letter-spacing: 3px;
       text-transform: uppercase; color: var(--lc-orange);
-      margin-bottom: 2px;
+      margin-bottom: 4px;
     }
-    .auth-welcome-sub {
-      font-size: 10px; font-weight: 700; letter-spacing: 2px;
+    .auth-header-sub {
+      font-size: 11px; font-weight: 700; letter-spacing: 2px;
       text-transform: uppercase; color: var(--lc-blue);
-      margin-bottom: 18px;
+      margin-bottom: 16px;
     }
-    .auth-welcome-desc {
-      font-size: 13px; color: var(--text); opacity: .8; line-height: 1.7;
-      margin-bottom: 24px;
+    .auth-header-tagline {
+      font-size: 14px; color: var(--text); opacity: .8; line-height: 1.6;
+      margin: 0 auto 22px; max-width: 380px;
     }
-    .auth-welcome-links {
-      display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 28px;
+    .auth-header-links {
+      display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;
     }
     .auth-ext-btn {
       display: inline-flex; align-items: center; gap: 7px;
@@ -341,11 +348,21 @@
     }
     .auth-ext-btn:hover { background: var(--accent-tint); border-color: var(--lc-orange); color: var(--lc-orange); }
 
+    /* ===== MAIN (login panel + org callout) =====
+       Overrides the generic main{display:flex;...} rule above (meant for the
+       logged-in app's sidebar+content row) — #auth-main needs its two
+       children (the login panel, then the org callout) to stack vertically. */
+    #auth-main {
+      display: block;
+      width: 100%; max-width: 400px;
+      margin-bottom: 40px;
+    }
+
     /* Organization callout (issue #1 — multi-tenancy) */
     .auth-org-box {
       border-top: 1px solid var(--overlay-med);
+      margin-top: 22px;
       padding-top: 20px;
-      margin-bottom: 20px;
     }
     .auth-org-heading {
       font-size: 11px; font-weight: 700; text-transform: uppercase;
@@ -355,11 +372,18 @@
       font-size: 12px; color: var(--muted); line-height: 1.6;
     }
 
-    /* Donate box */
-    .auth-donate-box {
+    /* ===== FOOTER ===== */
+    #auth-footer {
+      margin-top: auto;
+      width: 100%;
       border-top: 1px solid var(--overlay-med);
-      padding-top: 20px;
+      padding: 24px 20px 28px;
+      text-align: center;
     }
+    #auth-footer .auth-donate-desc { max-width: 420px; margin-left: auto; margin-right: auto; }
+    #auth-footer .auth-donate-btns { justify-content: center; }
+
+    /* Donate box (heading/desc/btns are reused inside #auth-footer, see above) */
     .auth-donate-heading {
       font-size: 11px; font-weight: 700; text-transform: uppercase;
       letter-spacing: 2px; color: var(--lc-gold); margin-bottom: 8px;
@@ -544,13 +568,11 @@
     }
     #sidebar-overlay.show { display: block; }
 
-    @media (max-width: 700px) {
-      /* Auth page stacks on mobile */
-      #auth-layout { flex-direction: column; align-items: stretch; gap: 28px; padding: 24px 0; }
-      #auth-box { width: 100%; }
-      #auth-welcome { order: 2; padding-top: 0; border-top: 1px solid var(--hairline); padding-top: 24px; }
-      .auth-welcome-logo { font-size: 36px; }
-      .auth-welcome-title { font-size: 22px; }
+    @media (max-width: 480px) {
+      /* Auth page is already a single centered column by default -- just
+         scale the header down on small phones. */
+      .auth-header-logo { font-size: 44px; }
+      .auth-header-title { font-size: 26px; }
     }
 
     @media (max-width: 768px) {

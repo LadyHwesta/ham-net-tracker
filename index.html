@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230a0a1a'/%3E%3C!-- Tower base --%3E%3Crect x='15' y='20' width='2' height='8' fill='%23ff9900'/%3E%3Crect x='11' y='27' width='10' height='2' rx='1' fill='%23ff9900'/%3E%3C!-- Tower mast --%3E%3Crect x='15.5' y='6' width='1' height='14' fill='%23ff9900'/%3E%3C!-- Signal arcs --%3E%3Cpath d='M10 14 A8 8 0 0 1 22 14' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M7 18 A11 11 0 0 1 25 18' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round' opacity='0.6'/%3E%3Cpath d='M4 22 A14 14 0 0 1 28 22' stroke='%230099ff' stroke-width='1.5' fill='none' stroke-linecap='round' opacity='0.3'/%3E%3C!-- Tip dot --%3E%3Ccircle cx='16' cy='6' r='1.5' fill='%23ff9900'/%3E%3C/svg%3E" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/app.css?v=18">
+  <link rel="stylesheet" href="/static/app.css?v=19">
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#0a0a1a" />
   <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png" />
@@ -20,55 +20,28 @@
 
 <!-- AUTH PAGE -->
 <div id="auth-page">
-  <div id="auth-layout">
 
-    <!-- Left: Welcome panel -->
-    <div id="auth-welcome">
-      <div class="auth-welcome-logo">📻</div>
-      <h1 class="auth-welcome-title">Net Tracker</h1>
-      <p class="auth-welcome-sub">Amateur &amp; GMRS Net Logging</p>
-      <p class="auth-welcome-desc">
-        A free, open-source net check-in logger built for net control operators.
-        Track check-ins, look up callsigns in real time, log traffic, and export
-        session records — all from your browser.
-      </p>
-
-      <div class="auth-welcome-links">
-        <a href="https://netcontrol.meskis.net/live" target="_blank" class="auth-ext-btn">
-          <span>📡</span> Live Net Status
-        </a>
-        <a href="https://github.com/LadyHwesta/ham-net-tracker" target="_blank" class="auth-ext-btn">
-          <span>💻</span> GitHub
-        </a>
-      </div>
-
-      <div class="auth-org-box">
-        <div class="auth-org-heading">🏢 Bring Your Own Group</div>
-        <p class="auth-org-desc">
-          Running a net for your club, ARES section, or GMRS group? When you register,
-          create your own private <strong>Organization</strong> — your nets, sessions, and
-          check-ins stay separate from everyone else's, even on a shared install.
-        </p>
-      </div>
-
-      <div class="auth-donate-box">
-        <div class="auth-donate-heading">☕ Support Hosting</div>
-        <p class="auth-donate-desc">
-          This app is free to use. If it's been helpful to you,
-          a small contribution helps keep the server running.
-        </p>
-        <div class="auth-donate-btns">
-          <a href="https://venmo.com/TiesaMM" target="_blank" class="donate-btn donate-venmo">
-            Venmo @TiesaMM
-          </a>
-          <a href="https://www.paypal.com/ncp/payment/RJ645T8FJA8KU" target="_blank" class="donate-btn donate-paypal">
-            PayPal
-          </a>
-        </div>
-      </div>
+  <!-- Page header -->
+  <header id="auth-header">
+    <div class="auth-header-logo">📻</div>
+    <h1 class="auth-header-title">Net Tracker</h1>
+    <p class="auth-header-sub">Amateur &amp; GMRS Net Logging</p>
+    <p class="auth-header-tagline">A free, open-source net check-in logger built for net control operators</p>
+    <div class="auth-header-links">
+      <a href="https://netcontrol.meskis.net/live" target="_blank" class="auth-ext-btn">
+        <span>📡</span> Live Net Status
+      </a>
+      <a href="https://github.com/LadyHwesta/ham-net-tracker" target="_blank" class="auth-ext-btn">
+        <span>💻</span> GitHub
+      </a>
+      <a href="/directory" class="auth-ext-btn">
+        <span>📖</span> Net Directory
+      </a>
     </div>
+  </header>
 
-    <!-- Right: Login / Register form -->
+  <main id="auth-main">
+    <!-- Login / Register form -->
     <div id="auth-box">
       <div class="auth-lcars-bar"><span>📻</span> Ham Radio Net Tracker</div>
       <h1>📻 Net Tracker</h1>
@@ -137,7 +110,31 @@
       </div>
     </div>
 
-  </div>
+    <div class="auth-org-box">
+      <div class="auth-org-heading">🏢 Bring Your Own Group</div>
+      <p class="auth-org-desc">
+        Running a net for your club, ARES section, or GMRS group? When you register,
+        create your own private <strong>Organization</strong> — your nets, sessions, and
+        check-ins stay separate from everyone else's, even on a shared install.
+      </p>
+    </div>
+  </main>
+
+  <footer id="auth-footer">
+    <div class="auth-donate-heading">☕ Support Hosting</div>
+    <p class="auth-donate-desc">
+      This app is free to use. If it's been helpful to you,
+      a small contribution helps keep the server running.
+    </p>
+    <div class="auth-donate-btns">
+      <a href="https://venmo.com/TiesaMM" target="_blank" class="donate-btn donate-venmo">
+        Venmo @TiesaMM
+      </a>
+      <a href="https://www.paypal.com/ncp/payment/RJ645T8FJA8KU" target="_blank" class="donate-btn donate-paypal">
+        PayPal
+      </a>
+    </div>
+  </footer>
 </div>
 
 <!-- Sidebar overlay (mobile) -->

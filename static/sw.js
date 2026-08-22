@@ -21,11 +21,11 @@
 // entry just means offline mode serves an older shell, not a broken one,
 // but it's worth keeping current.
 
-const CACHE_NAME = 'net-tracker-shell-v24';
+const CACHE_NAME = 'net-tracker-shell-v25';
 
 const PRECACHE_URLS = [
   '/',
-  '/static/app.css?v=18',
+  '/static/app.css?v=19',
   '/static/js/state.js?v=22',
   '/static/js/utils.js?v=21',
   '/static/js/auth.js?v=24',
